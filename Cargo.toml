@@ -1,0 +1,12 @@
+[package]
+name = "jig-cli"
+version = "0.1.0"
+edition = "2024"
+description = "Template rendering CLI for LLM code generation workflows"
+license = "MIT"
+
+[[bin]]
+name = "jig"
+path = "src/main.rs"
+
+[dependencies]
