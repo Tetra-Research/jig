@@ -1,0 +1,1 @@
+/Users/tylerobriant/code/mentat/.claude/commands/ws-init.md
