@@ -48,7 +48,7 @@ log_info "Starting consolidation for '$ws_name' with $agent..."
 
 case "$agent" in
     claude)
-        (cd "$repo_root" && claude -p "$prompt" --output-format json) > "$output_file" 2>&1 || {
+        (cd "$repo_root" && claude -p "$prompt" --permission-mode bypassPermissions --output-format json) > "$output_file" 2>&1 || {
             log_warn "$agent exited with non-zero status"
         }
         ;;

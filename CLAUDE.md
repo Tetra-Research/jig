@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Status
 
-This is a **pre-implementation** project. The repository currently contains only `jig.md` — a comprehensive design specification. No Rust code, Cargo.toml, or build infrastructure exists yet.
+**v0.1 core engine complete.** Recipe parsing, variable validation, Jinja2 template rendering, create and inject file operations all working. 191 tests passing. Next up: patch/replace operations (v0.2), workflows (v0.3), libraries (v0.4).
 
 ## What jig Is
 
@@ -14,7 +14,7 @@ The full specification lives in `jig.md`. Read it before making architectural de
 
 ## Language and Build
 
-Rust. Once implementation begins:
+Rust.
 
 ```bash
 cargo build              # build

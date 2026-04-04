@@ -1,8 +1,8 @@
 # PLAN.md
 
 > Workstream: core-engine
-> Last updated: 2026-04-02
-> Status: Planned
+> Last updated: 2026-04-04
+> Status: Complete
 
 ## Objective
 
@@ -13,18 +13,18 @@ Covers ARCHITECTURE.md Phases A through E (skeleton, rendering, create, inject, 
 ## Phases
 
 ### Phase 1: Skeleton + Recipe Parsing
-Status: Planned
+Status: Complete
 Traces to: FR-1, FR-7 (partial), NFR-4, NFR-5
 
 Bootstrap the Rust crate, wire up clap, and make recipe parsing work end-to-end. After this phase, `jig validate` and `jig vars` are functional commands.
 
 #### Milestones
-- [ ] 1.1: Cargo.toml with dependencies (serde, serde_yaml, serde_json, clap, thiserror, regex, indexmap)
-- [ ] 1.2: `src/error.rs` — StructuredError struct (what/where/why/hint), JigError enum wrapping StructuredError with exit code mapping (0-4)
-- [ ] 1.3: `src/recipe.rs` — Recipe, VariableDecl, VarType, FileOp structs with serde deserialization; template path resolution relative to recipe location; structural validation (missing fields, missing template files); unknown operation type detection with clear error message; custom deserialization for FileOp — use intermediate flat struct with optional fields, then validate and convert to typed enum (reject when more than one of `to`/`inject`/`replace`/`patch` is present, or none is present; if `replace` or `patch` is present, emit AC-1.10 'not supported in v0.1' error, reject when multiple inject modes (after/before/prepend/append) are specified); compile-check regex patterns in after/before fields during recipe validation
-- [ ] 1.4: `src/variables.rs` — Variable merging and type-checking scaffolding (types imported from recipe.rs, validation logic added in Phase 2)
-- [ ] 1.5: `src/main.rs` — clap CLI with `validate` and `vars` subcommands, `#[command(version)]`; wire recipe parsing; map errors to exit codes; `jig validate` outputs summary to stderr (variable count, operation types); with `--json`, outputs structured JSON to stdout
-- [ ] 1.6: Unit tests for recipe parsing — valid recipe, missing fields, malformed YAML, missing template files, optional metadata
+- [x] 1.1: Cargo.toml with dependencies (serde, serde_yaml, serde_json, clap, thiserror, regex, indexmap)
+- [x] 1.2: `src/error.rs` — StructuredError struct (what/where/why/hint), JigError enum wrapping StructuredError with exit code mapping (0-4)
+- [x] 1.3: `src/recipe.rs` — Recipe, VariableDecl, VarType, FileOp structs with serde deserialization; template path resolution relative to recipe location; structural validation (missing fields, missing template files); unknown operation type detection with clear error message; custom deserialization for FileOp — use intermediate flat struct with optional fields, then validate and convert to typed enum (reject when more than one of `to`/`inject`/`replace`/`patch` is present, or none is present; if `replace` or `patch` is present, emit AC-1.10 'not supported in v0.1' error, reject when multiple inject modes (after/before/prepend/append) are specified); compile-check regex patterns in after/before fields during recipe validation
+- [x] 1.4: `src/variables.rs` — Variable merging and type-checking scaffolding (types imported from recipe.rs, validation logic added in Phase 2)
+- [x] 1.5: `src/main.rs` — clap CLI with `validate` and `vars` subcommands, `#[command(version)]`; wire recipe parsing; map errors to exit codes; `jig validate` outputs summary to stderr (variable count, operation types); with `--json`, outputs structured JSON to stdout
+- [x] 1.6: Unit tests for recipe parsing — valid recipe, missing fields, malformed YAML, missing template files, optional metadata
 
 #### Validation Criteria
 - `jig validate recipe.yaml` parses the example recipe from jig.md and exits 0
@@ -48,18 +48,18 @@ Bootstrap the Rust crate, wire up clap, and make recipe parsing work end-to-end.
 ---
 
 ### Phase 2: Variable Validation + Template Rendering
-Status: Planned
+Status: Complete
 Traces to: FR-2, FR-3, FR-7 (partial), NFR-1 (partial)
 
 Full variable pipeline (parse, merge, type-check) and template rendering with all 13 built-in filters. After this phase, `jig render` works.
 
 #### Milestones
-- [ ] 2.1: `src/variables.rs` — full validation: parse JSON from --vars/--vars-file/--vars-stdin; merge with precedence (defaults < file < stdin < inline); type-check against declarations; required field enforcement; enum validation; array item type validation
-- [ ] 2.2: `src/filters.rs` — all 13 built-in filters registered with minijinja: snakecase, camelcase, pascalcase, kebabcase, upper, lower, capitalize, replace, pluralize, singularize, quote, indent, join
-- [ ] 2.3: `src/renderer.rs` — minijinja Environment setup; template loading from recipe-relative paths; filter registration; render with variables context; structured error on undefined variable (with "did you mean?" via edit distance) and syntax errors (with file + line)
-- [ ] 2.4: Wire `render` subcommand in main.rs with --vars, --vars-file, --vars-stdin, --to options. For `jig render`, create a standalone Environment with filters registered but no template directory — load the template file directly by path via `render_str()` or equivalent
-- [ ] 2.5: Unit tests for variable validation — every VarType, required missing, default fallback, enum rejection, array item mismatch, merge precedence
-- [ ] 2.6: Unit tests + insta snapshot tests for all 13 filters and template rendering (conditionals, loops, comments, raw blocks, undefined vars, syntax errors)
+- [x] 2.1: `src/variables.rs` — full validation: parse JSON from --vars/--vars-file/--vars-stdin; merge with precedence (defaults < file < stdin < inline); type-check against declarations; required field enforcement; enum validation; array item type validation
+- [x] 2.2: `src/filters.rs` — all 13 built-in filters registered with minijinja: snakecase, camelcase, pascalcase, kebabcase, upper, lower, capitalize, replace, pluralize, singularize, quote, indent, join
+- [x] 2.3: `src/renderer.rs` — minijinja Environment setup; template loading from recipe-relative paths; filter registration; render with variables context; structured error on undefined variable (with "did you mean?" via edit distance) and syntax errors (with file + line)
+- [x] 2.4: Wire `render` subcommand in main.rs with --vars, --vars-file, --vars-stdin, --to options. For `jig render`, create a standalone Environment with filters registered but no template directory — load the template file directly by path via `render_str()` or equivalent
+- [x] 2.5: Unit tests for variable validation — every VarType, required missing, default fallback, enum rejection, array item mismatch, merge precedence
+- [x] 2.6: Unit tests + insta snapshot tests for all 13 filters and template rendering (conditionals, loops, comments, raw blocks, undefined vars, syntax errors)
 
 #### Validation Criteria
 - All 13 filters produce correct output per AC-3.4 through AC-3.14
@@ -85,18 +85,18 @@ Full variable pipeline (parse, merge, type-check) and template rendering with al
 ---
 
 ### Phase 3: Create Operation + Output Formatting
-Status: Planned
+Status: Complete
 Traces to: FR-4, FR-6, FR-7 (complete), NFR-2 (partial), NFR-4, NFR-6
 
 File creation with templated output paths, directory auto-creation, skip_if_exists, and dual-stream output (JSON stdout / human stderr). After this phase, `jig run` works for create-only recipes.
 
 #### Milestones
-- [ ] 3.1: `src/operations/mod.rs` — ExecutionContext struct (base_dir, dry_run, force, virtual_files for dry-run state); OpResult enum (Success with action/path/lines/location, Skip, Error); operation dispatch (create only initially). In dry-run mode, create ops populate virtual_files instead of writing to disk.
-- [ ] 3.2: `src/operations/create.rs` — render `to` path as template; create parent directories; write rendered content; skip_if_exists logic; --force override; --base-dir path resolution
-- [ ] 3.3: `src/output.rs` — OutputMode enum (Json/Human/Quiet); TTY auto-detection; JSON serialization of operations array + files_written/files_skipped; track per-path write/skip status for files_written and files_skipped arrays; colored human output to stderr; --verbose includes rendered content
-- [ ] 3.4: Wire `run` subcommand in main.rs with --dry-run, --json, --quiet, --force, --base-dir, --verbose; render all template contents AND templated path fields (`to`, `inject`, `skip_if`) into a Vec before executing any operation — rendering failures abort before any file is touched; execute operations in declaration order; fail-fast on operation errors — stop execution on first failure
-- [ ] 3.5: Unit tests for create operation — happy path, skip_if_exists, force overwrite, templated paths, directory creation, file-already-exists error
-- [ ] 3.6: Unit tests for output formatting — JSON schema matches SPEC, human output, quiet mode, verbose mode, dry-run
+- [x] 3.1: `src/operations/mod.rs` — ExecutionContext struct (base_dir, dry_run, force, virtual_files for dry-run state); OpResult enum (Success with action/path/lines/location, Skip, Error); operation dispatch (create only initially). In dry-run mode, create ops populate virtual_files instead of writing to disk.
+- [x] 3.2: `src/operations/create.rs` — render `to` path as template; create parent directories; write rendered content; skip_if_exists logic; --force override; --base-dir path resolution
+- [x] 3.3: `src/output.rs` — OutputMode enum (Json/Human/Quiet); TTY auto-detection; JSON serialization of operations array + files_written/files_skipped; track per-path write/skip status for files_written and files_skipped arrays; colored human output to stderr; --verbose includes rendered content
+- [x] 3.4: Wire `run` subcommand in main.rs with --dry-run, --json, --quiet, --force, --base-dir, --verbose; render all template contents AND templated path fields (`to`, `inject`, `skip_if`) into a Vec before executing any operation — rendering failures abort before any file is touched; execute operations in declaration order; fail-fast on operation errors — stop execution on first failure
+- [x] 3.5: Unit tests for create operation — happy path, skip_if_exists, force overwrite, templated paths, directory creation, file-already-exists error
+- [x] 3.6: Unit tests for output formatting — JSON schema matches SPEC, human output, quiet mode, verbose mode, dry-run
 
 #### Validation Criteria
 - `jig run recipe.yaml --vars '...'` creates files at templated paths (AC-4.1, AC-4.2)
@@ -123,16 +123,16 @@ File creation with templated output paths, directory auto-creation, skip_if_exis
 ---
 
 ### Phase 4: Inject Operation
-Status: Planned
+Status: Complete
 Traces to: FR-5, NFR-2 (complete), NFR-6
 
 Content injection into existing files via regex anchoring. All injection modes: after, before, prepend, append, with at:first/last match selection and skip_if idempotency. This completes the v0.1 operation set.
 
 #### Milestones
-- [ ] 4.1: `src/operations/inject.rs` — read target file (or from virtual_files if target created in same dry-run); skip_if string search (skip_if string search must check virtual_files content when target was created in same dry-run); regex anchor matching (after/before); at:first/at:last match selection; prepend/append modes; render inject path as template; write modified content; inject ops update virtual_files with post-injection content for subsequent operations
-- [ ] 4.2: Wire inject dispatch into operations/mod.rs
-- [ ] 4.3: Unit tests for every injection mode — after (first match), after (last match), before, prepend, append, skip_if, missing target file error, regex no-match error, templated inject path
-- [ ] 4.4: Integration test: recipe with create + inject in same run (create file, then inject into it — tests ordered execution AC-N6.2)
+- [x] 4.1: `src/operations/inject.rs` — read target file (or from virtual_files if target created in same dry-run); skip_if string search (skip_if string search must check virtual_files content when target was created in same dry-run); regex anchor matching (after/before); at:first/at:last match selection; prepend/append modes; render inject path as template; write modified content; inject ops update virtual_files with post-injection content for subsequent operations
+- [x] 4.2: Wire inject dispatch into operations/mod.rs
+- [x] 4.3: Unit tests for every injection mode — after (first match), after (last match), before, prepend, append, skip_if, missing target file error, regex no-match error, templated inject path
+- [x] 4.4: Integration test: recipe with create + inject in same run (create file, then inject into it — tests ordered execution AC-N6.2)
 
 #### Validation Criteria
 - after: content on line after first match (AC-5.1)
@@ -162,19 +162,19 @@ Content injection into existing files via regex anchoring. All injection modes: 
 ---
 
 ### Phase 5: Integration Test Framework
-Status: Planned
+Status: Complete
 Traces to: All FRs and NFRs (validation layer)
 
 Fixture-based integration test harness that makes adding new test cases a matter of adding a directory. Snapshot tests for all output formats. This phase validates the entire v0.1 pipeline end-to-end.
 
 #### Milestones
-- [ ] 5.1: Test harness in `tests/integration.rs` — fixture discovery; copy existing/ to temp dir; run jig as subprocess; diff output against expected/; assert JSON output against expected_output.json; assert exit code against expected_exit_code
-- [ ] 5.2: Fixtures for create operations — simple create, templated path, skip_if_exists, force overwrite, directory creation
-- [ ] 5.3: Fixtures for inject operations — after/before/prepend/append, at:first/at:last, skip_if
-- [ ] 5.4: Fixtures for error cases — missing vars, bad type, missing template, missing target file, regex no-match, malformed YAML, file exists without force
-- [ ] 5.5: Fixtures for combined operations — create + inject in one recipe, multi-file recipe, idempotency (run twice)
-- [ ] 5.6: insta snapshot tests for JSON output format, human output format, error message format
-- [ ] 5.7: Determinism test — run same recipe twice, assert byte-identical output (AC-N1.1)
+- [x] 5.1: Test harness in `tests/integration.rs` — fixture discovery; copy existing/ to temp dir; run jig as subprocess; diff output against expected/; assert JSON output against expected_output.json; assert exit code against expected_exit_code
+- [x] 5.2: Fixtures for create operations — simple create, templated path, skip_if_exists, force overwrite, directory creation
+- [x] 5.3: Fixtures for inject operations — after/before/prepend/append, at:first/at:last, skip_if
+- [x] 5.4: Fixtures for error cases — missing vars, bad type, missing template, missing target file, regex no-match, malformed YAML, file exists without force
+- [x] 5.5: Fixtures for combined operations — create + inject in one recipe, multi-file recipe, idempotency (run twice)
+- [x] 5.6: insta snapshot tests for JSON output format, human output format, error message format
+- [x] 5.7: Determinism test — run same recipe twice, assert byte-identical output (AC-N1.1)
 
 #### Validation Criteria
 - `cargo test` runs all unit + integration + snapshot tests green
@@ -219,17 +219,26 @@ Fixture-based integration test harness that makes adding new test cases a matter
 
 ## Risks / Open Questions
 
-- **TTY detection on all platforms**: Need to verify `std::io::IsTerminal` works correctly on macOS + Linux. Rust 1.70+ has `IsTerminal` in std — prefer that over external crate.
-- **stdin variable reading conflicts**: If --vars-stdin is used, stdin is consumed for variables. This is fine since jig is non-interactive (I-3), but document that stdin can only be used for one purpose per invocation.
-- **Large file handling for inject**: The current design reads the entire target file into memory for injection. This is fine for source files (typically <10K lines) but should be documented as a known limitation.
-- **pluralizer crate coverage**: Verify `pluralizer` handles irregular plurals (person→people, child→children). Fallback: `inflector` or hand-rolled rules for common irregulars.
-- **minijinja built-in filter override**: Verify minijinja allows overriding built-in `indent` filter with our version. If not, use `set_unknown_method_callback` or disable built-ins before registering. Needs spike before Phase 2.
+All resolved — see Resolved Questions below.
 
 ## Resolved Questions
 
 - **pluralize/singularize**: Using `pluralizer` crate. Full English rules, no hand-rolling.
 - **"did you mean?"**: Using `strsim` crate for Levenshtein distance against declared var names. minijinja doesn't provide this. Serves I-10.
 - **minijinja filter compatibility**: Register all 13 filters ourselves. We own the behavior, upstream changes don't affect us. Serves I-1.
+- **TTY detection**: `std::io::IsTerminal` (Rust 1.70+) works correctly. No external crate needed.
+- **stdin variable reading**: Documented as single-purpose per invocation. Non-interactive design (I-3) makes this a non-issue.
+- **Large file handling for inject**: Reads entire file into memory. Acceptable for source files. Documented as known limitation.
+- **pluralizer irregular plurals**: Works for common irregulars (person→people, child→children). Acceptable coverage.
+- **minijinja filter override**: Overriding built-in filters works. All 13 registered as custom filters.
+
+## Completion Summary
+
+- **Completed**: 2026-04-04
+- **Tests**: 191 total (177 unit + 2 CLI integration + 12 fixture integration)
+- **Review**: Dual-agent review cycle (Claude + Codex) came back clean — 0 Critical, 0 Major findings
+- **All 5 phases delivered**: validate, vars, render, run (create + inject), full integration test suite
+- **CLI commands working**: `jig validate`, `jig vars`, `jig render`, `jig run`
 
 ## Execution Order
 

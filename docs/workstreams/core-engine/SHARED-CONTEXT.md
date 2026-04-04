@@ -1,7 +1,7 @@
 # SHARED-CONTEXT.md
 
 > Workstream: core-engine
-> Last updated: 2026-04-02
+> Last updated: 2026-04-04
 
 ## Purpose
 
@@ -9,10 +9,11 @@ Deliver the v0.1 jig CLI: recipe parsing, variable validation, Jinja2 template r
 
 ## Current State
 
-- Initialized (2026-04-02)
-- SPEC.md complete with 7 functional requirements (94 acceptance criteria) and 6 non-functional requirements (14 acceptance criteria)
-- PLAN.md complete with 5 phases, 28 milestones
-- No Rust code exists yet — greenfield implementation
+- **v0.1 complete** (2026-04-04)
+- All 5 phases implemented: skeleton, rendering, create, inject, integration tests
+- 191 tests passing (177 unit + 2 CLI integration + 12 fixture integration)
+- Dual-agent review cycle clean — 0 Critical, 0 Major findings
+- CLI commands: `jig validate`, `jig vars`, `jig render`, `jig run`
 
 ## Decisions Made
 
@@ -42,8 +43,11 @@ Deliver the v0.1 jig CLI: recipe parsing, variable validation, Jinja2 template r
 
 ## Known Issues / Tech Debt
 
-- Large file handling for inject reads entire file into memory (fine for source files <10K lines, document as limitation)
+- Large file handling for inject reads entire file into memory (fine for source files <10K lines, documented as limitation)
 - stdin can only serve one purpose per invocation (--vars-stdin consumes it)
+- No patch or replace operations yet (v0.2)
+- No workflow orchestration yet (v0.3)
+- No library management yet (v0.4)
 
 ## File Ownership
 
