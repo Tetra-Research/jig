@@ -1,0 +1,18 @@
+---
+source: tests/integration.rs
+expression: pretty
+---
+{
+  "dry_run": false,
+  "operations": [
+    {
+      "action": "skip",
+      "path": "conftest.py",
+      "reason": "skip_if matched: booking"
+    }
+  ],
+  "files_written": [],
+  "files_skipped": [
+    "conftest.py"
+  ]
+}

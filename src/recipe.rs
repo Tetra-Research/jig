@@ -66,7 +66,6 @@ pub enum MatchPosition {
 }
 
 #[derive(Debug, Clone)]
-#[allow(dead_code)] // Fields read in later phases
 pub enum InjectMode {
     After { pattern: String, at: MatchPosition },
     Before { pattern: String, at: MatchPosition },
@@ -75,7 +74,6 @@ pub enum InjectMode {
 }
 
 #[derive(Debug, Clone)]
-#[allow(dead_code)] // Fields read in later phases
 pub enum FileOp {
     Create {
         template: String,

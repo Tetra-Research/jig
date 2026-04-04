@@ -1,0 +1,11 @@
+name: error-template-syntax
+description: Template with Jinja2 syntax error
+
+variables:
+  name:
+    type: string
+    required: true
+
+files:
+  - template: templates/broken.j2
+    to: "output.txt"

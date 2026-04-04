@@ -1,0 +1,8 @@
+{
+  "dry_run": false,
+  "operations": [
+    {"action": "inject", "path": "config.txt", "lines": 1, "location": "append"}
+  ],
+  "files_written": ["config.txt"],
+  "files_skipped": []
+}

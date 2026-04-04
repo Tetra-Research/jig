@@ -1,0 +1,9 @@
+name: create-skip-if-exists
+description: Create with skip_if_exists — existing file should not be overwritten.
+
+variables: {}
+
+files:
+  - template: templates/service.j2
+    to: "service.rs"
+    skip_if_exists: true

@@ -1,0 +1,12 @@
+variables:
+  name:
+    type: string
+    required: true
+files:
+  - template: templates/service.j2
+    to: "service.rs"
+    skip_if_exists: true
+  - template: templates/import.j2
+    inject: "init.py"
+    after: "^# imports"
+    skip_if: "{{ name | snakecase }}"

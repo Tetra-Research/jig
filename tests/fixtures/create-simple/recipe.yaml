@@ -1,0 +1,11 @@
+name: create-simple
+description: Simple create operation — one file from one template.
+
+variables:
+  class_name:
+    type: string
+    required: true
+
+files:
+  - template: templates/service.j2
+    to: "src/service.rs"

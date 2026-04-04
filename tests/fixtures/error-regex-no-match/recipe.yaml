@@ -1,0 +1,7 @@
+name: error-regex-no-match
+description: Inject regex pattern matches no line in target
+
+files:
+  - template: templates/snippet.j2
+    inject: "target.py"
+    after: "^NONEXISTENT_PATTERN"

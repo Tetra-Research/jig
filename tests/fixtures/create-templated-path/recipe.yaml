@@ -1,0 +1,11 @@
+name: create-templated-path
+description: Create with a templated output path using snakecase filter.
+
+variables:
+  class_name:
+    type: string
+    required: true
+
+files:
+  - template: templates/service.j2
+    to: "src/{{ class_name | snakecase }}.rs"

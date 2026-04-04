@@ -1,0 +1,6 @@
+name: error-missing-template
+description: Template file does not exist
+
+files:
+  - template: templates/nonexistent.j2
+    to: "output.txt"

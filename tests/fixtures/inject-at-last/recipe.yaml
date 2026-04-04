@@ -1,0 +1,13 @@
+name: inject-at-last
+description: Inject after the last regex match using at:last.
+
+variables:
+  module:
+    type: string
+    required: true
+
+files:
+  - template: templates/use.j2
+    inject: "lib.rs"
+    after: "^use "
+    at: last

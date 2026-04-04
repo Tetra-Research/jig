@@ -1,0 +1,11 @@
+name: create-force-overwrite
+description: Create overwrites existing file when run with --force.
+
+variables:
+  greeting:
+    type: string
+    required: true
+
+files:
+  - template: templates/greeting.j2
+    to: "output.txt"

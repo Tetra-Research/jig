@@ -1,0 +1,8 @@
+{
+  "dry_run": false,
+  "operations": [
+    {"action": "inject", "path": "app.py", "lines": 1, "location": "before:^class  (first match, line 3)"}
+  ],
+  "files_written": ["app.py"],
+  "files_skipped": []
+}

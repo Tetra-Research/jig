@@ -1,0 +1,12 @@
+name: inject-after
+description: Inject content after a regex match.
+
+variables:
+  name:
+    type: string
+    required: true
+
+files:
+  - template: templates/fixture.j2
+    inject: "conftest.py"
+    after: "^# fixtures"

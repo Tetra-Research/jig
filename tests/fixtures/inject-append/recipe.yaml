@@ -1,0 +1,15 @@
+name: inject-append
+description: Inject content at the end of a file.
+
+variables:
+  key:
+    type: string
+    required: true
+  value:
+    type: string
+    required: true
+
+files:
+  - template: templates/entry.j2
+    inject: "config.txt"
+    append: true

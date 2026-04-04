@@ -1,0 +1,6 @@
+name: error-file-exists
+description: Create targets existing file without skip_if_exists or force
+
+files:
+  - template: templates/content.j2
+    to: "output.txt"

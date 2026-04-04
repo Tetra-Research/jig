@@ -1,0 +1,18 @@
+---
+source: tests/integration.rs
+expression: pretty
+---
+{
+  "dry_run": false,
+  "operations": [
+    {
+      "action": "create",
+      "path": "src/service.rs",
+      "lines": 1
+    }
+  ],
+  "files_written": [
+    "src/service.rs"
+  ],
+  "files_skipped": []
+}

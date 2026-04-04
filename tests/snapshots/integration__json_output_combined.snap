@@ -1,0 +1,24 @@
+---
+source: tests/integration.rs
+expression: pretty
+---
+{
+  "dry_run": false,
+  "operations": [
+    {
+      "action": "create",
+      "path": "src/service.rs",
+      "lines": 1
+    },
+    {
+      "action": "inject",
+      "path": "src/service.rs",
+      "lines": 6,
+      "location": "after:^pub struct (first match, line 1)"
+    }
+  ],
+  "files_written": [
+    "src/service.rs"
+  ],
+  "files_skipped": []
+}

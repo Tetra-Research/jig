@@ -1,0 +1,8 @@
+{
+  "dry_run": false,
+  "operations": [
+    {"action": "create", "path": "src/booking_service.rs", "lines": 1}
+  ],
+  "files_written": ["src/booking_service.rs"],
+  "files_skipped": []
+}

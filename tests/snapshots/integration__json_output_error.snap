@@ -1,0 +1,20 @@
+---
+source: tests/integration.rs
+expression: pretty
+---
+{
+  "dry_run": false,
+  "operations": [
+    {
+      "action": "error",
+      "path": "output.txt",
+      "what": "file already exists: 'output.txt'",
+      "where": "output.txt",
+      "why": "skip_if_exists is false and --force was not specified",
+      "hint": "use --force to overwrite, or set skip_if_exists: true in the recipe",
+      "rendered_content": "new content"
+    }
+  ],
+  "files_written": [],
+  "files_skipped": []
+}

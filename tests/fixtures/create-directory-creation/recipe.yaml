@@ -1,0 +1,8 @@
+name: create-directory-creation
+description: Verify parent directories are created automatically.
+
+variables: {}
+
+files:
+  - template: templates/content.j2
+    to: "deep/nested/path/output.txt"

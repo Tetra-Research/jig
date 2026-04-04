@@ -1,0 +1,7 @@
+name: error-missing-target
+description: Inject target file does not exist
+
+files:
+  - template: templates/snippet.j2
+    inject: "nonexistent.py"
+    after: "^import"

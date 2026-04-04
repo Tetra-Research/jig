@@ -1,0 +1,13 @@
+name: inject-skip-if
+description: Inject with skip_if to enable idempotency — skips when content already present.
+
+variables:
+  name:
+    type: string
+    required: true
+
+files:
+  - template: templates/fixture.j2
+    inject: "conftest.py"
+    after: "^# fixtures"
+    skip_if: "{{ name | snakecase }}"

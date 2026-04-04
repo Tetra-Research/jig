@@ -1,0 +1,11 @@
+variables:
+  module_name:
+    type: string
+    required: true
+files:
+  - template: templates/mod.j2
+    to: "src/{{ module_name }}/mod.rs"
+  - template: templates/types.j2
+    to: "src/{{ module_name }}/types.rs"
+  - template: templates/tests.j2
+    to: "tests/test_{{ module_name }}.rs"

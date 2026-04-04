@@ -1,0 +1,12 @@
+name: inject-before
+description: Inject content before a regex match.
+
+variables:
+  import_name:
+    type: string
+    required: true
+
+files:
+  - template: templates/import.j2
+    inject: "app.py"
+    before: "^class "

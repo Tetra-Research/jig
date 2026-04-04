@@ -1,0 +1,8 @@
+{
+  "dry_run": false,
+  "operations": [
+    {"action": "inject", "path": "main.rs", "lines": 1, "location": "prepend"}
+  ],
+  "files_written": ["main.rs"],
+  "files_skipped": []
+}

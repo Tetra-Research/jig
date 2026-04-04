@@ -1,0 +1,8 @@
+{
+  "dry_run": false,
+  "operations": [
+    {"action": "inject", "path": "lib.rs", "lines": 1, "location": "after:^use  (last match, line 2)"}
+  ],
+  "files_written": ["lib.rs"],
+  "files_skipped": []
+}

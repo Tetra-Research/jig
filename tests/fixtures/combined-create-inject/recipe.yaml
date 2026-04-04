@@ -1,0 +1,10 @@
+variables:
+  class_name:
+    type: string
+    required: true
+files:
+  - template: templates/service.j2
+    to: "src/service.rs"
+  - template: templates/impl_block.j2
+    inject: "src/service.rs"
+    after: "^pub struct"

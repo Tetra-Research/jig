@@ -2,7 +2,7 @@
 
 > Workstream: core-engine
 > Task: phase-4
-> Last verified: 2026-04-03
+> Last verified: 2026-04-04
 
 ## Phase Validation Criteria
 
@@ -29,33 +29,33 @@ From PLAN.md Phase 4:
 
 | Criterion | EARS Type | Source | Test | Status |
 |-----------|-----------|--------|------|--------|
-| AC-5.1 | Event | SPEC.md FR-5 | `spec::fr-5::ac_5_1` | PENDING |
-| AC-5.2 | Event | SPEC.md FR-5 | `spec::fr-5::ac_5_2` | PENDING |
-| AC-5.3 | Event | SPEC.md FR-5 | `spec::fr-5::ac_5_3` | PENDING |
-| AC-5.4 | Event | SPEC.md FR-5 | `spec::fr-5::ac_5_4` | PENDING |
-| AC-5.5 | Event | SPEC.md FR-5 | `spec::fr-5::ac_5_5` | PENDING |
-| AC-5.6 | Event | SPEC.md FR-5 | `spec::fr-5::ac_5_6` | PENDING |
-| AC-5.7 | Event | SPEC.md FR-5 | `spec::fr-5::ac_5_7` | PENDING |
-| AC-5.8 | Unwanted | SPEC.md FR-5 | `spec::fr-5::ac_5_8` | PENDING |
-| AC-5.9 | Unwanted | SPEC.md FR-5 | `spec::fr-5::ac_5_9` | PENDING |
-| AC-5.10 | Event | SPEC.md FR-5 | `spec::fr-5::ac_5_10` | PENDING |
-| AC-5.11 | Event | SPEC.md FR-5 | `spec::fr-5::ac_5_11` | PENDING |
-| AC-5.12 | Ubiquitous | SPEC.md FR-5 | `spec::fr-5::ac_5_12` | PENDING |
-| AC-5.13 | Unwanted | SPEC.md FR-5 | `spec::fr-5::ac_5_13` | PENDING |
-| AC-5.14 | Unwanted | SPEC.md FR-5 | `spec::fr-5::ac_5_14` | PENDING |
-| AC-5.15 | Unwanted | SPEC.md FR-5 | `spec::fr-5::ac_5_15` | PENDING |
-| AC-5.16 | Ubiquitous | SPEC.md FR-5 | `spec::fr-5::ac_5_16` | PENDING |
-| AC-5.17 | Unwanted | SPEC.md FR-5 | `spec::fr-5::ac_5_17` | PENDING |
-| AC-N2.1 | Event | SPEC.md NFR-2 | `spec::nfr-2::ac_n2_1` | PENDING |
-| AC-N2.2 | Ubiquitous | SPEC.md NFR-2 | `spec::nfr-2::ac_n2_2` | PENDING |
-| AC-N6.1 | Ubiquitous | SPEC.md NFR-6 | `spec::nfr-6::ac_n6_1` | PENDING |
-| AC-N6.2 | Event | SPEC.md NFR-6 | `spec::nfr-6::ac_n6_2` | PENDING |
+| AC-5.1 | Event | SPEC.md FR-5 | `operations::inject::tests::ac_5_1_after_first_match` + `tests::ac_5_1_inject_after_via_run` | PASS |
+| AC-5.2 | Event | SPEC.md FR-5 | `operations::inject::tests::ac_5_2_before_first_match` | PASS |
+| AC-5.3 | Event | SPEC.md FR-5 | `operations::inject::tests::ac_5_3_prepend` + `tests::ac_5_3_5_4_prepend_append_via_run` | PASS |
+| AC-5.4 | Event | SPEC.md FR-5 | `operations::inject::tests::ac_5_4_append` + `tests::ac_5_3_5_4_prepend_append_via_run` | PASS |
+| AC-5.5 | Event | SPEC.md FR-5 | `operations::inject::tests::ac_5_5_after_last_match` + `operations::inject::tests::before_last_match` | PASS |
+| AC-5.6 | Event | SPEC.md FR-5 | `operations::inject::tests::ac_5_6_after_first_match_default` | PASS |
+| AC-5.7 | Event | SPEC.md FR-5 | `operations::inject::tests::ac_5_7_skip_if_matched` + `tests::ac_5_7_skip_if_via_run` | PASS |
+| AC-5.8 | Unwanted | SPEC.md FR-5 | `operations::inject::tests::ac_5_8_regex_no_match` + `tests::ac_5_8_regex_no_match_exits_3` | PASS |
+| AC-5.9 | Unwanted | SPEC.md FR-5 | `operations::inject::tests::ac_5_9_missing_target_file` + `tests::ac_5_9_missing_target_exits_3` | PASS |
+| AC-5.10 | Event | SPEC.md FR-5 | `operations::inject::tests::ac_5_10_success_reports_inject` | PASS |
+| AC-5.11 | Event | SPEC.md FR-5 | `operations::inject::tests::ac_5_11_templated_inject_path` + `tests::ac_5_11_templated_inject_path_via_run` | PASS |
+| AC-5.12 | Ubiquitous | SPEC.md FR-5 | `operations::inject::tests::ac_5_12_at_ignored_for_prepend_append` | PASS |
+| AC-5.13 | Unwanted | SPEC.md FR-5 | `recipe::tests::inject_missing_mode_rejected` | PASS |
+| AC-5.14 | Unwanted | SPEC.md FR-5 | `recipe::tests::invalid_regex_rejected_at_parse` | PASS |
+| AC-5.15 | Unwanted | SPEC.md FR-5 | `recipe::tests::multiple_inject_modes_rejected` | PASS |
+| AC-5.16 | Ubiquitous | SPEC.md FR-5 | `operations::inject::tests::ac_5_16_force_no_effect_on_inject` | PASS |
+| AC-5.17 | Unwanted | SPEC.md FR-5 | `operations::inject::tests::ac_n4_2_error_includes_rendered_content` (permission error path) | PASS |
+| AC-N2.1 | Event | SPEC.md NFR-2 | `tests::ac_n2_1_idempotent_create_inject` | PASS |
+| AC-N2.2 | Ubiquitous | SPEC.md NFR-2 | `operations::inject::tests::ac_n2_2_no_duplicate_with_skip_if` | PASS |
+| AC-N6.1 | Ubiquitous | SPEC.md NFR-6 | `tests::ac_n6_1_declaration_order` (Phase 3, still passing) | PASS |
+| AC-N6.2 | Event | SPEC.md NFR-6 | `tests::ac_n6_2_create_then_inject` + `tests::ac_n6_2_create_then_inject_dry_run` | PASS |
 
 ## Coverage Summary
 
-- Spec criteria: 0/21 covered
-- Phase validation criteria: 0/23 covered
+- Spec criteria: 21/21 covered
+- Phase validation criteria: 16/16 covered
 
 ## Gaps
 
-All criteria need test implementations.
+None. All criteria have passing tests.

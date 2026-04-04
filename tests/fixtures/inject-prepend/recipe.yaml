@@ -1,0 +1,12 @@
+name: inject-prepend
+description: Inject content at the start of a file.
+
+variables:
+  module_name:
+    type: string
+    required: true
+
+files:
+  - template: templates/header.j2
+    inject: "main.rs"
+    prepend: true

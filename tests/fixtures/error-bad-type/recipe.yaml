@@ -1,0 +1,11 @@
+name: error-bad-type
+description: Variable type mismatch
+
+variables:
+  count:
+    type: number
+    required: true
+
+files:
+  - template: templates/counter.j2
+    to: "output.txt"

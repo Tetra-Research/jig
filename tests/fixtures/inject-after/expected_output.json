@@ -1,0 +1,8 @@
+{
+  "dry_run": false,
+  "operations": [
+    {"action": "inject", "path": "conftest.py", "lines": 1, "location": "after:^# fixtures (first match, line 3)"}
+  ],
+  "files_written": ["conftest.py"],
+  "files_skipped": []
+}
