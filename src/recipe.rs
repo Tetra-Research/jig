@@ -73,6 +73,51 @@ pub enum InjectMode {
     Append,
 }
 
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ReplaceSpec {
+    Between { start: String, end: String },
+    Pattern(String),
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Fallback {
+    Append,
+    Prepend,
+    Skip,
+    Error,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum ScopeType {
+    Line,
+    Block,
+    ClassBody,
+    FunctionBody,
+    FunctionSignature,
+    Braces,
+    Brackets,
+    Parens,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub enum Position {
+    Before,
+    After,
+    BeforeClose,
+    AfterLastField,
+    AfterLastMethod,
+    AfterLastImport,
+    Sorted,
+}
+
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct Anchor {
+    pub pattern: String,
+    pub scope: ScopeType,
+    pub find: Option<String>,
+    pub position: Position,
+}
+
 #[derive(Debug, Clone)]
 pub enum FileOp {
     Create {
@@ -86,6 +131,18 @@ pub enum FileOp {
         mode: InjectMode,
         skip_if: Option<String>,
     },
+    Replace {
+        template: String,
+        replace: String,
+        spec: ReplaceSpec,
+        fallback: Fallback,
+    },
+    Patch {
+        template: String,
+        patch: String,
+        anchor: Anchor,
+        skip_if: Option<String>,
+    },
 }
 
 impl FileOp {
@@ -93,12 +150,17 @@ impl FileOp {
         match self {
             FileOp::Create { .. } => "create",
             FileOp::Inject { .. } => "inject",
+            FileOp::Replace { .. } => "replace",
+            FileOp::Patch { .. } => "patch",
         }
     }
 
     pub fn template(&self) -> &str {
         match self {
-            FileOp::Create { template, .. } | FileOp::Inject { template, .. } => template,
+            FileOp::Create { template, .. }
+            | FileOp::Inject { template, .. }
+            | FileOp::Replace { template, .. }
+            | FileOp::Patch { template, .. } => template,
         }
     }
 }
@@ -116,12 +178,26 @@ struct RawRecipe {
 }
 
 #[derive(Deserialize)]
+struct RawBetween {
+    start: Option<String>,
+    end: Option<String>,
+}
+
+#[derive(Deserialize)]
+struct RawAnchor {
+    pattern: Option<String>,
+    scope: Option<String>,
+    find: Option<String>,
+    position: Option<String>,
+}
+
+#[derive(Deserialize)]
 struct RawFileOp {
     template: Option<String>,
     to: Option<String>,
     inject: Option<String>,
-    replace: Option<serde_yaml::Value>,
-    patch: Option<serde_yaml::Value>,
+    replace: Option<String>,
+    patch: Option<String>,
     #[serde(default)]
     skip_if_exists: bool,
     after: Option<String>,
@@ -133,6 +209,10 @@ struct RawFileOp {
     #[serde(default)]
     at: Option<String>,
     skip_if: Option<String>,
+    between: Option<RawBetween>,
+    pattern: Option<String>,
+    fallback: Option<String>,
+    anchor: Option<RawAnchor>,
     /// Catch-all for unknown fields to produce better error messages.
     #[serde(flatten)]
     extra: std::collections::HashMap<String, serde_yaml::Value>,
@@ -236,7 +316,7 @@ fn convert_file_op(raw: RawFileOp, index: usize, source: &Path) -> Result<FileOp
             &format!("unknown field(s): {}", unknown.iter().map(|k| format!("'{k}'")).collect::<Vec<_>>().join(", ")),
             &loc,
             "these fields are not recognized in a file operation",
-            "remove the unknown fields — valid fields are: template, to, inject, replace, patch, skip_if_exists, after, before, prepend, append, at, skip_if",
+            "remove the unknown fields — valid fields are: template, to, inject, replace, patch, skip_if_exists, after, before, prepend, append, at, skip_if, between, pattern, fallback, anchor",
         ));
     }
 
@@ -272,38 +352,102 @@ fn convert_file_op(raw: RawFileOp, index: usize, source: &Path) -> Result<FileOp
         ));
     }
 
-    // Reject unsupported operation types (v0.1).
-    if has_replace {
-        return Err(recipe_err(
-            "unknown operation type 'replace' \u{2014} this operation is not supported in v0.1",
-            &loc,
-            "replace operations are planned for v0.2",
-            "use 'to' (create) or 'inject' for v0.1 recipes",
-        ));
-    }
-    if has_patch {
-        return Err(recipe_err(
-            "unknown operation type 'patch' \u{2014} this operation is not supported in v0.1",
-            &loc,
-            "patch operations are planned for v0.2",
-            "use 'to' (create) or 'inject' for v0.1 recipes",
-        ));
-    }
-
     if has_to {
         Ok(FileOp::Create {
             template,
             to: raw.to.unwrap(),
             skip_if_exists: raw.skip_if_exists,
         })
-    } else {
-        // has_inject
+    } else if has_inject {
         let inject_target = raw.inject.unwrap();
         let mode = parse_inject_mode(&raw.after, &raw.before, raw.prepend, raw.append, &raw.at, index, source)?;
         Ok(FileOp::Inject {
             template,
             inject: inject_target,
             mode,
+            skip_if: raw.skip_if,
+        })
+    } else if has_replace {
+        let replace_target = raw.replace.unwrap();
+        let has_between = raw.between.is_some();
+        let has_pattern = raw.pattern.is_some();
+
+        if has_between && has_pattern {
+            return Err(recipe_err(
+                "replace operation has both 'between' and 'pattern'",
+                &loc,
+                "a replace operation must specify exactly one of 'between' or 'pattern', not both",
+                "remove one of 'between' or 'pattern'",
+            ));
+        }
+        if !has_between && !has_pattern {
+            return Err(recipe_err(
+                "replace operation missing match specification",
+                &loc,
+                "a replace operation must specify one of 'between' or 'pattern'",
+                "add a 'between' block with start/end markers, or a 'pattern' field with a regex",
+            ));
+        }
+
+        let spec = if has_between {
+            let between = raw.between.unwrap();
+            let start = between.start.ok_or_else(|| recipe_err(
+                "replace 'between' missing required field 'start'",
+                &loc,
+                "between requires both 'start' and 'end' regex patterns",
+                "add a 'start' field to the 'between' block",
+            ))?;
+            let end = between.end.ok_or_else(|| recipe_err(
+                "replace 'between' missing required field 'end'",
+                &loc,
+                "between requires both 'start' and 'end' regex patterns",
+                "add an 'end' field to the 'between' block",
+            ))?;
+            validate_regex(&start, "between.start", index, source)?;
+            validate_regex(&end, "between.end", index, source)?;
+            ReplaceSpec::Between { start, end }
+        } else {
+            let pattern = raw.pattern.unwrap();
+            validate_regex(&pattern, "pattern", index, source)?;
+            ReplaceSpec::Pattern(pattern)
+        };
+
+        let fallback = parse_fallback(raw.fallback.as_deref(), index, source)?;
+
+        Ok(FileOp::Replace {
+            template,
+            replace: replace_target,
+            spec,
+            fallback,
+        })
+    } else {
+        // has_patch
+        let patch_target = raw.patch.unwrap();
+        let raw_anchor = raw.anchor.ok_or_else(|| recipe_err(
+            "patch operation missing required 'anchor' field",
+            &loc,
+            "a patch operation must specify an 'anchor' block with at least a 'pattern' field",
+            "add an 'anchor' block with a 'pattern' regex",
+        ))?;
+        let anchor_pattern = raw_anchor.pattern.ok_or_else(|| recipe_err(
+            "patch 'anchor' missing required field 'pattern'",
+            &loc,
+            "the anchor block must include a 'pattern' field with a regex to find the anchor line",
+            "add a 'pattern' field to the 'anchor' block",
+        ))?;
+        validate_regex(&anchor_pattern, "anchor.pattern", index, source)?;
+        let scope = parse_scope_type(raw_anchor.scope.as_deref(), index, source)?;
+        let position = parse_position(raw_anchor.position.as_deref(), index, source)?;
+
+        Ok(FileOp::Patch {
+            template,
+            patch: patch_target,
+            anchor: Anchor {
+                pattern: anchor_pattern,
+                scope,
+                find: raw_anchor.find,
+                position,
+            },
             skip_if: raw.skip_if,
         })
     }
@@ -391,6 +535,58 @@ fn validate_regex(pattern: &str, field: &str, index: usize, source: &Path) -> Re
         "check regex syntax — remember to escape special characters",
     ))?;
     Ok(())
+}
+
+fn parse_fallback(value: Option<&str>, index: usize, source: &Path) -> Result<Fallback, JigError> {
+    match value {
+        None | Some("error") => Ok(Fallback::Error),
+        Some("append") => Ok(Fallback::Append),
+        Some("prepend") => Ok(Fallback::Prepend),
+        Some("skip") => Ok(Fallback::Skip),
+        Some(other) => Err(recipe_err(
+            &format!("invalid 'fallback' value: '{other}'"),
+            &format!("files[{index}] in {}", source.display()),
+            "fallback must be one of: append, prepend, skip, error",
+            "valid values: append, prepend, skip, error",
+        )),
+    }
+}
+
+fn parse_scope_type(value: Option<&str>, index: usize, source: &Path) -> Result<ScopeType, JigError> {
+    match value {
+        None | Some("line") => Ok(ScopeType::Line),
+        Some("block") => Ok(ScopeType::Block),
+        Some("class_body") => Ok(ScopeType::ClassBody),
+        Some("function_body") => Ok(ScopeType::FunctionBody),
+        Some("function_signature") => Ok(ScopeType::FunctionSignature),
+        Some("braces") => Ok(ScopeType::Braces),
+        Some("brackets") => Ok(ScopeType::Brackets),
+        Some("parens") => Ok(ScopeType::Parens),
+        Some(other) => Err(recipe_err(
+            &format!("invalid 'scope' value: '{other}'"),
+            &format!("files[{index}] in {}", source.display()),
+            "scope must be one of: line, block, class_body, function_body, function_signature, braces, brackets, parens",
+            "valid values: line, block, class_body, function_body, function_signature, braces, brackets, parens",
+        )),
+    }
+}
+
+fn parse_position(value: Option<&str>, index: usize, source: &Path) -> Result<Position, JigError> {
+    match value {
+        None | Some("after") => Ok(Position::After),
+        Some("before") => Ok(Position::Before),
+        Some("before_close") => Ok(Position::BeforeClose),
+        Some("after_last_field") => Ok(Position::AfterLastField),
+        Some("after_last_method") => Ok(Position::AfterLastMethod),
+        Some("after_last_import") => Ok(Position::AfterLastImport),
+        Some("sorted") => Ok(Position::Sorted),
+        Some(other) => Err(recipe_err(
+            &format!("invalid 'position' value: '{other}'"),
+            &format!("files[{index}] in {}", source.display()),
+            "position must be one of: before, after, before_close, after_last_field, after_last_method, after_last_import, sorted",
+            "valid values: before, after, before_close, after_last_field, after_last_method, after_last_import, sorted",
+        )),
+    }
 }
 
 fn recipe_err(what: &str, where_: &str, why: &str, hint: &str) -> JigError {
@@ -623,35 +819,336 @@ files:
         assert!(r2.description.is_none());
     }
 
-    /// AC-1.10: Unknown operation type 'replace' or 'patch' rejected with v0.1 message.
+    /// Replace operation with between spec parses correctly.
     #[test]
-    fn ac_1_10_unknown_op_replace() {
+    fn parse_replace_between() {
         let yaml = r#"
 files:
   - template: tmpl.j2
     replace: "target.txt"
+    between:
+      start: "^# START"
+      end: "^# END"
 "#;
         let (_dir, path) = setup_recipe(yaml, &["tmpl.j2"]);
-        let err = Recipe::load(&path).unwrap_err();
-        assert_eq!(err.exit_code(), 1);
-        let msg = err.structured_error().what.to_string();
-        assert!(msg.contains("replace"), "expected 'replace' in: {msg}");
-        assert!(msg.contains("not supported in v0.1"), "expected v0.1 message in: {msg}");
+        let recipe = Recipe::load(&path).unwrap();
+        match &recipe.files[0] {
+            FileOp::Replace { replace, spec, fallback, .. } => {
+                assert_eq!(replace, "target.txt");
+                assert!(matches!(spec, ReplaceSpec::Between { start, end } if start == "^# START" && end == "^# END"));
+                assert_eq!(*fallback, Fallback::Error);
+            }
+            _ => panic!("expected Replace op"),
+        }
     }
 
+    /// Replace operation with pattern spec parses correctly.
     #[test]
-    fn ac_1_10_unknown_op_patch() {
+    fn parse_replace_pattern() {
         let yaml = r#"
 files:
   - template: tmpl.j2
-    patch: "target.txt"
+    replace: "target.txt"
+    pattern: "^old_.*"
 "#;
+        let (_dir, path) = setup_recipe(yaml, &["tmpl.j2"]);
+        let recipe = Recipe::load(&path).unwrap();
+        match &recipe.files[0] {
+            FileOp::Replace { spec, .. } => {
+                assert!(matches!(spec, ReplaceSpec::Pattern(p) if p == "^old_.*"));
+            }
+            _ => panic!("expected Replace op"),
+        }
+    }
+
+    /// All four fallback variants parse correctly.
+    #[test]
+    fn parse_replace_fallback_variants() {
+        for (val, expected) in &[
+            ("append", Fallback::Append),
+            ("prepend", Fallback::Prepend),
+            ("skip", Fallback::Skip),
+            ("error", Fallback::Error),
+        ] {
+            let yaml = format!(
+                "files:\n  - template: tmpl.j2\n    replace: \"t.txt\"\n    pattern: \"^x\"\n    fallback: {val}\n"
+            );
+            let (_dir, path) = setup_recipe(&yaml, &["tmpl.j2"]);
+            let recipe = Recipe::load(&path).unwrap();
+            match &recipe.files[0] {
+                FileOp::Replace { fallback, .. } => assert_eq!(fallback, expected),
+                _ => panic!("expected Replace"),
+            }
+        }
+    }
+
+    /// Omitted fallback defaults to Error.
+    #[test]
+    fn parse_replace_fallback_default() {
+        let yaml = "files:\n  - template: tmpl.j2\n    replace: \"t.txt\"\n    pattern: \"^x\"\n";
+        let (_dir, path) = setup_recipe(yaml, &["tmpl.j2"]);
+        let recipe = Recipe::load(&path).unwrap();
+        match &recipe.files[0] {
+            FileOp::Replace { fallback, .. } => assert_eq!(*fallback, Fallback::Error),
+            _ => panic!("expected Replace"),
+        }
+    }
+
+    /// Patch with full anchor fields parses correctly.
+    #[test]
+    fn parse_patch_full_anchor() {
+        let yaml = r#"
+files:
+  - template: tmpl.j2
+    patch: "target.py"
+    anchor:
+      pattern: "^class User:"
+      scope: class_body
+      find: "list_display"
+      position: before_close
+    skip_if: "already_present"
+"#;
+        let (_dir, path) = setup_recipe(yaml, &["tmpl.j2"]);
+        let recipe = Recipe::load(&path).unwrap();
+        match &recipe.files[0] {
+            FileOp::Patch { patch, anchor, skip_if, .. } => {
+                assert_eq!(patch, "target.py");
+                assert_eq!(anchor.pattern, "^class User:");
+                assert_eq!(anchor.scope, ScopeType::ClassBody);
+                assert_eq!(anchor.find.as_deref(), Some("list_display"));
+                assert_eq!(anchor.position, Position::BeforeClose);
+                assert_eq!(skip_if.as_deref(), Some("already_present"));
+            }
+            _ => panic!("expected Patch op"),
+        }
+    }
+
+    /// Patch with minimal anchor (just pattern) defaults scope=Line, position=After.
+    #[test]
+    fn parse_patch_minimal() {
+        let yaml = "files:\n  - template: tmpl.j2\n    patch: \"t.py\"\n    anchor:\n      pattern: \"^class\"\n";
+        let (_dir, path) = setup_recipe(yaml, &["tmpl.j2"]);
+        let recipe = Recipe::load(&path).unwrap();
+        match &recipe.files[0] {
+            FileOp::Patch { anchor, .. } => {
+                assert_eq!(anchor.scope, ScopeType::Line);
+                assert_eq!(anchor.position, Position::After);
+                assert!(anchor.find.is_none());
+            }
+            _ => panic!("expected Patch"),
+        }
+    }
+
+    /// Patch with skip_if captured.
+    #[test]
+    fn parse_patch_with_skip_if() {
+        let yaml = "files:\n  - template: tmpl.j2\n    patch: \"t.py\"\n    anchor:\n      pattern: \"^x\"\n    skip_if: \"marker\"\n";
+        let (_dir, path) = setup_recipe(yaml, &["tmpl.j2"]);
+        let recipe = Recipe::load(&path).unwrap();
+        match &recipe.files[0] {
+            FileOp::Patch { skip_if, .. } => assert_eq!(skip_if.as_deref(), Some("marker")),
+            _ => panic!("expected Patch"),
+        }
+    }
+
+    /// All 8 scope type strings parse correctly.
+    #[test]
+    fn parse_patch_all_scope_types() {
+        let types = [
+            ("line", ScopeType::Line),
+            ("block", ScopeType::Block),
+            ("class_body", ScopeType::ClassBody),
+            ("function_body", ScopeType::FunctionBody),
+            ("function_signature", ScopeType::FunctionSignature),
+            ("braces", ScopeType::Braces),
+            ("brackets", ScopeType::Brackets),
+            ("parens", ScopeType::Parens),
+        ];
+        for (name, expected) in &types {
+            let yaml = format!(
+                "files:\n  - template: tmpl.j2\n    patch: \"t.py\"\n    anchor:\n      pattern: \"^x\"\n      scope: {name}\n"
+            );
+            let (_dir, path) = setup_recipe(&yaml, &["tmpl.j2"]);
+            let recipe = Recipe::load(&path).unwrap();
+            match &recipe.files[0] {
+                FileOp::Patch { anchor, .. } => assert_eq!(&anchor.scope, expected, "failed for scope: {name}"),
+                _ => panic!("expected Patch for scope: {name}"),
+            }
+        }
+    }
+
+    /// All 7 position type strings parse correctly.
+    #[test]
+    fn parse_patch_all_position_types() {
+        let positions = [
+            ("before", Position::Before),
+            ("after", Position::After),
+            ("before_close", Position::BeforeClose),
+            ("after_last_field", Position::AfterLastField),
+            ("after_last_method", Position::AfterLastMethod),
+            ("after_last_import", Position::AfterLastImport),
+            ("sorted", Position::Sorted),
+        ];
+        for (name, expected) in &positions {
+            let yaml = format!(
+                "files:\n  - template: tmpl.j2\n    patch: \"t.py\"\n    anchor:\n      pattern: \"^x\"\n      position: {name}\n"
+            );
+            let (_dir, path) = setup_recipe(&yaml, &["tmpl.j2"]);
+            let recipe = Recipe::load(&path).unwrap();
+            match &recipe.files[0] {
+                FileOp::Patch { anchor, .. } => assert_eq!(&anchor.position, expected, "failed for position: {name}"),
+                _ => panic!("expected Patch for position: {name}"),
+            }
+        }
+    }
+
+    /// Replace path is a string field.
+    #[test]
+    fn parse_replace_path_is_string() {
+        let yaml = "files:\n  - template: tmpl.j2\n    replace: \"path/to/{{ name }}.py\"\n    pattern: \"^x\"\n";
+        let (_dir, path) = setup_recipe(yaml, &["tmpl.j2"]);
+        let recipe = Recipe::load(&path).unwrap();
+        match &recipe.files[0] {
+            FileOp::Replace { replace, .. } => assert_eq!(replace, "path/to/{{ name }}.py"),
+            _ => panic!("expected Replace"),
+        }
+    }
+
+    // ── Error case tests for replace/patch ──
+
+    #[test]
+    fn reject_replace_both_between_and_pattern() {
+        let yaml = "files:\n  - template: tmpl.j2\n    replace: \"t.txt\"\n    between:\n      start: \"^a\"\n      end: \"^b\"\n    pattern: \"^c\"\n";
         let (_dir, path) = setup_recipe(yaml, &["tmpl.j2"]);
         let err = Recipe::load(&path).unwrap_err();
         assert_eq!(err.exit_code(), 1);
-        let msg = err.structured_error().what.to_string();
-        assert!(msg.contains("patch"), "expected 'patch' in: {msg}");
-        assert!(msg.contains("not supported in v0.1"));
+        assert!(err.structured_error().what.contains("both"));
+    }
+
+    #[test]
+    fn reject_replace_neither_between_nor_pattern() {
+        let yaml = "files:\n  - template: tmpl.j2\n    replace: \"t.txt\"\n";
+        let (_dir, path) = setup_recipe(yaml, &["tmpl.j2"]);
+        let err = Recipe::load(&path).unwrap_err();
+        assert_eq!(err.exit_code(), 1);
+        assert!(err.structured_error().what.contains("missing match"));
+    }
+
+    #[test]
+    fn reject_replace_between_missing_start() {
+        let yaml = "files:\n  - template: tmpl.j2\n    replace: \"t.txt\"\n    between:\n      end: \"^b\"\n";
+        let (_dir, path) = setup_recipe(yaml, &["tmpl.j2"]);
+        let err = Recipe::load(&path).unwrap_err();
+        assert_eq!(err.exit_code(), 1);
+        assert!(err.structured_error().what.contains("start"));
+    }
+
+    #[test]
+    fn reject_replace_between_missing_end() {
+        let yaml = "files:\n  - template: tmpl.j2\n    replace: \"t.txt\"\n    between:\n      start: \"^a\"\n";
+        let (_dir, path) = setup_recipe(yaml, &["tmpl.j2"]);
+        let err = Recipe::load(&path).unwrap_err();
+        assert_eq!(err.exit_code(), 1);
+        assert!(err.structured_error().what.contains("end"));
+    }
+
+    #[test]
+    fn reject_replace_invalid_regex_start() {
+        let yaml = "files:\n  - template: tmpl.j2\n    replace: \"t.txt\"\n    between:\n      start: \"(unclosed\"\n      end: \"^b\"\n";
+        let (_dir, path) = setup_recipe(yaml, &["tmpl.j2"]);
+        let err = Recipe::load(&path).unwrap_err();
+        assert_eq!(err.exit_code(), 1);
+        assert!(err.structured_error().what.contains("invalid regex"));
+    }
+
+    #[test]
+    fn reject_replace_invalid_regex_end() {
+        let yaml = "files:\n  - template: tmpl.j2\n    replace: \"t.txt\"\n    between:\n      start: \"^a\"\n      end: \"(unclosed\"\n";
+        let (_dir, path) = setup_recipe(yaml, &["tmpl.j2"]);
+        let err = Recipe::load(&path).unwrap_err();
+        assert_eq!(err.exit_code(), 1);
+        assert!(err.structured_error().what.contains("invalid regex"));
+    }
+
+    #[test]
+    fn reject_replace_invalid_regex_pattern() {
+        let yaml = "files:\n  - template: tmpl.j2\n    replace: \"t.txt\"\n    pattern: \"(unclosed\"\n";
+        let (_dir, path) = setup_recipe(yaml, &["tmpl.j2"]);
+        let err = Recipe::load(&path).unwrap_err();
+        assert_eq!(err.exit_code(), 1);
+        assert!(err.structured_error().what.contains("invalid regex"));
+    }
+
+    #[test]
+    fn reject_replace_invalid_fallback() {
+        let yaml = "files:\n  - template: tmpl.j2\n    replace: \"t.txt\"\n    pattern: \"^x\"\n    fallback: banana\n";
+        let (_dir, path) = setup_recipe(yaml, &["tmpl.j2"]);
+        let err = Recipe::load(&path).unwrap_err();
+        assert_eq!(err.exit_code(), 1);
+        assert!(err.structured_error().what.contains("invalid 'fallback'"));
+    }
+
+    #[test]
+    fn reject_patch_missing_anchor() {
+        let yaml = "files:\n  - template: tmpl.j2\n    patch: \"t.py\"\n";
+        let (_dir, path) = setup_recipe(yaml, &["tmpl.j2"]);
+        let err = Recipe::load(&path).unwrap_err();
+        assert_eq!(err.exit_code(), 1);
+        assert!(err.structured_error().what.contains("anchor"));
+    }
+
+    #[test]
+    fn reject_patch_missing_anchor_pattern() {
+        let yaml = "files:\n  - template: tmpl.j2\n    patch: \"t.py\"\n    anchor:\n      scope: braces\n";
+        let (_dir, path) = setup_recipe(yaml, &["tmpl.j2"]);
+        let err = Recipe::load(&path).unwrap_err();
+        assert_eq!(err.exit_code(), 1);
+        assert!(err.structured_error().what.contains("pattern"));
+    }
+
+    #[test]
+    fn reject_patch_invalid_anchor_regex() {
+        let yaml = "files:\n  - template: tmpl.j2\n    patch: \"t.py\"\n    anchor:\n      pattern: \"(unclosed\"\n";
+        let (_dir, path) = setup_recipe(yaml, &["tmpl.j2"]);
+        let err = Recipe::load(&path).unwrap_err();
+        assert_eq!(err.exit_code(), 1);
+        assert!(err.structured_error().what.contains("invalid regex"));
+    }
+
+    #[test]
+    fn reject_patch_invalid_scope_type() {
+        let yaml = "files:\n  - template: tmpl.j2\n    patch: \"t.py\"\n    anchor:\n      pattern: \"^x\"\n      scope: banana\n";
+        let (_dir, path) = setup_recipe(yaml, &["tmpl.j2"]);
+        let err = Recipe::load(&path).unwrap_err();
+        assert_eq!(err.exit_code(), 1);
+        assert!(err.structured_error().what.contains("invalid 'scope'"));
+    }
+
+    #[test]
+    fn reject_patch_invalid_position_type() {
+        let yaml = "files:\n  - template: tmpl.j2\n    patch: \"t.py\"\n    anchor:\n      pattern: \"^x\"\n      position: banana\n";
+        let (_dir, path) = setup_recipe(yaml, &["tmpl.j2"]);
+        let err = Recipe::load(&path).unwrap_err();
+        assert_eq!(err.exit_code(), 1);
+        assert!(err.structured_error().what.contains("invalid 'position'"));
+    }
+
+    /// Existing create/inject still parse after adding replace/patch.
+    #[test]
+    fn existing_create_inject_still_parse() {
+        let yaml = r#"
+files:
+  - template: tmpl.j2
+    to: "out.rs"
+  - template: tmpl.j2
+    inject: "target.py"
+    after: "^import"
+"#;
+        let (_dir, path) = setup_recipe(yaml, &["tmpl.j2"]);
+        let recipe = Recipe::load(&path).unwrap();
+        assert_eq!(recipe.files.len(), 2);
+        assert!(matches!(&recipe.files[0], FileOp::Create { .. }));
+        assert!(matches!(&recipe.files[1], FileOp::Inject { .. }));
     }
 
     /// AC-1.11: Empty files array accepted (tested via parse — run behavior in Phase 3).

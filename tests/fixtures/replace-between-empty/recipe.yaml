@@ -1,0 +1,12 @@
+name: replace-between-empty
+description: Insert between adjacent markers.
+variables:
+  content:
+    type: string
+    required: true
+files:
+  - template: templates/content.j2
+    replace: "target.txt"
+    between:
+      start: "^# START"
+      end: "^# END"
