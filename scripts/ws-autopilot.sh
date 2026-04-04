@@ -1,5 +1,5 @@
 #!/bin/bash
-# ws-autopilot.sh — Full pipeline: execute → review-cycle → consolidate → PR
+# ws-autopilot.sh — Full pipeline: init → plan → execute → review → consolidate → PR
 # Run this and walk away. Come back to a PR.
 set -euo pipefail
 
@@ -10,24 +10,31 @@ usage() {
     echo "Usage: ws-autopilot <workstream> [task...] [options]"
     echo ""
     echo "Runs the full pipeline end-to-end and opens a PR when done:"
-    echo "  1. Execute tasks (ws-execute)"
-    echo "  2. Review cycle (ws-review-cycle)"
-    echo "  3. Consolidate learnings (ws-consolidate)"
-    echo "  4. Commit + open PR"
+    echo "  1. Init workstream (if needed)"
+    echo "  2. Populate spec + plan (if templates)"
+    echo "  3. Dual-agent planning + synthesis"
+    echo "  4. Execute tasks (ws-execute)"
+    echo "  5. Review cycle (ws-review-cycle)"
+    echo "  6. Consolidate learnings (ws-consolidate)"
+    echo "  7. Commit + open PR"
     echo ""
     echo "Options:"
     echo "  --max-iter      Max fix iterations per step (default: 3)"
     echo "  --rounds        Review cycle rounds (default: 2)"
     echo "  --agent         Agent for execution (default: claude)"
     echo "  --review-agent  Agent for reviews (default: both)"
+    echo "  --plan-agent    Agent for planning (default: both)"
     echo "  --branch        Branch name (default: auto-generated)"
+    echo "  --base          Base branch for PR (default: main)"
+    echo "  --skip-init     Skip init + spec population"
+    echo "  --skip-plan     Skip planning"
     echo "  --skip-execute  Skip execution, start at review"
     echo "  --skip-review   Skip review cycle"
-    echo "  --base          Base branch for PR (default: main)"
     echo ""
     echo "Examples:"
-    echo "  ws-autopilot core-engine phase-6 phase-7 --max-iter 3"
-    echo "  ws-autopilot core-engine --skip-execute --rounds 3"
+    echo "  ws-autopilot replace-patch                              # new workstream, full pipeline"
+    echo "  ws-autopilot core-engine phase-6 phase-7 --max-iter 3   # existing workstream, new phases"
+    echo "  ws-autopilot core-engine --skip-init --skip-plan        # just execute + review"
     exit 1
 }
 
@@ -40,8 +47,11 @@ max_iter=3
 rounds=2
 agent="claude"
 review_agent="both"
+plan_agent="both"
 branch=""
 base_branch="main"
+skip_init=false
+skip_plan=false
 skip_execute=false
 skip_review=false
 
@@ -51,8 +61,11 @@ while [[ $# -gt 0 ]]; do
         --rounds) rounds="$2"; shift 2 ;;
         --agent) agent="$2"; shift 2 ;;
         --review-agent) review_agent="$2"; shift 2 ;;
+        --plan-agent) plan_agent="$2"; shift 2 ;;
         --branch) branch="$2"; shift 2 ;;
         --base) base_branch="$2"; shift 2 ;;
+        --skip-init) skip_init=true; shift ;;
+        --skip-plan) skip_plan=true; shift ;;
         --skip-execute) skip_execute=true; shift ;;
         --skip-review) skip_review=true; shift ;;
         --help|-h) usage ;;
@@ -62,11 +75,6 @@ done
 
 repo_root="$(get_repo_root)"
 ws_dir="$(get_workstream_dir "$ws_name")"
-
-if [[ ! -d "$ws_dir" ]]; then
-    log_error "Workstream '$ws_name' not found at $ws_dir"
-    exit 1
-fi
 
 # --- Generate branch name ---
 
@@ -106,10 +114,45 @@ record_stage() {
     stage_status+=("$name: $status [$elapsed]")
 }
 
-# --- Pre-flight checks ---
+# Check if a file is still a template (has <!-- --> placeholders in key sections)
+is_template() {
+    local file="$1"
+    [[ ! -f "$file" ]] && return 0
+    # If it has 3+ HTML comment placeholders, it's still a template
+    local placeholder_count
+    placeholder_count=$(grep -c "<!-- " "$file" 2>/dev/null || echo "0")
+    [[ "$placeholder_count" -ge 3 ]]
+}
+
+# --- Pre-flight ---
 
 pipeline_start_ts=$(date +%s)
 timestamp=$(date +%Y%m%d-%H%M%S)
+
+# Auto-detect which stages to skip
+ws_exists=false
+[[ -d "$ws_dir" ]] && ws_exists=true
+
+spec_populated=false
+if $ws_exists && [[ -f "$ws_dir/SPEC.md" ]] && ! is_template "$ws_dir/SPEC.md"; then
+    spec_populated=true
+fi
+
+plan_exists=false
+if $ws_exists; then
+    exec_dir="$(get_exec_dir "$ws_name")"
+    if [[ -f "$exec_dir/synthesized.md" ]] || ls "$exec_dir"/synthesized-*.md &>/dev/null 2>&1; then
+        plan_exists=true
+    fi
+fi
+
+# Apply auto-detection to skip flags
+if $ws_exists && $spec_populated; then
+    skip_init=true
+fi
+if $plan_exists; then
+    skip_plan=true
+fi
 
 echo ""
 echo "╔══════════════════════════════════════════════════════════════╗"
@@ -118,6 +161,8 @@ if [[ ${#task_names[@]} -gt 0 ]]; then
 echo "║  Tasks: ${task_names[*]}"
 fi
 echo "║  Branch: $branch"
+echo "║  Init:    $( $skip_init && echo "skip (exists)" || echo "create + populate" )"
+echo "║  Plan:    $( $skip_plan && echo "skip (exists)" || echo "$plan_agent, synthesize" )"
 echo "║  Execute: $( $skip_execute && echo "skip" || echo "$agent, max-iter=$max_iter" )"
 echo "║  Review:  $( $skip_review && echo "skip" || echo "$review_agent, rounds=$rounds" )"
 echo "╚══════════════════════════════════════════════════════════════╝"
@@ -140,13 +185,98 @@ fi
 
 log_info "On branch: $branch"
 
-# --- Stage 1: Execute ---
+# --- Stage 1: Init + Populate ---
+
+if ! $skip_init; then
+    stage_start_ts=$(date +%s)
+    echo ""
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    echo "  STAGE 1: Init + Populate Spec  [$(date +%H:%M:%S)]"
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+    # Init if needed
+    if ! $ws_exists; then
+        log_info "Initializing workstream '$ws_name'..."
+        "$SCRIPT_DIR/ws-init.sh" "$ws_name"
+        ws_dir="$(get_workstream_dir "$ws_name")"
+    fi
+
+    # Populate spec docs using an agent
+    if ! $spec_populated; then
+        log_info "Populating SPEC.md, PLAN.md, SHARED-CONTEXT.md, NARRATIVE.md..."
+
+        populate_prompt=$(generate_spec_population_prompt "$ws_name")
+
+        populate_output=$(cd "$repo_root" && claude -p "$populate_prompt" \
+            --permission-mode bypassPermissions --output-format json 2>&1) || true
+
+        # Save the agent output for reference
+        exec_dir="$(get_exec_dir "$ws_name")"
+        echo "$populate_output" > "$exec_dir/spec-population-${timestamp}.md"
+        log_info "Population output: $exec_dir/spec-population-${timestamp}.md"
+    fi
+
+    stage_elapsed=$(elapsed_since "$stage_start_ts")
+
+    # Verify population worked
+    if is_template "$ws_dir/SPEC.md"; then
+        record_stage "Init+Spec" "WARN" "$stage_elapsed"
+        log_warn "SPEC.md may still be a template — planning may produce generic results"
+    else
+        record_stage "Init+Spec" "PASS" "$stage_elapsed"
+        log_info "Spec populated [$stage_elapsed]"
+    fi
+
+    # Commit init + spec
+    (cd "$repo_root" && git add -A && git diff --cached --quiet) || {
+        (cd "$repo_root" && git commit -m "docs($ws_name): initialize workstream with spec and plan
+
+Automated by ws-autopilot")
+        log_info "Committed workstream docs"
+    }
+else
+    log_info "Skipping init (workstream exists with populated spec)"
+    record_stage "Init+Spec" "SKIP" "0s"
+fi
+
+# --- Stage 2: Plan ---
+
+if ! $skip_plan; then
+    stage_start_ts=$(date +%s)
+    echo ""
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+    echo "  STAGE 2: Dual-Agent Planning  [$(date +%H:%M:%S)]"
+    echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
+
+    if "$SCRIPT_DIR/ws-plan.sh" "$ws_name" --synthesize --agent "$plan_agent"; then
+        stage_elapsed=$(elapsed_since "$stage_start_ts")
+        record_stage "Plan" "PASS" "$stage_elapsed"
+        log_info "Planning complete [$stage_elapsed]"
+    else
+        stage_elapsed=$(elapsed_since "$stage_start_ts")
+        record_stage "Plan" "WARN" "$stage_elapsed"
+        log_warn "Planning had issues [$stage_elapsed] — continuing with available plan"
+    fi
+
+    # Commit planning artifacts
+    (cd "$repo_root" && git add -A && git diff --cached --quiet) || {
+        (cd "$repo_root" && git commit -m "docs($ws_name): dual-agent execution plan
+
+Automated by ws-autopilot planning")
+        log_info "Committed planning artifacts"
+    }
+else
+    log_info "Skipping planning (synthesized plan exists)"
+    record_stage "Plan" "SKIP" "0s"
+fi
+
+# --- Stage 3: Execute ---
 
 if ! $skip_execute; then
     stage_start_ts=$(date +%s)
     echo ""
     echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-    echo "  STAGE 1: Execute  [$(date +%H:%M:%S)]"
+    echo "  STAGE 3: Execute  [$(date +%H:%M:%S)]"
     echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
     exec_args=("$ws_name")
@@ -209,13 +339,13 @@ else
     record_stage "Execute" "SKIP" "0s"
 fi
 
-# --- Stage 2: Review Cycle ---
+# --- Stage 4: Review Cycle ---
 
 if ! $skip_review; then
     stage_start_ts=$(date +%s)
     echo ""
     echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-    echo "  STAGE 2: Review Cycle  [$(date +%H:%M:%S)]"
+    echo "  STAGE 4: Review Cycle  [$(date +%H:%M:%S)]"
     echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
     review_args=("$ws_name")
@@ -245,12 +375,12 @@ else
     record_stage "Review" "SKIP" "0s"
 fi
 
-# --- Stage 3: Consolidate ---
+# --- Stage 5: Consolidate ---
 
 stage_start_ts=$(date +%s)
 echo ""
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-echo "  STAGE 3: Consolidate  [$(date +%H:%M:%S)]"
+echo "  STAGE 5: Consolidate  [$(date +%H:%M:%S)]"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
 if "$SCRIPT_DIR/ws-consolidate.sh" "$ws_name"; then
@@ -271,12 +401,12 @@ Automated by ws-autopilot consolidation")
     log_info "Committed consolidation"
 }
 
-# --- Stage 4: Push + PR ---
+# --- Stage 6: Push + PR ---
 
 stage_start_ts=$(date +%s)
 echo ""
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
-echo "  STAGE 4: Push + PR  [$(date +%H:%M:%S)]"
+echo "  STAGE 6: Push + PR  [$(date +%H:%M:%S)]"
 echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
 # Get final test status
@@ -316,14 +446,16 @@ $(printf '%s\n' "${stage_status[@]}" | sed 's/^/- /')
 **Tests:** $final_test_result
 
 ## Pipeline Config
+- Plan: agent=$plan_agent
 - Execute: agent=$agent, max-iter=$max_iter
 - Review: agent=$review_agent, rounds=$rounds
 - Total time: $(elapsed_since "$pipeline_start_ts")
 
 ## Test Plan
+- [ ] Review spec + plan docs in \`docs/workstreams/$ws_name/\`
 - [ ] Review code changes
 - [ ] Verify test coverage
-- [ ] Check for any remaining review findings in \`docs/workstreams/$ws_name/reviews/\`
+- [ ] Check review findings in \`docs/workstreams/$ws_name/reviews/\`
 
 🤖 Generated with ws-autopilot
 EOF

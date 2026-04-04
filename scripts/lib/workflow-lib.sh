@@ -765,6 +765,86 @@ generate_consolidation_prompt() {
     echo -e "$prompt"
 }
 
+# --- Spec Population Prompt Builder ---
+
+# Build a prompt to populate workstream SPEC.md and PLAN.md from the project spec
+generate_spec_population_prompt() {
+    local ws_name="$1"
+    local ws_dir
+    ws_dir="$(get_workstream_dir "$ws_name")"
+    local docs_dir
+    docs_dir="$(get_docs_dir)"
+    local repo_root
+    repo_root="$(get_repo_root)"
+
+    local prompt="You are populating the SPEC.md, PLAN.md, SHARED-CONTEXT.md, and NARRATIVE.md for workstream '$ws_name'.\n\n"
+    prompt+="These files currently contain templates. Your job is to fill them with real content derived from the project specification and existing codebase.\n\n"
+
+    # Load the project spec (jig.md or similar)
+    if [[ -f "$repo_root/jig.md" ]]; then
+        prompt+="## Project Specification\n\n$(cat "$repo_root/jig.md")\n\n"
+    fi
+
+    # Load project-level context
+    if [[ -f "$docs_dir/INVARIANTS.md" ]]; then
+        prompt+="## Project Invariants\n\n$(cat "$docs_dir/INVARIANTS.md")\n\n"
+    fi
+    if [[ -f "$docs_dir/ARCHITECTURE.md" ]]; then
+        prompt+="## Architecture\n\n$(cat "$docs_dir/ARCHITECTURE.md")\n\n"
+    fi
+
+    # Load existing workstream docs (templates to fill)
+    if [[ -f "$ws_dir/SPEC.md" ]]; then
+        prompt+="## Current SPEC.md (template to populate)\n\n$(cat "$ws_dir/SPEC.md")\n\n"
+    fi
+    if [[ -f "$ws_dir/PLAN.md" ]]; then
+        prompt+="## Current PLAN.md (template to populate)\n\n$(cat "$ws_dir/PLAN.md")\n\n"
+    fi
+    if [[ -f "$ws_dir/SHARED-CONTEXT.md" ]]; then
+        prompt+="## Current SHARED-CONTEXT.md (template to populate)\n\n$(cat "$ws_dir/SHARED-CONTEXT.md")\n\n"
+    fi
+
+    # Load CLAUDE.md for project context
+    if [[ -f "$repo_root/CLAUDE.md" ]]; then
+        prompt+="## CLAUDE.md (project context)\n\n$(cat "$repo_root/CLAUDE.md")\n\n"
+    fi
+
+    # Load other workstreams for cross-reference
+    for other_ws in "$docs_dir/workstreams"/*/; do
+        local other_name
+        other_name=$(basename "$other_ws")
+        [[ "$other_name" == "$ws_name" ]] && continue
+        if [[ -f "$other_ws/SPEC.md" ]]; then
+            prompt+="## Existing workstream '$other_name' SPEC.md (for reference — don't duplicate)\n\n$(cat "$other_ws/SPEC.md")\n\n"
+        fi
+    done
+
+    prompt+="## Instructions\n\n"
+    prompt+="Populate all four workstream documents by writing directly to the files.\n\n"
+    prompt+="### SPEC.md\n"
+    prompt+="- Extract functional and non-functional requirements from the project spec that belong to this workstream\n"
+    prompt+="- Write ALL acceptance criteria in EARS format (WHEN/WHILE/IF/WHERE/SHALL)\n"
+    prompt+="- Each AC must have a unique ID (AC-N.M) and trace to a test ID (TEST-N.M)\n"
+    prompt+="- Be thorough — this is the contract the implementation will be tested against\n"
+    prompt+="- Do NOT include requirements already covered by other completed workstreams\n\n"
+    prompt+="### PLAN.md\n"
+    prompt+="- Break the work into phases with concrete milestones\n"
+    prompt+="- Each milestone should reference specific files to create/modify\n"
+    prompt+="- Include validation criteria for each phase\n"
+    prompt+="- Add key decisions with rationale\n"
+    prompt+="- List dependencies and risks\n\n"
+    prompt+="### SHARED-CONTEXT.md\n"
+    prompt+="- Set the purpose and initial state\n"
+    prompt+="- Note any early decisions (what's already decided from the spec)\n"
+    prompt+="- Document file ownership for this workstream\n\n"
+    prompt+="### NARRATIVE.md\n"
+    prompt+="- Write a human-readable explanation of what this workstream builds and why\n"
+    prompt+="- Include a high-level 'how it works' section\n\n"
+    prompt+="Write all four files. Be specific and detailed — vague specs produce vague implementations.\n"
+
+    echo -e "$prompt"
+}
+
 # --- Execution Helpers (Track C) ---
 
 # Build an execution prompt from task context + previous errors
