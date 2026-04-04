@@ -63,9 +63,6 @@ enum Commands {
     Validate {
         /// Path to the recipe YAML file
         recipe: PathBuf,
-        /// Output validation result as JSON to stdout
-        #[arg(long)]
-        json: bool,
     },
     /// Show expected variables for a recipe as JSON
     Vars {
@@ -101,7 +98,7 @@ fn main() {
 
 fn run(cli: Cli) -> Result<i32, JigError> {
     match cli.command {
-        Commands::Validate { recipe, json } => cmd_validate(&recipe, json),
+        Commands::Validate { recipe } => cmd_validate(&recipe, cli.json),
         Commands::Vars { recipe } => cmd_vars(&recipe),
         Commands::Render { template, to } => {
             cmd_render(&template, to.as_deref(), cli.vars.as_deref(), cli.vars_file.as_deref(), cli.vars_stdin)
@@ -220,53 +217,98 @@ fn cmd_run(
     base_dir: Option<&std::path::Path>,
     verbose: bool,
 ) -> Result<i32, JigError> {
-    // 1. Load and validate recipe (exit 1 on failure).
-    let recipe = Recipe::load(recipe_path)?;
+    let mode = output::detect_mode(force_json);
 
-    // 2. Collect and validate variables (exit 4 on failure).
-    let provided = variables::collect_vars(inline_vars, vars_file, vars_stdin)?;
-    let vars = variables::validate_variables(&recipe.variables, &provided)?;
-
-    // 3. Validate base_dir exists (AC-4.10).
-    let resolved_base = match base_dir {
-        Some(bd) => {
-            if !bd.is_dir() {
-                return Err(JigError::FileOperation(crate::error::StructuredError {
-                    what: format!("base directory does not exist: '{}'", bd.display()),
-                    where_: bd.display().to_string(),
-                    why: "the specified --base-dir path is not an existing directory".into(),
-                    hint: "create the directory first, or omit --base-dir to use the current directory".into(),
-                }));
+    // Helper: handle pre-operation errors respecting --json and --quiet.
+    // In JSON/piped mode, emit a JSON error envelope to stdout.
+    // In human mode with --quiet, suppress stderr.
+    // Returns Ok(exit_code) so main() doesn't double-print.
+    let handle_early_error = |e: JigError| -> Result<i32, JigError> {
+        let code = e.exit_code();
+        match mode {
+            output::OutputMode::Json => {
+                let se = e.structured_error().clone();
+                let json = serde_json::json!({
+                    "dry_run": dry_run,
+                    "operations": [{
+                        "action": "error",
+                        "path": "",
+                        "what": se.what,
+                        "where": se.where_,
+                        "why": se.why,
+                        "hint": se.hint,
+                        "rendered_content": "",
+                    }],
+                    "files_written": [],
+                    "files_skipped": [],
+                });
+                println!("{}", serde_json::to_string_pretty(&json).unwrap());
+                Ok(code)
             }
-            bd.to_path_buf()
+            output::OutputMode::Human => {
+                if !quiet {
+                    eprintln!("{e}");
+                }
+                Ok(code)
+            }
         }
-        None => std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")),
     };
 
-    // 4. Create recipe-aware environment and render ALL templates upfront (exit 2 on failure).
-    let env = renderer::create_recipe_env(&recipe)?;
+    // 1. Load and validate recipe (exit 1 on failure).
+    let recipe = match Recipe::load(recipe_path) {
+        Ok(r) => r,
+        Err(e) => return handle_early_error(e),
+    };
+
+    // 2. Collect and validate variables (exit 4 on failure).
+    let provided = match variables::collect_vars(inline_vars, vars_file, vars_stdin) {
+        Ok(v) => v,
+        Err(e) => return handle_early_error(e),
+    };
+    let vars = match variables::validate_variables(&recipe.variables, &provided) {
+        Ok(v) => v,
+        Err(e) => return handle_early_error(e),
+    };
+
+    // 3. Create recipe-aware environment and render ALL templates upfront (exit 2 on failure).
+    let env = match renderer::create_recipe_env(&recipe) {
+        Ok(e) => e,
+        Err(e) => return handle_early_error(e),
+    };
 
     let mut prepared_ops = Vec::with_capacity(recipe.files.len());
     for (i, file_op) in recipe.files.iter().enumerate() {
         // Render the template content.
-        let rendered_content = renderer::render_template(&env, file_op.template(), &vars)?;
+        let rendered_content = match renderer::render_template(&env, file_op.template(), &vars) {
+            Ok(c) => c,
+            Err(e) => return handle_early_error(e),
+        };
 
         // Render templated path fields.
         let rendered_path = match file_op {
             recipe::FileOp::Create { to, .. } => {
-                renderer::render_path_template(&env, to, &vars, &format!("files[{}].to", i))?
+                match renderer::render_path_template(&env, to, &vars, &format!("files[{}].to", i)) {
+                    Ok(p) => p,
+                    Err(e) => return handle_early_error(e),
+                }
             }
             recipe::FileOp::Inject { inject, .. } => {
-                renderer::render_path_template(&env, inject, &vars, &format!("files[{}].inject", i))?
+                match renderer::render_path_template(&env, inject, &vars, &format!("files[{}].inject", i)) {
+                    Ok(p) => p,
+                    Err(e) => return handle_early_error(e),
+                }
             }
         };
 
         // Render skip_if for inject operations.
         let rendered_skip_if = match file_op {
             recipe::FileOp::Inject { skip_if: Some(skip_if_expr), .. } => {
-                Some(renderer::render_path_template(
+                match renderer::render_path_template(
                     &env, skip_if_expr, &vars, &format!("files[{}].skip_if", i),
-                )?)
+                ) {
+                    Ok(s) => Some(s),
+                    Err(e) => return handle_early_error(e),
+                }
             }
             _ => None,
         };
@@ -278,6 +320,23 @@ fn cmd_run(
             rendered_skip_if,
         });
     }
+
+    // 4. Validate base_dir exists (AC-4.10). Done after rendering to respect
+    // pipeline stage ordering: recipe(1) → variables(4) → rendering(2) → file ops(3) (AC-N5.2).
+    let resolved_base = match base_dir {
+        Some(bd) => {
+            if !bd.is_dir() {
+                return handle_early_error(JigError::FileOperation(crate::error::StructuredError {
+                    what: format!("base directory does not exist: '{}'", bd.display()),
+                    where_: bd.display().to_string(),
+                    why: "the specified --base-dir path is not an existing directory".into(),
+                    hint: "create the directory first, or omit --base-dir to use the current directory".into(),
+                }));
+            }
+            bd.to_path_buf()
+        }
+        None => std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")),
+    };
 
     // 5. Execute operations in declaration order, fail-fast on error.
     let mut ctx = operations::ExecutionContext::new(resolved_base, dry_run, force);
@@ -293,7 +352,6 @@ fn cmd_run(
     }
 
     // 6. Format and emit output.
-    let mode = output::detect_mode(force_json);
     let has_error = results.iter().any(|r| r.is_error());
 
     match mode {
@@ -309,11 +367,12 @@ fn cmd_run(
     }
 
     // 7. Return appropriate exit code.
+    // Error details are already in the JSON/human output above, so return Ok
+    // with the exit code to avoid duplicate stderr output from main().
     if has_error {
-        // Extract the error for proper exit code.
         if let Some(last) = results.last()
             && let Some(jig_err) = operations::op_error_to_jig_error(last) {
-                return Err(jig_err);
+                return Ok(jig_err.exit_code());
             }
     }
 
@@ -714,8 +773,8 @@ files:
         let out = dir.path().join("out");
         fs::create_dir(&out).unwrap();
         fs::write(out.join("existing.txt"), "old").unwrap();
-        let err = run_recipe(&recipe_path, "{}", &out, false, false, false).unwrap_err();
-        assert_eq!(err.exit_code(), 3);
+        let code = run_recipe(&recipe_path, "{}", &out, false, false, false).unwrap();
+        assert_eq!(code, 3);
     }
 
     // ── AC-4.6: --force overwrites ──
@@ -760,13 +819,12 @@ files:
         let yaml = "files: []\n";
         let (dir, recipe_path) = setup_run_recipe(yaml, &[]);
         let nonexistent = dir.path().join("does_not_exist");
-        let err = cmd_run(
+        let code = cmd_run(
             &recipe_path, Some("{}"), None, false,
             false, true, true, false,
             Some(&nonexistent), false,
-        ).unwrap_err();
-        assert_eq!(err.exit_code(), 3);
-        assert!(err.structured_error().what.contains("base directory"));
+        ).unwrap();
+        assert_eq!(code, 3);
     }
 
     // ── AC-6.8: --dry-run writes nothing ──
@@ -801,8 +859,8 @@ files:
         let out = dir.path().join("out");
         fs::create_dir(&out).unwrap();
         fs::write(out.join("existing.txt"), "old").unwrap();
-        let err = run_recipe(&recipe_path, "{}", &out, false, false, false).unwrap_err();
-        assert_eq!(err.exit_code(), 3);
+        let code = run_recipe(&recipe_path, "{}", &out, false, false, false).unwrap();
+        assert_eq!(code, 3);
         // Second file should not have been created.
         assert!(!out.join("should_not_exist.txt").exists());
     }
@@ -887,8 +945,8 @@ files:
         let (dir, recipe_path) = setup_run_recipe(yaml, &[("t.j2", "{{ name }}")]);
         let out = dir.path().join("out");
         fs::create_dir(&out).unwrap();
-        let err = run_recipe(&recipe_path, "{}", &out, false, false, false).unwrap_err();
-        assert_eq!(err.exit_code(), 4);
+        let code = run_recipe(&recipe_path, "{}", &out, false, false, false).unwrap();
+        assert_eq!(code, 4);
     }
 
     // ── AC-7.6: All global options accepted by run subcommand ──
@@ -938,8 +996,8 @@ files:
         let (dir, recipe_path) = setup_run_recipe(yaml, &[("t.j2", "{{ undefined_var }}")]);
         let out = dir.path().join("out");
         fs::create_dir(&out).unwrap();
-        let err = run_recipe(&recipe_path, "{}", &out, false, false, false).unwrap_err();
-        assert_eq!(err.exit_code(), 2);
+        let code = run_recipe(&recipe_path, "{}", &out, false, false, false).unwrap();
+        assert_eq!(code, 2);
     }
 
     // ── Multiple creates in one recipe ──
@@ -1138,8 +1196,8 @@ files:
         fs::create_dir(&out).unwrap();
         fs::write(out.join("target.py"), "line1\nline2\n").unwrap();
 
-        let err = run_recipe(&recipe_path, "{}", &out, false, false, false).unwrap_err();
-        assert_eq!(err.exit_code(), 3);
+        let code = run_recipe(&recipe_path, "{}", &out, false, false, false).unwrap();
+        assert_eq!(code, 3);
     }
 
     // ── AC-5.9: Missing inject target via full pipeline exits 3 ──
@@ -1158,8 +1216,8 @@ files:
         let out = dir.path().join("out");
         fs::create_dir(&out).unwrap();
 
-        let err = run_recipe(&recipe_path, "{}", &out, false, false, false).unwrap_err();
-        assert_eq!(err.exit_code(), 3);
+        let code = run_recipe(&recipe_path, "{}", &out, false, false, false).unwrap();
+        assert_eq!(code, 3);
     }
 
     // ── AC-5.11: Templated inject path via full pipeline ──

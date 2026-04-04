@@ -89,27 +89,35 @@ fn op_result_to_json(result: &OpResult, verbose: bool) -> Value {
 /// A path appears in files_skipped only if ALL operations targeting it were skipped.
 /// Paths appear in order of first encounter.
 fn compute_file_summaries(results: &[OpResult]) -> (IndexSet<String>, IndexSet<String>) {
-    let mut written: IndexSet<String> = IndexSet::new();
-    let mut skipped: IndexSet<String> = IndexSet::new();
+    // Track encounter order, writes, and errors to compute summaries.
+    let mut encounter_order: IndexSet<String> = IndexSet::new();
+    let mut was_written: std::collections::HashSet<String> = std::collections::HashSet::new();
+    let mut had_error: std::collections::HashSet<String> = std::collections::HashSet::new();
 
     for result in results {
         let path_str = result.path().display().to_string();
+        encounter_order.insert(path_str.clone());
 
         match result {
             OpResult::Success { .. } => {
-                written.insert(path_str.clone());
-                // If it was previously only in skipped, remove it.
-                skipped.swap_remove(&path_str);
-            }
-            OpResult::Skip { .. } => {
-                // Only add to skipped if not already written.
-                if !written.contains(&path_str) {
-                    skipped.insert(path_str);
-                }
+                was_written.insert(path_str);
             }
             OpResult::Error { .. } => {
-                // Errors don't affect file summaries (fail-fast means this is the last op).
+                had_error.insert(path_str);
             }
+            OpResult::Skip { .. } => {}
+        }
+    }
+
+    let mut written: IndexSet<String> = IndexSet::new();
+    let mut skipped: IndexSet<String> = IndexSet::new();
+
+    for path in &encounter_order {
+        if was_written.contains(path) {
+            written.insert(path.clone());
+        } else if !had_error.contains(path) {
+            // Only count as skipped if ALL operations were skips (no writes, no errors).
+            skipped.insert(path.clone());
         }
     }
 

@@ -4,7 +4,7 @@ Dual-agent adversarial code review against SPEC and INVARIANTS.
 
 ## Usage
 ```
-/ws-review <workstream> [task] [--agent claude|codex|both]
+/ws-review <workstream> [task] [--synthesize] [--agent claude|codex|both]
 ```
 
 ## Arguments
@@ -35,8 +35,12 @@ The script runs both Claude and Codex against the same code review prompt in par
 - **Testing** — tests cover EARS criteria and edge cases?
 - **LLM-specific traps** — hallucinated APIs, silent failures, unnecessary complexity?
 
-## After Review
+## Full Review Pipeline
 
-1. Review findings from both agents
-2. Fix critical/major issues
-3. `/ws-consolidate <name>` to capture learnings
+```
+/ws-review core-engine --synthesize     # 1. Dual-agent review + merge
+/ws-review-fix core-engine              # 2. Auto-fix findings
+# review diff, commit                   # 3. Human checkpoint
+/ws-review core-engine --synthesize     # 4. Re-review to confirm
+/ws-consolidate core-engine             # 5. Capture learnings
+```

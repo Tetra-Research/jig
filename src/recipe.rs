@@ -133,6 +133,9 @@ struct RawFileOp {
     #[serde(default)]
     at: Option<String>,
     skip_if: Option<String>,
+    /// Catch-all for unknown fields to produce better error messages.
+    #[serde(flatten)]
+    extra: std::collections::HashMap<String, serde_yaml::Value>,
 }
 
 // ── Parsing + validation ────────────────────────────────────────────
@@ -225,6 +228,17 @@ fn convert_file_op(raw: RawFileOp, index: usize, source: &Path) -> Result<FileOp
         "every file operation must specify a template",
         "add a 'template' field pointing to the Jinja2 template file",
     ))?;
+
+    // Reject unknown fields with a helpful message.
+    if !raw.extra.is_empty() {
+        let unknown: Vec<&String> = raw.extra.keys().collect();
+        return Err(recipe_err(
+            &format!("unknown field(s): {}", unknown.iter().map(|k| format!("'{k}'")).collect::<Vec<_>>().join(", ")),
+            &loc,
+            "these fields are not recognized in a file operation",
+            "remove the unknown fields — valid fields are: template, to, inject, replace, patch, skip_if_exists, after, before, prepend, append, at, skip_if",
+        ));
+    }
 
     // Count how many operation-type fields are present.
     let has_to = raw.to.is_some();
@@ -329,12 +343,12 @@ fn parse_inject_mode(
         ));
     }
 
-    let pos = parse_match_position(at, index, source)?;
-
     if let Some(pattern) = after {
+        let pos = parse_match_position(at, index, source)?;
         validate_regex(pattern, "after", index, source)?;
         Ok(InjectMode::After { pattern: pattern.clone(), at: pos })
     } else if let Some(pattern) = before {
+        let pos = parse_match_position(at, index, source)?;
         validate_regex(pattern, "before", index, source)?;
         Ok(InjectMode::Before { pattern: pattern.clone(), at: pos })
     } else if prepend {
@@ -362,6 +376,14 @@ fn parse_match_position(
 }
 
 fn validate_regex(pattern: &str, field: &str, index: usize, source: &Path) -> Result<(), JigError> {
+    if pattern.is_empty() {
+        return Err(recipe_err(
+            &format!("empty regex pattern in '{field}' field"),
+            &format!("files[{index}] in {}", source.display()),
+            "an empty pattern matches every line, which is almost certainly not intended",
+            "provide a non-empty regex pattern",
+        ));
+    }
     regex::Regex::new(pattern).map_err(|e| recipe_err(
         &format!("invalid regex in '{field}' field"),
         &format!("files[{index}] in {}", source.display()),
@@ -735,6 +757,28 @@ files:
         let err = Recipe::load(&path).unwrap_err();
         assert_eq!(err.exit_code(), 1);
         assert!(err.structured_error().what.contains("missing mode"));
+    }
+
+    /// AC-5.12 (parser-level): `at` field is ignored when prepend/append is specified.
+    #[test]
+    fn ac_5_12_at_ignored_for_prepend_append_at_parse() {
+        // prepend with at: first — should parse fine
+        let yaml1 = "files:\n  - template: tmpl.j2\n    inject: \"target.py\"\n    prepend: true\n    at: first\n";
+        let (_dir1, path1) = setup_recipe(yaml1, &["tmpl.j2"]);
+        let r1 = Recipe::load(&path1).unwrap();
+        assert!(matches!(r1.files[0], FileOp::Inject { ref mode, .. } if matches!(mode, InjectMode::Prepend)));
+
+        // append with at: last — should parse fine
+        let yaml2 = "files:\n  - template: tmpl.j2\n    inject: \"target.py\"\n    append: true\n    at: last\n";
+        let (_dir2, path2) = setup_recipe(yaml2, &["tmpl.j2"]);
+        let r2 = Recipe::load(&path2).unwrap();
+        assert!(matches!(r2.files[0], FileOp::Inject { ref mode, .. } if matches!(mode, InjectMode::Append)));
+
+        // prepend with at: banana — invalid at value, but should be ignored for prepend
+        let yaml3 = "files:\n  - template: tmpl.j2\n    inject: \"target.py\"\n    prepend: true\n    at: banana\n";
+        let (_dir3, path3) = setup_recipe(yaml3, &["tmpl.j2"]);
+        let r3 = Recipe::load(&path3).unwrap();
+        assert!(matches!(r3.files[0], FileOp::Inject { ref mode, .. } if matches!(mode, InjectMode::Prepend)));
     }
 
     /// Error structures always have what/where/why/hint (AC-N4.1).

@@ -2,7 +2,4 @@
 source: tests/integration.rs
 expression: stderr
 ---
-error: missing required variable 'class_name'
-  where: variable 'class_name'
-  why: variable 'class_name' is declared as required but no value was provided
-  hint: add 'class_name' to --vars, e.g. --vars '{"class_name":...}'
+

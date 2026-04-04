@@ -6,13 +6,14 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 source "$SCRIPT_DIR/lib/workflow-lib.sh"
 
 usage() {
-    echo "Usage: ws-review <workstream> [task] [--agent claude|codex|both]"
+    echo "Usage: ws-review <workstream> [task] [--synthesize] [--agent claude|codex|both]"
     echo ""
     echo "Runs adversarial code review against SPEC and INVARIANTS."
     echo "Saves timestamped outputs to docs/workstreams/<name>/reviews/"
     echo ""
     echo "Options:"
-    echo "  --agent    Run only one agent (default: both)"
+    echo "  --synthesize   Merge both reviews into unified, actionable feedback"
+    echo "  --agent        Run only one agent (default: both)"
     exit 1
 }
 
@@ -22,9 +23,11 @@ ws_name="$1"
 shift
 task_name=""
 agent="both"
+synthesize=false
 
 while [[ $# -gt 0 ]]; do
     case "$1" in
+        --synthesize) synthesize=true; shift ;;
         --agent) agent="$2"; shift 2 ;;
         --help|-h) usage ;;
         *)
@@ -81,15 +84,37 @@ if [[ -n "$codex_pid" ]]; then
     log_info "Codex review: $codex_output"
 fi
 
+# Synthesize if requested
+synth_output=""
+if [[ "$synthesize" == true && -f "$claude_output" && -f "$codex_output" ]]; then
+    log_info "Synthesizing code reviews..."
+    synth_prompt=$(generate_code_review_synthesis_prompt "$claude_output" "$codex_output")
+    synth_output="$review_dir/code-review-synthesized-${timestamp}.md"
+
+    (cd "$repo_root" && claude -p "$synth_prompt" --output-format json) > "$synth_output" 2>&1 || {
+        log_warn "Synthesis failed"
+        exit_code=1
+    }
+
+    ln -sf "code-review-synthesized-${timestamp}.md" "$review_dir/code-review-synthesized.md"
+    log_info "Synthesized review: $synth_output"
+fi
+
 echo ""
 log_info "Code review complete for '$ws_name'${task_name:+ task '$task_name'}"
 log_info "Outputs in: $review_dir/"
 [[ -f "$claude_output" ]] && log_info "  Claude: code-review-claude-${timestamp}.md"
 [[ -f "$codex_output" ]] && log_info "  Codex:  code-review-codex-${timestamp}.md"
+[[ -n "$synth_output" && -f "$synth_output" ]] && log_info "  Merged: code-review-synthesized-${timestamp}.md"
 echo ""
 log_info "Next steps:"
-log_info "  1. Review findings from both agents"
-log_info "  2. Fix critical/major issues"
-log_info "  3. /ws-consolidate $ws_name to capture learnings"
+if [[ -n "$synth_output" && -f "$synth_output" ]]; then
+    log_info "  1. Review synthesized findings"
+    log_info "  2. /ws-review-fix $ws_name${task_name:+ $task_name} to auto-fix"
+else
+    log_info "  1. Review findings from both agents"
+    log_info "  2. Re-run with --synthesize to merge findings"
+    log_info "  3. /ws-review-fix $ws_name${task_name:+ $task_name} to auto-fix"
+fi
 
 exit $exit_code

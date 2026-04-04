@@ -52,11 +52,22 @@ pub fn parse_vars_inline(json_str: &str) -> Result<Value, JigError> {
 
 /// Parse JSON from a file (--vars-file).
 pub fn parse_vars_file(path: &Path) -> Result<Value, JigError> {
-    let content = std::fs::read_to_string(path).map_err(|_| {
+    let content = std::fs::read_to_string(path).map_err(|e| {
+        let (what, why) = if e.kind() == std::io::ErrorKind::NotFound {
+            (
+                "vars file not found".to_string(),
+                "the file does not exist at the specified path".to_string(),
+            )
+        } else {
+            (
+                "cannot read vars file".to_string(),
+                e.to_string(),
+            )
+        };
         JigError::VariableValidation(vec![StructuredError {
-            what: "vars file not found".into(),
+            what,
             where_: path.display().to_string(),
-            why: "the file does not exist at the specified path".into(),
+            why,
             hint: "check the --vars-file path and try again".into(),
         }])
     })?;
@@ -194,29 +205,29 @@ fn check_type(name: &str, decl: &VariableDecl, val: &Value, errors: &mut Vec<Str
     match decl.var_type {
         VarType::String => {
             if !val.is_string() {
-                errors.push(type_mismatch_error(name, "string", actual_type));
+                errors.push(type_mismatch_error(name, "string", actual_type, val));
             }
         }
         VarType::Number => {
             if !val.is_number() {
-                errors.push(type_mismatch_error(name, "number", actual_type));
+                errors.push(type_mismatch_error(name, "number", actual_type, val));
             }
         }
         VarType::Boolean => {
             if !val.is_boolean() {
-                errors.push(type_mismatch_error(name, "boolean", actual_type));
+                errors.push(type_mismatch_error(name, "boolean", actual_type, val));
             }
         }
         VarType::Array => {
             if !val.is_array() {
-                errors.push(type_mismatch_error(name, "array", actual_type));
+                errors.push(type_mismatch_error(name, "array", actual_type, val));
             } else if let Some(ref item_type) = decl.items {
                 check_array_items(name, item_type, val.as_array().unwrap(), errors);
             }
         }
         VarType::Object => {
             if !val.is_object() {
-                errors.push(type_mismatch_error(name, "object", actual_type));
+                errors.push(type_mismatch_error(name, "object", actual_type, val));
             }
         }
         VarType::Enum => {
@@ -237,7 +248,7 @@ fn check_type(name: &str, decl: &VariableDecl, val: &Value, errors: &mut Vec<Str
                     }
                 }
             } else {
-                errors.push(type_mismatch_error(name, "enum (string)", actual_type));
+                errors.push(type_mismatch_error(name, "enum (string)", actual_type, val));
             }
         }
     }
@@ -273,11 +284,17 @@ fn check_array_items(
     }
 }
 
-fn type_mismatch_error(name: &str, expected: &str, actual: &str) -> StructuredError {
+fn type_mismatch_error(name: &str, expected: &str, actual: &str, val: &Value) -> StructuredError {
+    let val_str = val.to_string();
+    let truncated = if val_str.len() > 80 {
+        format!("{}...", &val_str[..77])
+    } else {
+        val_str
+    };
     StructuredError {
         what: format!("type mismatch for variable '{name}'"),
         where_: format!("variable '{name}'"),
-        why: format!("expected {expected}, got {actual}"),
+        why: format!("expected {expected}, got {actual}: {truncated}"),
         hint: format!("provide a {expected} value for '{name}'"),
     }
 }

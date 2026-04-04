@@ -145,6 +145,11 @@ fn template_syntax_error(template_name: &str, err: &minijinja::Error) -> JigErro
 
 /// Find the undefined variable in a template by scanning for references
 /// not present in the variable context.
+///
+/// Limitation: this is a best-effort heuristic using regex. It extracts only the
+/// first identifier from expressions like `{{ user.name }}` (yields "user", not
+/// "user.name"). Falls back to "unknown" if no match is found. minijinja does not
+/// expose the undefined variable name directly, so this is the best we can do for v0.1.
 fn find_undefined_variable(template_source: &str, error_line: Option<usize>, vars: &Value) -> String {
     let var_keys: Vec<&str> = match vars.as_object() {
         Some(obj) => obj.keys().map(|s| s.as_str()).collect(),

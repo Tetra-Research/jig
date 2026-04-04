@@ -619,6 +619,82 @@ generate_code_review_prompt() {
     echo -e "$prompt"
 }
 
+# Build a synthesis prompt from two code review outputs
+generate_code_review_synthesis_prompt() {
+    local claude_review="$1"
+    local codex_review="$2"
+
+    local prompt="You are synthesizing two independent adversarial code reviews into unified, actionable feedback.\n\n"
+    prompt+="## Review A (Claude)\n\n$(cat "$claude_review")\n\n"
+    prompt+="## Review B (Codex)\n\n$(cat "$codex_review")\n\n"
+    prompt+="## Instructions\n\n"
+    prompt+="Produce a merged code review that:\n"
+    prompt+="1. **Agreed findings** — Issues both reviewers flagged. These are high-confidence.\n"
+    prompt+="2. **Unique findings** — Issues only one reviewer caught. Assess validity.\n"
+    prompt+="3. **Conflicting assessments** — Where reviewers disagree on severity or correctness.\n"
+    prompt+="4. Deduplicate — merge findings about the same issue into one entry.\n"
+    prompt+="5. Preserve severity levels: Critical > Major > Minor.\n"
+    prompt+="6. For each finding, include the specific fix needed with \`file:line\` references.\n"
+    prompt+="7. Drop any finding that is incorrect or based on misunderstanding the code.\n\n"
+    prompt+="## Output Format\n\n"
+    prompt+="**Verdict:** Approve / Request Changes / Needs Discussion\n\n"
+    prompt+="**Critical** (must fix):\n"
+    prompt+="- [ ] Finding + \`file:line\` + specific fix needed\n\n"
+    prompt+="**Major** (should fix):\n"
+    prompt+="- [ ] Finding + \`file:line\` + specific fix needed\n\n"
+    prompt+="**Minor** (nice to fix):\n"
+    prompt+="- [ ] Finding + \`file:line\` + specific fix needed\n\n"
+    prompt+="**Strengths** (confirmed by both reviewers):\n"
+    prompt+="- Observation\n"
+
+    echo -e "$prompt"
+}
+
+# Build a prompt to fix code based on review findings
+generate_review_fix_prompt() {
+    local ws_name="$1"
+    local task_name="${2:-}"
+    local findings_file="$3"
+    local ws_dir
+    ws_dir="$(get_workstream_dir "$ws_name")"
+    local docs_dir
+    docs_dir="$(get_docs_dir)"
+
+    local prompt="You are fixing code based on review findings for workstream '$ws_name'"
+    [[ -n "$task_name" ]] && prompt+=" task '$task_name'"
+    prompt+=".\n\n"
+
+    # Load invariants so the agent doesn't violate them while fixing
+    if [[ -f "$docs_dir/INVARIANTS.md" ]]; then
+        prompt+="## Project Invariants (do not violate)\n\n$(cat "$docs_dir/INVARIANTS.md")\n\n"
+    fi
+
+    # Load spec for reference
+    if [[ -f "$ws_dir/SPEC.md" ]]; then
+        prompt+="## Specification\n\n$(cat "$ws_dir/SPEC.md")\n\n"
+    fi
+
+    # Task context if scoped
+    if [[ -n "$task_name" ]]; then
+        local task_dir
+        task_dir="$(get_task_dir "$ws_name" "$task_name")"
+        [[ -f "$task_dir/CONTEXT.md" ]] && prompt+="## Task Context\n\n$(cat "$task_dir/CONTEXT.md")\n\n"
+    fi
+
+    prompt+="## Review Findings to Fix\n\n$(cat "$findings_file")\n\n"
+
+    prompt+="## Instructions\n\n"
+    prompt+="1. Fix all **Critical** findings. These are blocking.\n"
+    prompt+="2. Fix all **Major** findings.\n"
+    prompt+="3. Fix **Minor** findings if they are straightforward.\n"
+    prompt+="4. For each finding, make the minimal change needed. Do not refactor surrounding code.\n"
+    prompt+="5. Run \`cargo test\` after changes to ensure nothing is broken.\n"
+    prompt+="6. If a finding is wrong or already fixed, skip it.\n\n"
+    prompt+="When done, output a summary of what you fixed and what you skipped (with reasons).\n"
+
+    echo -e "$prompt"
+}
+
 # Build a consolidation prompt from workstream context + recent changes
 generate_consolidation_prompt() {
     local ws_name="$1"

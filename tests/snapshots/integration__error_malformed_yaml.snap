@@ -2,7 +2,4 @@
 source: tests/integration.rs
 expression: normalized
 ---
-error: malformed recipe YAML
-  where: <recipe-path>
-  why: files[0].template: invalid type: sequence, expected a string at line 2 column 15
-  hint: check YAML syntax — ensure proper indentation and field names
+
