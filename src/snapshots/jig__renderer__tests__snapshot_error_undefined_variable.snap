@@ -1,0 +1,8 @@
+---
+source: src/renderer.rs
+expression: error_display
+---
+what: undefined variable 'clss_name'
+where: test.j2 (line 1)
+why: variable 'clss_name' is not defined in the provided context
+hint: did you mean 'class_name'?

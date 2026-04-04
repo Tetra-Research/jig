@@ -1,0 +1,12 @@
+---
+source: src/renderer.rs
+expression: result
+---
+class BookingService:
+    """Bookings model."""
+
+    name: str
+
+    date: str
+
+    status: str

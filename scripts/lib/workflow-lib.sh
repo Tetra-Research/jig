@@ -413,6 +413,282 @@ generate_synthesis_prompt() {
     echo -e "$prompt"
 }
 
+# --- Review Prompt Builders ---
+
+# Build an adversarial plan review prompt from workstream context
+generate_plan_review_prompt() {
+    local ws_name="$1"
+    local ws_dir
+    ws_dir="$(get_workstream_dir "$ws_name")"
+    local docs_dir
+    docs_dir="$(get_docs_dir)"
+    local exec_dir
+    exec_dir="$(get_exec_dir "$ws_name")"
+
+    local prompt="You are performing an adversarial review of the planning documents for workstream '$ws_name'.\n\n"
+    prompt+="Your job is to find contradictions, gaps, ambiguities, and missing coverage BEFORE implementation begins.\n\n"
+
+    # Load project-level context
+    if [[ -f "$docs_dir/INVARIANTS.md" ]]; then
+        prompt+="## Project Invariants\n\n$(cat "$docs_dir/INVARIANTS.md")\n\n"
+    fi
+    if [[ -f "$docs_dir/ARCHITECTURE.md" ]]; then
+        prompt+="## Architecture\n\n$(cat "$docs_dir/ARCHITECTURE.md")\n\n"
+    fi
+
+    # Load workstream context
+    if [[ -f "$ws_dir/SPEC.md" ]]; then
+        prompt+="## Specification\n\n$(cat "$ws_dir/SPEC.md")\n\n"
+    fi
+    if [[ -f "$ws_dir/PLAN.md" ]]; then
+        prompt+="## Plan\n\n$(cat "$ws_dir/PLAN.md")\n\n"
+    fi
+    if [[ -f "$ws_dir/SHARED-CONTEXT.md" ]]; then
+        prompt+="## Shared Context\n\n$(cat "$ws_dir/SHARED-CONTEXT.md")\n\n"
+    fi
+    if [[ -f "$ws_dir/NARRATIVE.md" ]]; then
+        prompt+="## Narrative\n\n$(cat "$ws_dir/NARRATIVE.md")\n\n"
+    fi
+
+    # Load execution plans if they exist
+    local latest_synth
+    latest_synth=$(ls -t "$exec_dir"/synthesized-*.md 2>/dev/null | head -1 || true)
+    if [[ -f "$exec_dir/synthesized.md" ]]; then
+        prompt+="## Synthesized Execution Plan\n\n$(cat "$exec_dir/synthesized.md")\n\n"
+    elif [[ -n "$latest_synth" ]]; then
+        prompt+="## Synthesized Execution Plan\n\n$(cat "$latest_synth")\n\n"
+    else
+        # Fall back to individual agent plans
+        local latest_claude
+        latest_claude=$(ls -t "$exec_dir"/claude-plan-*.md 2>/dev/null | head -1 || true)
+        if [[ -n "$latest_claude" ]]; then
+            prompt+="## Claude Execution Plan\n\n$(cat "$latest_claude")\n\n"
+        fi
+        local latest_codex
+        latest_codex=$(ls -t "$exec_dir"/codex-plan-*.md 2>/dev/null | head -1 || true)
+        if [[ -n "$latest_codex" ]]; then
+            prompt+="## Codex Execution Plan\n\n$(cat "$latest_codex")\n\n"
+        fi
+    fi
+
+    prompt+="## Review Instructions\n\n"
+    prompt+="Perform a thorough adversarial review. For each finding, cite the specific file and section.\n\n"
+    prompt+="### 1. Consistency Check\n"
+    prompt+="- Contradictions between SPEC and PLAN\n"
+    prompt+="- Requirements in PLAN not covered by SPEC\n"
+    prompt+="- Orphaned EARS acceptance criteria with no test mapping\n"
+    prompt+="- Scope gaps — what's unspecified that should be\n\n"
+    prompt+="### 2. EARS Format Audit\n"
+    prompt+="For every acceptance criterion in SPEC.md:\n"
+    prompt+="- Is it in EARS format (WHEN/WHILE/IF/WHERE/SHALL)?\n"
+    prompt+="- Does it have an AC-N.M identifier?\n"
+    prompt+="- Does the Traces To column reference a test?\n"
+    prompt+="- Is the criterion testable (not vague)?\n\n"
+    prompt+="### 3. Completeness Check\n"
+    prompt+="- All phases in PLAN.md have validation criteria\n"
+    prompt+="- All FR/NFR in SPEC.md have EARS acceptance criteria\n"
+    prompt+="- Error handling specified for all failure modes\n"
+    prompt+="- Dependencies between workstreams documented\n\n"
+    prompt+="### 4. Invariant Alignment\n"
+    prompt+="- Does the plan honor every invariant in INVARIANTS.md?\n"
+    prompt+="- Are there implicit assumptions that contradict invariants?\n\n"
+    prompt+="### 5. Risk Assessment\n"
+    prompt+="- Underestimated complexity\n"
+    prompt+="- Missing error cases\n"
+    prompt+="- Dependency risks\n"
+    prompt+="- Ambiguous requirements that could be interpreted multiple ways\n\n"
+    prompt+="## Output Format\n\n"
+    prompt+="Structure your findings as:\n\n"
+    prompt+="**Critical** (blocks implementation):\n"
+    prompt+="- Finding with \`file:section\` reference\n\n"
+    prompt+="**Major** (should fix before implementation):\n"
+    prompt+="- Finding with \`file:section\` reference\n\n"
+    prompt+="**Minor** (nice to fix):\n"
+    prompt+="- Finding with \`file:section\` reference\n\n"
+    prompt+="**Strengths** (what's done well):\n"
+    prompt+="- Observation\n"
+
+    echo -e "$prompt"
+}
+
+# Build a synthesis prompt from two plan review outputs
+generate_review_synthesis_prompt() {
+    local claude_review="$1"
+    local codex_review="$2"
+
+    local prompt="You are synthesizing two independent adversarial reviews of a workstream plan into unified, actionable feedback.\n\n"
+    prompt+="## Review A (Claude)\n\n$(cat "$claude_review")\n\n"
+    prompt+="## Review B (Codex)\n\n$(cat "$codex_review")\n\n"
+    prompt+="## Instructions\n\n"
+    prompt+="Produce a merged review that:\n"
+    prompt+="1. **Agreed findings** — Issues both reviewers flagged. These are high-confidence.\n"
+    prompt+="2. **Unique findings** — Issues only one reviewer caught. Assess validity.\n"
+    prompt+="3. **Conflicting assessments** — Where reviewers disagree on severity or correctness.\n"
+    prompt+="4. Deduplicate — merge findings about the same issue into one entry.\n"
+    prompt+="5. Preserve severity levels: Critical > Major > Minor.\n"
+    prompt+="6. For each finding, include the specific fix needed (not just the problem).\n\n"
+    prompt+="## Output Format\n\n"
+    prompt+="**Critical** (blocks implementation):\n"
+    prompt+="- Finding + specific fix needed\n\n"
+    prompt+="**Major** (should fix before implementation):\n"
+    prompt+="- Finding + specific fix needed\n\n"
+    prompt+="**Minor** (nice to fix):\n"
+    prompt+="- Finding + specific fix needed\n\n"
+    prompt+="**Strengths** (confirmed by both reviewers):\n"
+    prompt+="- Observation\n"
+
+    echo -e "$prompt"
+}
+
+# Build an adversarial code review prompt from workstream context + code
+generate_code_review_prompt() {
+    local ws_name="$1"
+    local task_name="${2:-}"
+    local ws_dir
+    ws_dir="$(get_workstream_dir "$ws_name")"
+    local docs_dir
+    docs_dir="$(get_docs_dir)"
+    local repo_root
+    repo_root="$(get_repo_root)"
+
+    local prompt="You are performing an adversarial code review for workstream '$ws_name'"
+    [[ -n "$task_name" ]] && prompt+=" task '$task_name'"
+    prompt+=".\n\n"
+    prompt+="Review the implementation against the spec, not just for code quality.\n\n"
+
+    # Load project-level context
+    if [[ -f "$docs_dir/INVARIANTS.md" ]]; then
+        prompt+="## Project Invariants\n\n$(cat "$docs_dir/INVARIANTS.md")\n\n"
+    fi
+
+    # Load workstream context
+    if [[ -f "$ws_dir/SPEC.md" ]]; then
+        prompt+="## Specification\n\n$(cat "$ws_dir/SPEC.md")\n\n"
+    fi
+    if [[ -f "$ws_dir/PLAN.md" ]]; then
+        prompt+="## Plan\n\n$(cat "$ws_dir/PLAN.md")\n\n"
+    fi
+    if [[ -f "$ws_dir/SHARED-CONTEXT.md" ]]; then
+        prompt+="## Shared Context\n\n$(cat "$ws_dir/SHARED-CONTEXT.md")\n\n"
+    fi
+
+    # Load task-specific context if available
+    if [[ -n "$task_name" ]]; then
+        local task_dir
+        task_dir="$(get_task_dir "$ws_name" "$task_name")"
+        [[ -f "$task_dir/CONTEXT.md" ]] && prompt+="## Task Context\n\n$(cat "$task_dir/CONTEXT.md")\n\n"
+        [[ -f "$task_dir/VALIDATION.md" ]] && prompt+="## Validation Criteria\n\n$(cat "$task_dir/VALIDATION.md")\n\n"
+    fi
+
+    # Include file ownership map so the agent knows what to review
+    prompt+="## Review Instructions\n\n"
+    prompt+="### 1. Fresh Eyes Pass\n"
+    prompt+="Read the code without spec context first. What jumps out?\n\n"
+    prompt+="### 2. Spec Alignment\n"
+    prompt+="Walk through each EARS acceptance criterion in SPEC.md. Is it implemented correctly?\n"
+    prompt+="Flag any AC that is not covered or incorrectly implemented.\n\n"
+    prompt+="### 3. Invariant Compliance\n"
+    prompt+="Does the code honor every invariant in INVARIANTS.md?\n\n"
+    prompt+="### 4. Design Review\n"
+    prompt+="- Right abstractions? Right boundaries?\n"
+    prompt+="- Essential complexity only? No unnecessary abstractions?\n"
+    prompt+="- API ergonomics — is the public interface hard to misuse?\n\n"
+    prompt+="### 5. Error Handling\n"
+    prompt+="- Are all error paths covered?\n"
+    prompt+="- Do errors include what/where/why/hint per SPEC?\n"
+    prompt+="- Can an LLM caller recover from every error?\n\n"
+    prompt+="### 6. Testing Review\n"
+    prompt+="- Do tests cover EARS criteria?\n"
+    prompt+="- Edge cases handled?\n"
+    prompt+="- Are tests testing behavior, not implementation?\n\n"
+    prompt+="### 7. LLM-Specific Traps\n"
+    prompt+="- Hallucinated APIs or crate functions that don't exist?\n"
+    prompt+="- Silent failures that would confuse an LLM caller?\n"
+    prompt+="- Unnecessary complexity?\n\n"
+    prompt+="## Output Format\n\n"
+    prompt+="**Verdict:** Approve / Request Changes / Needs Discussion\n\n"
+    prompt+="**Critical** (must fix before merge):\n"
+    prompt+="- Finding with \`file:line\` reference\n\n"
+    prompt+="**Major** (should fix):\n"
+    prompt+="- Finding with \`file:line\` reference\n\n"
+    prompt+="**Minor** (nice to fix):\n"
+    prompt+="- Finding with \`file:line\` reference\n\n"
+    prompt+="**Strengths** (what's done well):\n"
+    prompt+="- Observation\n"
+
+    echo -e "$prompt"
+}
+
+# Build a consolidation prompt from workstream context + recent changes
+generate_consolidation_prompt() {
+    local ws_name="$1"
+    local ws_dir
+    ws_dir="$(get_workstream_dir "$ws_name")"
+    local docs_dir
+    docs_dir="$(get_docs_dir)"
+    local repo_root
+    repo_root="$(get_repo_root)"
+
+    local prompt="You are consolidating learnings from recent work on workstream '$ws_name'.\n\n"
+    prompt+="Your job is to update durable documentation so future conversations have full context.\n\n"
+
+    # Load workstream context
+    if [[ -f "$ws_dir/PLAN.md" ]]; then
+        prompt+="## Current Plan\n\n$(cat "$ws_dir/PLAN.md")\n\n"
+    fi
+    if [[ -f "$ws_dir/SPEC.md" ]]; then
+        prompt+="## Specification\n\n$(cat "$ws_dir/SPEC.md")\n\n"
+    fi
+    if [[ -f "$ws_dir/SHARED-CONTEXT.md" ]]; then
+        prompt+="## Shared Context\n\n$(cat "$ws_dir/SHARED-CONTEXT.md")\n\n"
+    fi
+
+    # Load project-level context for promotion decisions
+    if [[ -f "$docs_dir/INVARIANTS.md" ]]; then
+        prompt+="## Project Invariants\n\n$(cat "$docs_dir/INVARIANTS.md")\n\n"
+    fi
+    if [[ -f "$docs_dir/ARCHITECTURE.md" ]]; then
+        prompt+="## Architecture\n\n$(cat "$docs_dir/ARCHITECTURE.md")\n\n"
+    fi
+
+    # Include recent git history
+    local git_log
+    git_log=$(cd "$repo_root" && git log --oneline -20 2>/dev/null || echo "(no git history)")
+    prompt+="## Recent Git History\n\n\`\`\`\n$git_log\n\`\`\`\n\n"
+
+    local git_diff_stat
+    git_diff_stat=$(cd "$repo_root" && git diff --stat HEAD~10 HEAD 2>/dev/null || echo "(no diff)")
+    prompt+="## Recent Changes (stat)\n\n\`\`\`\n$git_diff_stat\n\`\`\`\n\n"
+
+    prompt+="## Consolidation Instructions\n\n"
+    prompt+="### 1. Update PLAN.md\n"
+    prompt+="- Mark completed milestones with \`[x]\`\n"
+    prompt+="- Update phase status (Planned → In Progress → Complete)\n"
+    prompt+="- Add any new milestones discovered during implementation\n\n"
+    prompt+="### 2. Update SHARED-CONTEXT.md\n"
+    prompt+="- Add decisions made during implementation (with rationale)\n"
+    prompt+="- Add patterns established\n"
+    prompt+="- Add known issues / tech debt discovered\n"
+    prompt+="- Update file ownership if new files were created\n\n"
+    prompt+="### 3. Update SPEC.md (if needed)\n"
+    prompt+="- Update if requirements changed during implementation\n"
+    prompt+="- Add any new acceptance criteria discovered\n\n"
+    prompt+="### 4. Check for Promotions\n"
+    prompt+="Should any learnings be promoted to project-level docs?\n"
+    prompt+="- INVARIANTS.md — new constraint that applies to all future work\n"
+    prompt+="- ARCHITECTURE.md — new interface or system boundary\n"
+    prompt+="- CLAUDE.md / AGENTS.md — new convention or build command\n\n"
+    prompt+="### 5. Clean Up\n"
+    prompt+="- Identify ephemeral task docs whose knowledge is now in SHARED-CONTEXT.md\n"
+    prompt+="- Identify exec/ iteration artifacts that can be archived (keep summaries)\n\n"
+    prompt+="## Output\n\n"
+    prompt+="For each file you would update, show the specific changes.\n"
+    prompt+="Mark promotions with [PROMOTE TO <target>].\n"
+    prompt+="Mark cleanup candidates with [ARCHIVE].\n"
+
+    echo -e "$prompt"
+}
+
 # --- Execution Helpers (Track C) ---
 
 # Build an execution prompt from task context + previous errors

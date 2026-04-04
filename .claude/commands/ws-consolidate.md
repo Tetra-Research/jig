@@ -4,26 +4,37 @@ Capture learnings from completed work and update durable documentation.
 
 ## Usage
 ```
-/ws-consolidate
+/ws-consolidate <workstream> [--agent claude|codex]
 ```
+
+## Arguments
+$ARGUMENTS
 
 ---
 
-## Process
+Run the consolidation script:
 
-### 1. Identify What Changed
+```bash
+./scripts/ws-consolidate.sh $ARGUMENTS
+```
 
-Review recent commits, modified files, and completed tasks.
+## How It Works
 
-### 2. Update Workstream Docs
+The script reviews recent changes and produces a consolidation report:
 
-- **PLAN.md** — Mark completed milestones with `[x]`, update status
-- **SHARED-CONTEXT.md** — Add decisions, patterns, known issues discovered during implementation
-- **SPEC.md** — Update if requirements changed during implementation
+1. Builds prompt from workstream docs + recent git history
+2. Runs a single agent to analyze what changed and what should be updated
+3. Saves output to `docs/workstreams/<name>/exec/consolidation-<timestamp>.md`
 
-### 3. Check for Promotions
+## What Gets Updated
 
-Should any learnings be promoted to project-level docs?
+- **PLAN.md** — mark completed milestones, update phase status
+- **SHARED-CONTEXT.md** — add decisions, patterns, known issues from implementation
+- **SPEC.md** — update if requirements changed during implementation
+
+## Promotion Checks
+
+The agent checks if any learnings should be promoted to project-level docs:
 
 | Target | Promote When |
 |--------|-------------|
@@ -31,11 +42,8 @@ Should any learnings be promoted to project-level docs?
 | `ARCHITECTURE.md` | New interface or system boundary |
 | `CLAUDE.md` / `AGENTS.md` | New convention or build command |
 
-### 4. Clean Up
+## After Consolidation
 
-- Archive ephemeral task docs (CONTEXT.md, VALIDATION.md) — their knowledge is now in SHARED-CONTEXT.md
-- Clean up `exec/` iteration artifacts (keep summaries, remove individual iterations)
-
-### 5. Commit
-
-Create a single consolidation commit with all doc updates.
+1. Review the consolidation output
+2. Apply the suggested doc updates
+3. Commit the updated docs

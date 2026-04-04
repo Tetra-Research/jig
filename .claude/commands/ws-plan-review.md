@@ -1,10 +1,10 @@
 # Workstream Plan Review
 
-Adversarial review of planning documents for a workstream.
+Dual-agent adversarial review of planning documents for a workstream.
 
 ## Usage
 ```
-/ws-plan-review <workstream-name>
+/ws-plan-review <workstream-name> [--agent claude|codex|both]
 ```
 
 ## Arguments
@@ -12,60 +12,30 @@ $ARGUMENTS
 
 ---
 
-## IMPORTANT: Read-Only Review
+Run the plan review script:
 
-This is a review, not implementation. Do not modify source files.
+```bash
+./scripts/ws-plan-review.sh $ARGUMENTS
+```
 
-## Review Process
+## How It Works
 
-### 1. Load Context
+The script runs both Claude and Codex against the same adversarial review prompt in parallel:
 
-Read all workstream docs:
-- `docs/workstreams/<name>/PLAN.md`
-- `docs/workstreams/<name>/SPEC.md`
-- `docs/workstreams/<name>/SHARED-CONTEXT.md`
-- `docs/workstreams/<name>/NARRATIVE.md`
-- `docs/workstreams/<name>/exec/synthesized.md` (if exists)
-- `docs/INVARIANTS.md`
-- `docs/ARCHITECTURE.md`
+1. Builds review prompt from all workstream docs (SPEC, PLAN, SHARED-CONTEXT, NARRATIVE, execution plans, INVARIANTS, ARCHITECTURE)
+2. Runs agents with the prompt
+3. Saves timestamped outputs to `docs/workstreams/<name>/reviews/`
 
-### 2. Consistency Check
+## Review Checks
 
-Build a map across all docs. Hunt for:
-- **Contradictions** between SPEC and PLAN
-- **Missing requirements** — anything in PLAN not covered by SPEC
-- **Orphaned criteria** — EARS acceptance criteria with no test mapping
-- **Scope gaps** — what's not specified that should be
+- **Consistency** — contradictions between SPEC and PLAN
+- **EARS audit** — every AC is in EARS format with ID and test mapping
+- **Completeness** — all phases have validation criteria, all FR/NFR have ACs
+- **Invariant alignment** — plan honors every invariant in INVARIANTS.md
+- **Risk assessment** — underestimated complexity, missing error cases
 
-### 3. EARS Format Audit
+## After Review
 
-For every acceptance criterion in SPEC.md:
-- [ ] Is it in EARS format (WHEN/WHILE/IF/WHERE/SHALL)?
-- [ ] Does it have an AC-N.M identifier?
-- [ ] Does the `Traces To` column reference a test?
-- [ ] Is the criterion testable (not vague)?
-
-Flag any free-form acceptance criteria that should be converted to EARS.
-
-### 4. Completeness Check
-
-- [ ] All phases in PLAN.md have validation criteria
-- [ ] All FR/NFR in SPEC.md have EARS acceptance criteria
-- [ ] Data model covers all entities referenced in requirements
-- [ ] Error handling is specified for failure modes
-- [ ] Dependencies between workstreams are documented
-
-### 5. Output
-
-Structure findings as:
-
-**Critical** (blocks implementation):
-- Finding with `file:line` reference
-
-**Major** (should fix before implementation):
-- Finding with `file:line` reference
-
-**Minor** (nice to fix):
-- Finding with `file:line` reference
-
-Save review to `docs/workstreams/<name>/reviews/<timestamp>.md`
+1. Review findings from both agents
+2. Fix critical/major issues in SPEC.md and PLAN.md
+3. `/ws-execute <name>` to start building

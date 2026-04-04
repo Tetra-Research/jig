@@ -1,0 +1,8 @@
+---
+source: src/renderer.rs
+expression: error_display
+---
+what: template syntax error
+where: test.j2 (line 1)
+why: unexpected end of input, expected end of block
+hint: check Jinja2 syntax — ensure all blocks are properly closed

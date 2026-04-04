@@ -10,3 +10,18 @@ name = "jig"
 path = "src/main.rs"
 
 [dependencies]
+clap = { version = "4", features = ["derive"] }
+heck = "0.5"
+indexmap = { version = "2", features = ["serde"] }
+minijinja = "2"
+pluralizer = "0.4"
+regex = "1"
+serde = { version = "1", features = ["derive"] }
+serde_json = { version = "1", features = ["preserve_order"] }
+serde_yaml = "0.9"
+strsim = "0.11"
+thiserror = "2"
+
+[dev-dependencies]
+insta = "1"
+tempfile = "3"

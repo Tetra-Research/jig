@@ -62,7 +62,7 @@ codex_pid=""
 # Run agents
 if [[ "$agent" == "both" || "$agent" == "claude" ]]; then
     log_info "Starting Claude planning..."
-    claude -p "$prompt" --output-format json --cwd "$repo_root" > "$claude_output" 2>&1 &
+    (cd "$repo_root" && claude -p "$prompt" --output-format json) > "$claude_output" 2>&1 &
     claude_pid=$!
 fi
 
@@ -89,7 +89,7 @@ if [[ "$synthesize" == true && -f "$claude_output" && -f "$codex_output" ]]; the
     synth_prompt=$(generate_synthesis_prompt "$claude_output" "$codex_output")
     synth_output="$exec_dir/synthesized-${timestamp}.md"
 
-    claude -p "$synth_prompt" --output-format json --cwd "$repo_root" > "$synth_output" 2>&1 || {
+    (cd "$repo_root" && claude -p "$synth_prompt" --output-format json) > "$synth_output" 2>&1 || {
         log_warn "Synthesis failed"
         exit_code=1
     }

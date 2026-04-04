@@ -45,10 +45,10 @@ missing_count=0
 
 if [[ -n "$validation_file" && -f "$validation_file" ]]; then
     log_info "Checking $validation_file"
-    pass_count=$(grep -c "| PASS |" "$validation_file" 2>/dev/null || echo "0")
-    fail_count=$(grep -c "| FAIL |" "$validation_file" 2>/dev/null || echo "0")
-    pending_count=$(grep -c "| PENDING |" "$validation_file" 2>/dev/null || echo "0")
-    missing_count=$(grep -c "| MISSING |" "$validation_file" 2>/dev/null || echo "0")
+    pass_count=$(grep -c "| PASS |" "$validation_file" 2>/dev/null) || pass_count=0
+    fail_count=$(grep -c "| FAIL |" "$validation_file" 2>/dev/null) || fail_count=0
+    pending_count=$(grep -c "| PENDING |" "$validation_file" 2>/dev/null) || pending_count=0
+    missing_count=$(grep -c "| MISSING |" "$validation_file" 2>/dev/null) || missing_count=0
 fi
 
 # --- Report ---

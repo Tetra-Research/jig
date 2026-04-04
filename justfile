@@ -1,5 +1,9 @@
 # SDD Workflow Tooling
 
+# Run tests
+test:
+    cargo test
+
 # Initialize a new workstream
 init ws *args:
     ./scripts/ws-init.sh {{ws}} {{args}}

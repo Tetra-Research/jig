@@ -1,0 +1,19 @@
+---
+source: src/filters.rs
+expression: snapshot
+---
+snakecase: booking_service
+camelcase: bookingService
+pascalcase: BookingService
+kebabcase: booking-service
+upper: BOOKINGSERVICE
+lower: bookingservice
+capitalize: Bookingservice
+replace: BookingHandler
+pluralize: BookingServices
+singularize: BookingService
+quote: "BookingService"
+indent:     line1
+    line2
+    line3
+join: one, two, three
