@@ -120,7 +120,7 @@ is_template() {
     [[ ! -f "$file" ]] && return 0
     # If it has 3+ HTML comment placeholders, it's still a template
     local placeholder_count
-    placeholder_count=$(grep -c "<!-- " "$file" 2>/dev/null || echo "0")
+    placeholder_count=$(grep -c "<!-- " "$file" 2>/dev/null) || placeholder_count=0
     [[ "$placeholder_count" -ge 3 ]]
 }
 
@@ -128,6 +128,13 @@ is_template() {
 
 pipeline_start_ts=$(date +%s)
 timestamp=$(date +%Y%m%d-%H%M%S)
+
+# Safe string for task names (avoids unbound variable with set -u on empty arrays)
+if [[ ${#task_names[@]} -gt 0 ]]; then
+    task_names_str="${task_names[*]}"
+else
+    task_names_str=""
+fi
 
 # Auto-detect which stages to skip
 ws_exists=false
@@ -280,9 +287,11 @@ if ! $skip_execute; then
     echo "━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━"
 
     exec_args=("$ws_name")
-    for t in "${task_names[@]}"; do
-        exec_args+=("$t")
-    done
+    if [[ ${#task_names[@]} -gt 0 ]]; then
+        for t in "${task_names[@]}"; do
+            exec_args+=("$t")
+        done
+    fi
     exec_args+=(--agent "$agent" --max-iter "$max_iter")
 
     if "$SCRIPT_DIR/ws-execute.sh" "${exec_args[@]}"; then
@@ -292,7 +301,7 @@ if ! $skip_execute; then
 
         # Commit execution results
         (cd "$repo_root" && git add -A && git diff --cached --quiet) || {
-            (cd "$repo_root" && git commit -m "feat($ws_name): implement ${task_names[*]:-all tasks}
+            (cd "$repo_root" && git commit -m "feat($ws_name): implement ${task_names_str:-all tasks}
 
 Automated by ws-autopilot")
             log_info "Committed execution results"
@@ -313,7 +322,7 @@ Automated by ws-autopilot")
         # Push and create draft PR for failed runs
         (cd "$repo_root" && git push -u origin "$branch" 2>/dev/null) || true
         pr_url=$(cd "$repo_root" && gh pr create \
-            --title "WIP: $ws_name ${task_names[*]:-}" \
+            --title "WIP: $ws_name ${task_names_str}" \
             --body "$(cat <<EOF
 ## Summary
 - Autopilot execution **failed** — needs manual intervention
@@ -425,7 +434,7 @@ else
     task_list="- (all tasks)\n"
 fi
 
-pr_title="$ws_name: ${task_names[*]:-implementation}"
+pr_title="$ws_name: ${task_names_str:-implementation}"
 
 # Truncate title if too long
 [[ ${#pr_title} -gt 70 ]] && pr_title="${pr_title:0:67}..."
