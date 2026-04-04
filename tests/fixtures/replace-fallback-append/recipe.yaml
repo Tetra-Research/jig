@@ -1,0 +1,8 @@
+name: replace-fallback-append
+description: Fallback appends when pattern not found.
+variables: {}
+files:
+  - template: templates/content.j2
+    replace: "target.txt"
+    pattern: "^NONEXISTENT"
+    fallback: append

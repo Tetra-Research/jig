@@ -1,0 +1,3 @@
+struct Config {
+    name: String,
+}

@@ -4,6 +4,7 @@ mod operations;
 mod output;
 mod recipe;
 mod renderer;
+mod scope;
 mod variables;
 
 use std::path::PathBuf;
@@ -298,11 +299,24 @@ fn cmd_run(
                     Err(e) => return handle_early_error(e),
                 }
             }
+            recipe::FileOp::Replace { replace, .. } => {
+                match renderer::render_path_template(&env, replace, &vars, &format!("files[{}].replace", i)) {
+                    Ok(p) => p,
+                    Err(e) => return handle_early_error(e),
+                }
+            }
+            recipe::FileOp::Patch { patch, .. } => {
+                match renderer::render_path_template(&env, patch, &vars, &format!("files[{}].patch", i)) {
+                    Ok(p) => p,
+                    Err(e) => return handle_early_error(e),
+                }
+            }
         };
 
-        // Render skip_if for inject operations.
+        // Render skip_if for inject and patch operations.
         let rendered_skip_if = match file_op {
-            recipe::FileOp::Inject { skip_if: Some(skip_if_expr), .. } => {
+            recipe::FileOp::Inject { skip_if: Some(skip_if_expr), .. }
+            | recipe::FileOp::Patch { skip_if: Some(skip_if_expr), .. } => {
                 match renderer::render_path_template(
                     &env, skip_if_expr, &vars, &format!("files[{}].skip_if", i),
                 ) {
@@ -392,6 +406,12 @@ fn build_validate_json(recipe: &Recipe) -> serde_json::Value {
             recipe::FileOp::Inject { inject, .. } => {
                 m.insert("inject".into(), serde_json::Value::String(inject.clone()));
             }
+            recipe::FileOp::Replace { replace, .. } => {
+                m.insert("replace".into(), serde_json::Value::String(replace.clone()));
+            }
+            recipe::FileOp::Patch { patch, .. } => {
+                m.insert("patch".into(), serde_json::Value::String(patch.clone()));
+            }
         }
         serde_json::Value::Object(m)
     }).collect();
@@ -408,10 +428,14 @@ fn build_validate_json(recipe: &Recipe) -> serde_json::Value {
 fn summarize_op_types(recipe: &Recipe) -> String {
     let mut create_count = 0usize;
     let mut inject_count = 0usize;
+    let mut replace_count = 0usize;
+    let mut patch_count = 0usize;
     for op in &recipe.files {
         match op {
             recipe::FileOp::Create { .. } => create_count += 1,
             recipe::FileOp::Inject { .. } => inject_count += 1,
+            recipe::FileOp::Replace { .. } => replace_count += 1,
+            recipe::FileOp::Patch { .. } => patch_count += 1,
         }
     }
     let mut parts = Vec::new();
@@ -420,6 +444,12 @@ fn summarize_op_types(recipe: &Recipe) -> String {
     }
     if inject_count > 0 {
         parts.push(format!("{inject_count} inject"));
+    }
+    if replace_count > 0 {
+        parts.push(format!("{replace_count} replace"));
+    }
+    if patch_count > 0 {
+        parts.push(format!("{patch_count} patch"));
     }
     if parts.is_empty() {
         "none".to_string()

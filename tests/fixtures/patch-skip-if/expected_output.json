@@ -1,0 +1,8 @@
+{
+  "dry_run": false,
+  "operations": [
+    {"action": "skip", "path": "target.py", "reason": "skip_if matched: email = ''"}
+  ],
+  "files_written": [],
+  "files_skipped": ["target.py"]
+}

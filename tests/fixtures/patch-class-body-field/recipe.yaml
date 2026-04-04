@@ -1,0 +1,16 @@
+name: patch-class-body-field
+description: Add a field to a Python class after the last existing field.
+
+variables:
+  field_name:
+    type: string
+    required: true
+
+files:
+  - template: templates/field.j2
+    patch: "models.py"
+    anchor:
+      pattern: "^class User:"
+      scope: class_body
+      position: after_last_field
+    skip_if: "{{ field_name }} ="

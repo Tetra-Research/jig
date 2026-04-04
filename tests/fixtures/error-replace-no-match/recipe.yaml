@@ -1,0 +1,9 @@
+name: error-replace-no-match
+description: Between start not found, default fallback errors.
+variables: {}
+files:
+  - template: templates/content.j2
+    replace: "target.txt"
+    between:
+      start: "^# START"
+      end: "^# END"

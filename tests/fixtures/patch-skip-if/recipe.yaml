@@ -1,0 +1,13 @@
+name: patch-skip-if
+description: Patch is skipped when skip_if content is already present in the target file.
+
+variables: {}
+
+files:
+  - template: templates/field.j2
+    patch: "target.py"
+    anchor:
+      pattern: "^class User:"
+      scope: class_body
+      position: after_last_field
+    skip_if: "email = ''"

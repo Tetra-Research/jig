@@ -1,0 +1,10 @@
+name: replace-pattern
+description: Replace lines matching a regex pattern.
+variables:
+  replacement:
+    type: string
+    required: true
+files:
+  - template: templates/replacement.j2
+    replace: "target.txt"
+    pattern: "^old_"

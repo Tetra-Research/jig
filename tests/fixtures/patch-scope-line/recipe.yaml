@@ -1,0 +1,10 @@
+name: patch-scope-line
+description: Patch with default scope (line) inserts after the matched line.
+
+variables: {}
+
+files:
+  - template: templates/content.j2
+    patch: "target.py"
+    anchor:
+      pattern: "^# marker"

@@ -1,0 +1,33 @@
+name: combined-all-ops
+description: Exercise all four operation types (create, inject, replace, patch) in a single recipe.
+
+variables:
+  name:
+    type: string
+    required: true
+
+files:
+  # 1. Create a new file
+  - template: templates/new_file.j2
+    to: "created.py"
+
+  # 2. Inject an import after the imports comment
+  - template: templates/inject_content.j2
+    inject: "existing.py"
+    after: "^# imports"
+
+  # 3. Replace content between START/END markers
+  - template: templates/replace_content.j2
+    replace: "existing.py"
+    between:
+      start: "^# START"
+      end: "^# END"
+
+  # 4. Patch a field into the Config class
+  - template: templates/patch_content.j2
+    patch: "existing.py"
+    anchor:
+      pattern: "^class Config:"
+      scope: class_body
+      position: after_last_field
+    skip_if: "{{ name }}_field"

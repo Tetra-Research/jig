@@ -1,0 +1,9 @@
+name: error-replace-end-missing
+description: Start found but end not found.
+variables: {}
+files:
+  - template: templates/content.j2
+    replace: "target.txt"
+    between:
+      start: "^# START"
+      end: "^# END"

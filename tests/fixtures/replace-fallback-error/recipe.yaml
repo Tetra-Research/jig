@@ -1,0 +1,7 @@
+name: replace-fallback-error
+description: Default fallback errors when pattern not found.
+variables: {}
+files:
+  - template: templates/content.j2
+    replace: "target.txt"
+    pattern: "^NONEXISTENT"

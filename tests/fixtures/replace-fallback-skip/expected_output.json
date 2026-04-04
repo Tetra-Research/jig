@@ -1,0 +1,7 @@
+{
+  "operations": [
+    { "action": "skip", "reason": "pattern not found" }
+  ],
+  "files_written": [],
+  "files_skipped": ["target.txt"]
+}

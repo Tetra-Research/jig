@@ -1,0 +1,12 @@
+name: replace-between
+description: Replace content between markers.
+variables:
+  content:
+    type: string
+    required: true
+files:
+  - template: templates/content.j2
+    replace: "target.txt"
+    between:
+      start: "^# START"
+      end: "^# END"
