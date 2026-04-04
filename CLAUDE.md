@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Status
 
-**v0.2 replace/patch implemented, review findings pending.** All four file operations working (create, inject, replace, patch) with scope detection module (indentation-based and delimiter-based). 298 tests passing. Code review identified 3 critical, 8 major issues not yet fixed (see `docs/workstreams/replace-patch/PLAN.md` "Review Findings"). Next up: fix review findings, then workflows (v0.3), libraries (v0.4).
+**v0.2 replace/patch complete, review findings resolved.** All four file operations working (create, inject, replace, patch) with scope detection module (indentation-based and delimiter-based). 308 tests passing. All code review findings fixed (3C/6M/5m). Next up: workflows (v0.3), libraries (v0.4).
 
 ## What jig Is
 
