@@ -1,0 +1,11 @@
+name: error-patch-no-anchor
+description: Patch fails when anchor pattern is not found in the target file.
+
+variables: {}
+
+files:
+  - template: templates/content.j2
+    patch: "target.py"
+    anchor:
+      pattern: "^class NonExistent"
+      scope: class_body

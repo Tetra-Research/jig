@@ -1,0 +1,16 @@
+name: patch-braces
+description: Insert a field into a Rust struct using brace-delimited scope.
+
+variables:
+  field:
+    type: string
+    required: true
+
+files:
+  - template: templates/field.j2
+    patch: "config.rs"
+    anchor:
+      pattern: "^struct Config"
+      scope: braces
+      position: before_close
+    skip_if: "{{ field }}"

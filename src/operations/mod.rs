@@ -1,5 +1,7 @@
 pub mod create;
 pub mod inject;
+pub mod patch;
+pub mod replace;
 
 use std::collections::HashMap;
 use std::path::{Path, PathBuf};
@@ -114,6 +116,26 @@ pub fn execute_operation(
                 &prepared.rendered_content,
                 prepared.rendered_skip_if.as_deref(),
                 mode,
+                ctx,
+                verbose,
+            )
+        }
+        FileOp::Replace { spec, fallback, .. } => {
+            replace::execute(
+                &prepared.rendered_path,
+                &prepared.rendered_content,
+                spec,
+                fallback,
+                ctx,
+                verbose,
+            )
+        }
+        FileOp::Patch { anchor, .. } => {
+            patch::execute(
+                &prepared.rendered_path,
+                &prepared.rendered_content,
+                prepared.rendered_skip_if.as_deref(),
+                anchor,
                 ctx,
                 verbose,
             )
