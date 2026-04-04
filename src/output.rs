@@ -43,7 +43,7 @@ pub fn format_json(results: &[OpResult], dry_run: bool, verbose: bool) -> Value 
 
 fn op_result_to_json(result: &OpResult, verbose: bool) -> Value {
     match result {
-        OpResult::Success { action, path, lines, location, rendered_content } => {
+        OpResult::Success { action, path, lines, location, rendered_content, scope_diagnostics } => {
             let mut obj = serde_json::json!({
                 "action": action,
                 "path": path.display().to_string(),
@@ -55,6 +55,25 @@ fn op_result_to_json(result: &OpResult, verbose: bool) -> Value {
             if verbose
                 && let Some(content) = rendered_content {
                     obj["rendered_content"] = Value::String(content.clone());
+                }
+            if verbose
+                && let Some(diag) = scope_diagnostics {
+                    let mut diag_obj = serde_json::json!({
+                        "anchor_line": diag.anchor_line,
+                        "scope_start": diag.scope_start,
+                        "scope_end": diag.scope_end,
+                        "insertion_line": diag.insertion_line,
+                    });
+                    if let Some(fl) = diag.find_match_line {
+                        diag_obj["find_match_line"] = Value::Number(fl.into());
+                    }
+                    if let Some((ref from, ref to)) = diag.position_fallback {
+                        diag_obj["position_fallback"] = serde_json::json!({
+                            "from": from,
+                            "to": to,
+                        });
+                    }
+                    obj["scope_diagnostics"] = diag_obj;
                 }
             obj
         }
@@ -134,19 +153,28 @@ pub fn format_human(results: &[OpResult], dry_run: bool, verbose: bool) {
 
     for result in results {
         match result {
-            OpResult::Success { action, path, lines, location, rendered_content } => {
+            OpResult::Success { action, path, lines, location, rendered_content, scope_diagnostics } => {
                 let action_str = action.to_string();
                 eprint!("  {} {}", action_str.green(), path.display());
                 if let Some(loc) = location {
                     eprint!(" ({})", loc);
                 }
                 eprintln!(" ({} lines)", lines);
-                if verbose
-                    && let Some(content) = rendered_content {
+                if verbose {
+                    if let Some(content) = rendered_content {
                         for line in content.lines() {
                             eprintln!("    {}", line.dimmed());
                         }
                     }
+                    if let Some(diag) = scope_diagnostics {
+                        eprintln!("    {} anchor={} scope={}-{} insert={}{}",
+                            "diagnostics:".dimmed(),
+                            diag.anchor_line, diag.scope_start, diag.scope_end,
+                            diag.insertion_line,
+                            diag.find_match_line.map(|l| format!(" find={}", l)).unwrap_or_default(),
+                        );
+                    }
+                }
             }
             OpResult::Skip { path, reason, rendered_content } => {
                 eprintln!("  {} {} — {}", "skip".yellow(), path.display(), reason);
@@ -205,6 +233,7 @@ mod tests {
             lines,
             location: None,
             rendered_content: Some("content".into()),
+            scope_diagnostics: None,
         }
     }
 

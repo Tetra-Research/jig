@@ -99,6 +99,21 @@ pub enum ScopeType {
     Parens,
 }
 
+impl std::fmt::Display for ScopeType {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            ScopeType::Line => write!(f, "line"),
+            ScopeType::Block => write!(f, "block"),
+            ScopeType::ClassBody => write!(f, "class_body"),
+            ScopeType::FunctionBody => write!(f, "function_body"),
+            ScopeType::FunctionSignature => write!(f, "function_signature"),
+            ScopeType::Braces => write!(f, "braces"),
+            ScopeType::Brackets => write!(f, "brackets"),
+            ScopeType::Parens => write!(f, "parens"),
+        }
+    }
+}
+
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum Position {
     Before,
@@ -108,6 +123,20 @@ pub enum Position {
     AfterLastMethod,
     AfterLastImport,
     Sorted,
+}
+
+impl std::fmt::Display for Position {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        match self {
+            Position::Before => write!(f, "before"),
+            Position::After => write!(f, "after"),
+            Position::BeforeClose => write!(f, "before_close"),
+            Position::AfterLastField => write!(f, "after_last_field"),
+            Position::AfterLastMethod => write!(f, "after_last_method"),
+            Position::AfterLastImport => write!(f, "after_last_import"),
+            Position::Sorted => write!(f, "sorted"),
+        }
+    }
 }
 
 #[derive(Debug, Clone, PartialEq, Eq)]

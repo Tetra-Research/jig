@@ -1,0 +1,16 @@
+name: patch-function-body
+description: Add a statement after the last statement in a Python function body.
+
+variables:
+  message:
+    type: string
+    required: true
+
+files:
+  - template: templates/statement.j2
+    patch: "app.py"
+    anchor:
+      pattern: "^def process\\(\\):"
+      scope: function_body
+      position: after
+    skip_if: "log(\"{{ message }}\")"

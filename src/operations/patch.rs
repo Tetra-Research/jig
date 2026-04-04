@@ -84,7 +84,9 @@ pub fn execute(
             result_lines.insert(insert_at + j, ins_line.to_string());
         }
         let new_content = join_owned_lines(&result_lines, file_content.ends_with('\n'));
-        write_back(&target, &new_content, ctx);
+        if let Some(err) = write_back(&target, &new_content, rendered_content, ctx) {
+            return err;
+        }
 
         return OpResult::Success {
             action: "patch",
@@ -92,6 +94,7 @@ pub fn execute(
             lines: rendered_content.lines().count(),
             location: Some(format!("line({}):after", anchor.pattern)),
             rendered_content: content_for_verbose,
+            scope_diagnostics: None,
         };
     }
 
@@ -113,9 +116,11 @@ pub fn execute(
     };
 
     // Apply find narrowing (if specified).
+    let mut find_match_line = None;
     let effective_scope = if let Some(ref find_str) = anchor.find {
         match scope::find_within_scope(&lines, &scope_result, find_str) {
             Ok(find_result) => {
+                find_match_line = Some(find_result.found_line);
                 if let Some(sub) = find_result.sub_scope {
                     sub
                 } else {
@@ -135,7 +140,7 @@ pub fn execute(
     };
 
     // Resolve position.
-    let pos_result = match scope::position::resolve_position(&lines, &effective_scope, &anchor.position) {
+    let pos_result = match scope::position::resolve_position(&lines, &effective_scope, &anchor.position, Some(rendered_content)) {
         Ok(p) => p,
         Err(e) => {
             return OpResult::Error {
@@ -155,11 +160,24 @@ pub fn execute(
     }
 
     let new_content = join_owned_lines(&result_lines, file_content.ends_with('\n'));
-    write_back(&target, &new_content, ctx);
+    if let Some(err) = write_back(&target, &new_content, rendered_content, ctx) {
+        return err;
+    }
 
-    let scope_name = format!("{:?}", anchor.scope).to_lowercase();
-    let pos_name = format!("{:?}", anchor.position).to_lowercase();
-    let location = format!("{}({}):{}", scope_name, anchor.pattern, pos_name);
+    let location = format!("{}({}):{}", anchor.scope, anchor.pattern, anchor.position);
+
+    let diagnostics = if verbose {
+        Some(super::ScopeDiagnostics {
+            anchor_line: anchor_line + 1,
+            scope_start: effective_scope.start_line + 1,
+            scope_end: effective_scope.end_line + 1,
+            insertion_line: insert_at + 1,
+            find_match_line: find_match_line.map(|l| l + 1),
+            position_fallback: pos_result.fallback,
+        })
+    } else {
+        None
+    };
 
     OpResult::Success {
         action: "patch",
@@ -167,6 +185,7 @@ pub fn execute(
         lines: rendered_content.lines().count(),
         location: Some(location),
         rendered_content: content_for_verbose,
+        scope_diagnostics: diagnostics,
     }
 }
 
@@ -221,12 +240,30 @@ fn join_owned_lines(lines: &[String], trailing_newline: bool) -> String {
     result
 }
 
-fn write_back(target: &std::path::Path, new_content: &str, ctx: &mut ExecutionContext) {
+fn write_back(
+    target: &std::path::Path,
+    new_content: &str,
+    rendered_content: &str,
+    ctx: &mut ExecutionContext,
+) -> Option<OpResult> {
     if ctx.dry_run {
         ctx.virtual_files.insert(target.to_path_buf(), new_content.to_string());
+        None
     } else {
-        let _ = std::fs::write(target, new_content);
+        if let Err(e) = std::fs::write(target, new_content) {
+            return Some(OpResult::Error {
+                path: target.to_path_buf(),
+                error: StructuredError {
+                    what: format!("cannot write file '{}'", target.display()),
+                    where_: target.display().to_string(),
+                    why: e.to_string(),
+                    hint: "check file permissions".into(),
+                },
+                rendered_content: rendered_content.to_string(),
+            });
+        }
         ctx.virtual_files.insert(target.to_path_buf(), new_content.to_string());
+        None
     }
 }
 

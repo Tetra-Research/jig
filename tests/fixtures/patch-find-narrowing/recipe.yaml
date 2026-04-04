@@ -1,0 +1,17 @@
+name: patch-find-narrowing
+description: Use find to narrow into a sub-scope within a class body.
+
+variables:
+  field_name:
+    type: string
+    required: true
+
+files:
+  - template: templates/item.j2
+    patch: "admin.py"
+    anchor:
+      pattern: "^class Admin:"
+      scope: class_body
+      find: "list_display"
+      position: before_close
+    skip_if: "'{{ field_name }}',"

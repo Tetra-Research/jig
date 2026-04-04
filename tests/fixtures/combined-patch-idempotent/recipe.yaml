@@ -1,0 +1,21 @@
+name: combined-patch-idempotent
+description: Two patches on the same class; one skips (already present), one inserts.
+
+variables: {}
+
+files:
+  - template: templates/email.j2
+    patch: "models.py"
+    anchor:
+      pattern: "^class User:"
+      scope: class_body
+      position: after_last_field
+    skip_if: "email ="
+
+  - template: templates/phone.j2
+    patch: "models.py"
+    anchor:
+      pattern: "^class User:"
+      scope: class_body
+      position: after_last_field
+    skip_if: "phone ="

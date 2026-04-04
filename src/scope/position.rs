@@ -7,10 +7,12 @@ use super::ScopeResult;
 use super::PositionResult;
 
 /// Resolve the insertion position within a scope.
+/// `rendered_content` is needed for `Position::Sorted` to determine alphabetical placement.
 pub fn resolve_position(
     lines: &[&str],
     scope: &ScopeResult,
     position: &Position,
+    rendered_content: Option<&str>,
 ) -> Result<PositionResult, StructuredError> {
     let indent = detect_scope_indent(lines, scope);
 
@@ -38,7 +40,7 @@ pub fn resolve_position(
             })
         }
         Position::AfterLastField => {
-            let field_re = Regex::new(r"^\s+\w+\s*[:=]").unwrap();
+            let field_re = Regex::new(r"^\s*\w+\s*[:=]").unwrap();
             match find_last_matching(lines, scope, &field_re) {
                 Some(line_idx) => {
                     Ok(PositionResult {
@@ -59,7 +61,7 @@ pub fn resolve_position(
             }
         }
         Position::AfterLastMethod => {
-            let method_re = Regex::new(r"^\s+(pub\s+)?(async\s+)?(fn|def)\s+\w+").unwrap();
+            let method_re = Regex::new(r#"^\s*(pub(\s*\([^)]*\))?\s+)?(const\s+)?(unsafe\s+)?(async\s+)?(extern\s+"[^"]*"\s+)?(fn|def)\s+\w+"#).unwrap();
             match find_last_matching(lines, scope, &method_re) {
                 Some(method_line) => {
                     // Find the end of this method's body.
@@ -100,7 +102,7 @@ pub fn resolve_position(
             }
         }
         Position::Sorted => {
-            resolve_sorted(lines, scope, &indent)
+            resolve_sorted(lines, scope, &indent, rendered_content)
         }
     }
 }
@@ -167,15 +169,45 @@ fn detect_scope_indent(lines: &[&str], scope: &ScopeResult) -> String {
 }
 
 /// Resolve sorted insertion position (alphabetical among siblings).
+/// Finds the correct insertion point so the new content is in alphabetical
+/// order among sibling lines at the same indentation level within the scope.
 fn resolve_sorted(
-    _lines: &[&str],
+    lines: &[&str],
     scope: &ScopeResult,
     indent: &str,
+    rendered_content: Option<&str>,
 ) -> Result<PositionResult, StructuredError> {
-    // For sorted, we don't have the content to sort against at this point,
-    // so we insert at the end of the scope (after last line).
-    // The actual sorting is content-dependent and handled by the caller.
-    // For now, return end of scope.
+    let sort_key = rendered_content
+        .and_then(|c| c.lines().next())
+        .map(|l| l.trim())
+        .unwrap_or("");
+
+    let indent_len = indent.len();
+
+    // Collect sibling lines (same indentation level within scope).
+    for i in scope.start_line..=scope.end_line {
+        if i >= lines.len() {
+            continue;
+        }
+        let line = lines[i];
+        if line.trim().is_empty() {
+            continue;
+        }
+        let line_indent = line.len() - line.trim_start().len();
+        if line_indent != indent_len {
+            continue;
+        }
+        // Compare trimmed content alphabetically.
+        if line.trim() > sort_key {
+            return Ok(PositionResult {
+                insertion_line: i,
+                indent: indent.to_string(),
+                fallback: None,
+            });
+        }
+    }
+
+    // All existing siblings sort before — insert at end of scope.
     let insertion = scope.closing_line.unwrap_or(scope.end_line + 1);
     Ok(PositionResult {
         insertion_line: insertion,
@@ -209,7 +241,7 @@ mod tests {
     fn position_before() {
         let lines: Vec<&str> = vec!["class Foo:", "    x = 1", "    y = 2"];
         let s = scope(1, 2, None);
-        let result = resolve_position(&lines, &s, &Position::Before).unwrap();
+        let result = resolve_position(&lines, &s, &Position::Before, None).unwrap();
         assert_eq!(result.insertion_line, 1);
     }
 
@@ -217,7 +249,7 @@ mod tests {
     fn position_after() {
         let lines: Vec<&str> = vec!["class Foo:", "    x = 1", "    y = 2"];
         let s = scope(1, 2, None);
-        let result = resolve_position(&lines, &s, &Position::After).unwrap();
+        let result = resolve_position(&lines, &s, &Position::After, None).unwrap();
         assert_eq!(result.insertion_line, 3);
     }
 
@@ -225,7 +257,7 @@ mod tests {
     fn position_before_close() {
         let lines: Vec<&str> = vec!["struct Foo {", "    x: i32,", "}"];
         let s = scope(1, 1, Some(2));
-        let result = resolve_position(&lines, &s, &Position::BeforeClose).unwrap();
+        let result = resolve_position(&lines, &s, &Position::BeforeClose, None).unwrap();
         assert_eq!(result.insertion_line, 2);
     }
 
@@ -238,7 +270,7 @@ mod tests {
             "",
         ];
         let s = scope(1, 2, None);
-        let result = resolve_position(&lines, &s, &Position::AfterLastField).unwrap();
+        let result = resolve_position(&lines, &s, &Position::AfterLastField, None).unwrap();
         assert_eq!(result.insertion_line, 3);
         assert!(result.fallback.is_none());
     }
@@ -252,7 +284,7 @@ mod tests {
             "}",
         ];
         let s = scope(1, 2, Some(3));
-        let result = resolve_position(&lines, &s, &Position::AfterLastField).unwrap();
+        let result = resolve_position(&lines, &s, &Position::AfterLastField, None).unwrap();
         assert_eq!(result.insertion_line, 3);
     }
 
@@ -267,7 +299,7 @@ mod tests {
             "",
         ];
         let s = scope(1, 4, None);
-        let result = resolve_position(&lines, &s, &Position::AfterLastMethod).unwrap();
+        let result = resolve_position(&lines, &s, &Position::AfterLastMethod, None).unwrap();
         assert_eq!(result.insertion_line, 5);
     }
 
@@ -284,7 +316,7 @@ mod tests {
             "}",
         ];
         let s = scope(1, 6, Some(7));
-        let result = resolve_position(&lines, &s, &Position::AfterLastMethod).unwrap();
+        let result = resolve_position(&lines, &s, &Position::AfterLastMethod, None).unwrap();
         assert_eq!(result.insertion_line, 7);
     }
 
@@ -297,12 +329,12 @@ mod tests {
             "    x = 1",
         ];
         let s = scope(1, 3, None);
-        let result = resolve_position(&lines, &s, &Position::AfterLastImport).unwrap();
+        let result = resolve_position(&lines, &s, &Position::AfterLastImport, None).unwrap();
         assert_eq!(result.insertion_line, 3);
     }
 
     #[test]
-    fn sorted_insertion() {
+    fn sorted_insertion_middle() {
         let lines: Vec<&str> = vec![
             "struct Foo {",
             "    a: i32,",
@@ -310,9 +342,37 @@ mod tests {
             "}",
         ];
         let s = scope(1, 2, Some(3));
-        let result = resolve_position(&lines, &s, &Position::Sorted).unwrap();
-        // Default: insert before closing.
-        assert_eq!(result.insertion_line, 3);
+        // "b: i32," sorts between "a:" and "c:"
+        let result = resolve_position(&lines, &s, &Position::Sorted, Some("b: i32,")).unwrap();
+        assert_eq!(result.insertion_line, 2); // before "c: i32,"
+    }
+
+    #[test]
+    fn sorted_insertion_end() {
+        let lines: Vec<&str> = vec![
+            "struct Foo {",
+            "    a: i32,",
+            "    b: i32,",
+            "}",
+        ];
+        let s = scope(1, 2, Some(3));
+        // "z: i32," sorts after everything
+        let result = resolve_position(&lines, &s, &Position::Sorted, Some("z: i32,")).unwrap();
+        assert_eq!(result.insertion_line, 3); // before closing brace
+    }
+
+    #[test]
+    fn sorted_insertion_beginning() {
+        let lines: Vec<&str> = vec![
+            "struct Foo {",
+            "    m: i32,",
+            "    z: i32,",
+            "}",
+        ];
+        let s = scope(1, 2, Some(3));
+        // "a: i32," sorts before everything
+        let result = resolve_position(&lines, &s, &Position::Sorted, Some("a: i32,")).unwrap();
+        assert_eq!(result.insertion_line, 1); // before "m: i32,"
     }
 
     #[test]
@@ -327,7 +387,7 @@ mod tests {
             closing_line: Some(1),
             is_empty: true,
         };
-        let result = resolve_position(&lines, &s, &Position::AfterLastField).unwrap();
+        let result = resolve_position(&lines, &s, &Position::AfterLastField, None).unwrap();
         assert!(result.fallback.is_some());
         let (from, to) = result.fallback.unwrap();
         assert_eq!(from, "after_last_field");
@@ -341,7 +401,7 @@ mod tests {
             "    x = 1",
         ];
         let s = scope(1, 1, None);
-        let result = resolve_position(&lines, &s, &Position::AfterLastMethod).unwrap();
+        let result = resolve_position(&lines, &s, &Position::AfterLastMethod, None).unwrap();
         assert!(result.fallback.is_some());
     }
 
@@ -352,11 +412,77 @@ mod tests {
             "    x = 1",
         ];
         let s = scope(1, 1, None);
-        let result = resolve_position(&lines, &s, &Position::AfterLastImport).unwrap();
+        let result = resolve_position(&lines, &s, &Position::AfterLastImport, None).unwrap();
         assert!(result.fallback.is_some());
         let (from, to) = result.fallback.unwrap();
         assert_eq!(from, "after_last_import");
         assert_eq!(to, "before");
+    }
+
+    #[test]
+    fn after_last_method_const_fn() {
+        let lines: Vec<&str> = vec![
+            "impl Foo {",
+            "    pub const fn size() -> usize {",
+            "        42",
+            "    }",
+            "}",
+        ];
+        let s = scope(1, 3, Some(4));
+        let result = resolve_position(&lines, &s, &Position::AfterLastMethod, None).unwrap();
+        assert_eq!(result.insertion_line, 4);
+    }
+
+    #[test]
+    fn after_last_method_unsafe_fn() {
+        let lines: Vec<&str> = vec![
+            "impl Foo {",
+            "    pub unsafe fn danger(&self) {",
+            "        todo!()",
+            "    }",
+            "}",
+        ];
+        let s = scope(1, 3, Some(4));
+        let result = resolve_position(&lines, &s, &Position::AfterLastMethod, None).unwrap();
+        assert_eq!(result.insertion_line, 4);
+    }
+
+    #[test]
+    fn after_last_method_pub_crate_fn() {
+        let lines: Vec<&str> = vec![
+            "impl Foo {",
+            "    pub(crate) fn internal(&self) {",
+            "        todo!()",
+            "    }",
+            "}",
+        ];
+        let s = scope(1, 3, Some(4));
+        let result = resolve_position(&lines, &s, &Position::AfterLastMethod, None).unwrap();
+        assert_eq!(result.insertion_line, 4);
+    }
+
+    #[test]
+    fn after_last_field_at_indent_zero() {
+        let lines: Vec<&str> = vec![
+            "CONST = 1",
+            "OTHER = 2",
+        ];
+        let s = scope(0, 1, None);
+        let result = resolve_position(&lines, &s, &Position::AfterLastField, None).unwrap();
+        assert_eq!(result.insertion_line, 2);
+        assert!(result.fallback.is_none());
+    }
+
+    #[test]
+    fn after_last_field_top_level_constant() {
+        let lines: Vec<&str> = vec![
+            "CONSTANT = 42",
+            "OTHER = 'x'",
+        ];
+        let s = scope(0, 1, None);
+        let result = resolve_position(&lines, &s, &Position::AfterLastField, None).unwrap();
+        assert_eq!(result.insertion_line, 2);
+        assert!(result.fallback.is_none());
     }
 
     #[test]

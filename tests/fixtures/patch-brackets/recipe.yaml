@@ -1,0 +1,16 @@
+name: patch-brackets
+description: Add an item before the closing bracket of a Python list.
+
+variables:
+  item:
+    type: string
+    required: true
+
+files:
+  - template: templates/item.j2
+    patch: "config.py"
+    anchor:
+      pattern: "^items = \\["
+      scope: brackets
+      position: before_close
+    skip_if: "'{{ item }}',"
