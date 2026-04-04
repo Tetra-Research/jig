@@ -9,11 +9,14 @@ Deliver the v0.2 jig operations: `replace` (swap regions in existing files) and 
 
 ## Current State
 
-- **Planned** (2026-04-04)
-- Depends on core-engine (v0.1) — complete, 191 tests passing
-- `recipe.rs` already accepts `replace` and `patch` in `RawFileOp` but rejects them at conversion time with "not supported in v0.1"
-- No `src/operations/replace.rs`, `src/operations/patch.rs`, or `src/scope/` directory exists yet
-- No new dependencies needed beyond what v0.1 already uses (regex crate already present)
+- **Implementation complete, review findings pending** (2026-04-04)
+- 298 tests passing (284 unit + 2 CLI + 12 integration), `cargo clippy` clean
+- All four operation types (create, inject, replace, patch) working end-to-end
+- Scope detection module (`src/scope/`) fully implemented: indentation-based and delimiter-based
+- Code review completed — identified 3 critical, 8 major, 3 minor issues (see PLAN.md "Review Findings")
+- **No review findings have been fixed in code.** Commit 6f9b69b only added review artifact docs.
+- 11 of 26 spec-required integration fixtures still missing (unit tests cover most behaviors)
+- Verbose scope diagnostics (FR-8) not yet implemented — `ScopeDiagnostics` struct doesn't exist
 
 ## Decisions Made
 
@@ -36,8 +39,27 @@ Deliver the v0.2 jig operations: `replace` (swap regions in existing files) and 
 - **All four operations follow the same execute() signature pattern.** Each takes a rendered path, rendered content, operation-specific config, `&mut ExecutionContext`, and `verbose: bool`, and returns `OpResult`. No trait — just consistent function signatures.
 - **Error messages for scope failures include rendered content.** Every file operation error (exit code 3) bundles the rendered template output, independent of `--verbose`. This is the I-10 contract: jig never wastes rendering work.
 - **Integration test fixtures follow the same directory structure as v0.1.** `recipe.yaml`, `vars.json`, `templates/`, `existing/`, `expected/`, optionally `expected_output.json` and `expected_exit_code`. No harness changes needed.
+- **`CharScanner` utility in `delimiter.rs`.** Stateful line/col scanner for walking delimiter-based code. Tracks position, handles string literal detection, comment skipping, and escape sequences. Useful pattern but has a byte/char offset bug that needs fixing.
+- **Indentation adjustment is a separate function.** `adjust_indentation()` in `patch.rs` detects base indent from rendered content's first non-empty line, strips it, and re-applies the target context's indent. Preserves relative indentation within templates.
+- **`PreparedOp` enum in `main.rs` bridges rendering and execution.** Templates are rendered upfront (D-1), then `PreparedOp` variants carry the rendered content to the operation executor. Replace and Patch variants were added alongside Create and Inject.
 
 ## Known Issues / Tech Debt
+
+### From review (unfixed — see PLAN.md "Review Findings" for full list)
+
+- **`write_back` silently swallows write errors** in `patch.rs` and `replace.rs` fallback paths. Uses `let _ = std::fs::write(...)`. Violates AC-7.11, AC-2.14, I-10. **Critical.**
+- **`Position::Sorted` is stub-implemented.** `position.rs:170-184` inserts at end-of-scope, not alphabetically. Either implement or reject at parse time. **Critical.**
+- **Byte/char index mismatch in `delimiter.rs:87`.** `CharScanner` tracks char positions but Rust slicing uses bytes. Multi-byte UTF-8 panics. **Critical.**
+- **`find` narrowing doesn't re-anchor when no sub-scope detected.** Position resolves against original scope, not the found line. Violates AC-6.1.
+- **`scope: line` auto-adjusts indentation.** Should behave identically to inject's `after` mode per AC-7.12 — no indentation adjustment.
+- **`find_opening` doesn't skip strings/comments.** Only the nesting-depth loop has string/comment awareness.
+- **`AfterLastMethod` regex misses Rust qualifiers.** No `const fn`, `unsafe fn`, `pub(crate) fn`, `extern "C" fn`.
+- **Location string uses `Debug` not `Display`.** Produces `classbody` instead of `class_body`.
+- **Indentation scope uses length comparison, not literal prefix comparison** per AC-3.8.
+- **11 of 26 spec-required integration fixtures missing.**
+- **Verbose scope diagnostics (FR-8) not implemented.** No `ScopeDiagnostics` struct.
+
+### Pre-existing (from planning)
 
 - **String literal detection is imperfect.** Delimiter scope detection handles single/double/backtick strings but cannot handle multi-line strings (Python triple-quotes, Rust raw strings `r#"..."#`, JS template literals with nested `${}` expressions). These are documented edge cases; the fallback-to-LLM design handles them.
 - **Comment detection is basic.** Single-line (`//`, `#`) and multi-line (`/* */`) comments are recognized. Language-specific comment styles (Lua `--[[]]`, HTML `<!-- -->`) are not. Acceptable for the target languages.
