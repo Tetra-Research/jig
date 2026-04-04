@@ -1,0 +1,19 @@
+name: patch-function-signature
+description: Add a parameter to a Python function signature before the closing paren.
+
+variables:
+  param_name:
+    type: string
+    required: true
+  param_type:
+    type: string
+    required: true
+
+files:
+  - template: templates/param.j2
+    patch: "handler.py"
+    anchor:
+      pattern: "^def process\\("
+      scope: parens
+      position: before_close
+    skip_if: "{{ param_name }}:"

@@ -1,0 +1,12 @@
+name: error-patch-unbalanced
+description: Patch with braces scope fails on a file with unbalanced delimiters.
+
+variables: {}
+
+files:
+  - template: templates/content.j2
+    patch: "target.rs"
+    anchor:
+      pattern: "^fn f\\(\\)"
+      scope: braces
+      position: before_close

@@ -124,6 +124,7 @@ pub fn execute(
                 lines: rendered_content.lines().count(),
                 location: Some(location),
                 rendered_content: content_for_verbose,
+                scope_diagnostics: None,
             }
         }
         MatchResult::NoMatch => {
@@ -223,13 +224,16 @@ fn apply_fallback(
                 new_content.push('\n');
             }
             new_content.push_str(rendered_content);
-            write_back(target, &new_content, rendered_content, ctx);
+            if let Some(err) = write_back(target, &new_content, rendered_content, ctx) {
+                return err;
+            }
             OpResult::Success {
                 action: "replace",
                 path: target.to_path_buf(),
                 lines: rendered_content.lines().count(),
                 location: Some("fallback:append".to_string()),
                 rendered_content: content_for_verbose,
+                scope_diagnostics: None,
             }
         }
         Fallback::Prepend => {
@@ -239,13 +243,16 @@ fn apply_fallback(
                 new_content.push('\n');
             }
             new_content.push_str(file_content);
-            write_back(target, &new_content, rendered_content, ctx);
+            if let Some(err) = write_back(target, &new_content, rendered_content, ctx) {
+                return err;
+            }
             OpResult::Success {
                 action: "replace",
                 path: target.to_path_buf(),
                 lines: rendered_content.lines().count(),
                 location: Some("fallback:prepend".to_string()),
                 rendered_content: content_for_verbose,
+                scope_diagnostics: None,
             }
         }
         Fallback::Skip => {
@@ -270,13 +277,30 @@ fn apply_fallback(
     }
 }
 
-fn write_back(target: &std::path::Path, new_content: &str, _rendered_content: &str, ctx: &mut ExecutionContext) {
+fn write_back(
+    target: &std::path::Path,
+    new_content: &str,
+    rendered_content: &str,
+    ctx: &mut ExecutionContext,
+) -> Option<OpResult> {
     if ctx.dry_run {
         ctx.virtual_files.insert(target.to_path_buf(), new_content.to_string());
+        None
     } else {
-        // Best-effort write; errors handled at a higher level for fallback paths.
-        let _ = std::fs::write(target, new_content);
+        if let Err(e) = std::fs::write(target, new_content) {
+            return Some(OpResult::Error {
+                path: target.to_path_buf(),
+                error: StructuredError {
+                    what: format!("cannot write file '{}'", target.display()),
+                    where_: target.display().to_string(),
+                    why: e.to_string(),
+                    hint: "check file permissions".into(),
+                },
+                rendered_content: rendered_content.to_string(),
+            });
+        }
         ctx.virtual_files.insert(target.to_path_buf(), new_content.to_string());
+        None
     }
 }
 

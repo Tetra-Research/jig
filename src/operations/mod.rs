@@ -36,12 +36,40 @@ impl ExecutionContext {
     }
 
     /// Resolve an output path relative to the base directory.
+    /// Normalizes the path and rejects traversal outside base_dir.
     pub fn resolve_path(&self, relative: &str) -> PathBuf {
-        self.base_dir.join(relative)
+        let joined = self.base_dir.join(relative);
+        // Normalize by resolving . and .. components.
+        let mut normalized = PathBuf::new();
+        for component in joined.components() {
+            match component {
+                std::path::Component::ParentDir => { normalized.pop(); }
+                std::path::Component::CurDir => {}
+                c => normalized.push(c),
+            }
+        }
+        // If the normalized path escapes base_dir, clamp to base_dir.
+        if !normalized.starts_with(&self.base_dir) {
+            return self.base_dir.join(
+                std::path::Path::new(relative).file_name().unwrap_or_default()
+            );
+        }
+        normalized
     }
 }
 
 // ── Operation result ──────────────────────────────────────────────
+
+/// Diagnostic details for patch operations (included in verbose JSON output).
+#[derive(Debug, Clone)]
+pub struct ScopeDiagnostics {
+    pub anchor_line: usize,
+    pub scope_start: usize,
+    pub scope_end: usize,
+    pub insertion_line: usize,
+    pub find_match_line: Option<usize>,
+    pub position_fallback: Option<(String, String)>,
+}
 
 /// Result of a single file operation.
 #[derive(Debug)]
@@ -52,6 +80,7 @@ pub enum OpResult {
         lines: usize,
         location: Option<String>,
         rendered_content: Option<String>,
+        scope_diagnostics: Option<ScopeDiagnostics>,
     },
     Skip {
         path: PathBuf,

@@ -130,10 +130,11 @@ fn find_opening(scanner: &mut CharScanner, open: char) -> Result<(usize, usize),
 }
 
 /// Character-by-character scanner over lines.
+/// Uses byte offsets internally for correct UTF-8 handling and O(1) operations.
 struct CharScanner<'a> {
     lines: &'a [&'a str],
     line: usize,
-    col: usize,
+    col: usize, // byte offset within current line
 }
 
 impl<'a> CharScanner<'a> {
@@ -143,8 +144,7 @@ impl<'a> CharScanner<'a> {
 
     fn normalize(&mut self) {
         while self.line < self.lines.len() {
-            let line_len = self.lines[self.line].chars().count();
-            if self.col < line_len {
+            if self.col < self.lines[self.line].len() {
                 return;
             }
             self.line += 1;
@@ -157,7 +157,18 @@ impl<'a> CharScanner<'a> {
         if self.line >= self.lines.len() {
             return None;
         }
-        self.lines[self.line].chars().nth(self.col)
+        self.lines[self.line][self.col..].chars().next()
+    }
+
+    fn current_char_len(&self) -> usize {
+        if self.line < self.lines.len() && self.col < self.lines[self.line].len() {
+            self.lines[self.line][self.col..]
+                .chars()
+                .next()
+                .map_or(1, |c| c.len_utf8())
+        } else {
+            1
+        }
     }
 
     fn peek_next(&mut self) -> Option<char> {
@@ -165,23 +176,25 @@ impl<'a> CharScanner<'a> {
         if self.line >= self.lines.len() {
             return None;
         }
-        let line_len = self.lines[self.line].chars().count();
-        if self.col + 1 < line_len {
-            self.lines[self.line].chars().nth(self.col + 1)
-        } else if self.line + 1 < self.lines.len() && !self.lines[self.line + 1].is_empty() {
-            self.lines[self.line + 1].chars().next()
-        } else {
-            None
+        let next_col = self.col + self.current_char_len();
+        if next_col < self.lines[self.line].len() {
+            return self.lines[self.line][next_col..].chars().next();
         }
+        // Look at subsequent non-empty lines (M4 fix: skip empty lines).
+        for next_line in (self.line + 1)..self.lines.len() {
+            if !self.lines[next_line].is_empty() {
+                return self.lines[next_line].chars().next();
+            }
+        }
+        None
     }
 
     fn advance(&mut self) {
         if self.line >= self.lines.len() {
             return;
         }
-        let line_len = self.lines[self.line].chars().count();
-        self.col += 1;
-        if self.col >= line_len {
+        self.col += self.current_char_len();
+        if self.col >= self.lines[self.line].len() {
             self.line += 1;
             self.col = 0;
         }
@@ -435,6 +448,47 @@ mod tests {
         let scope = detect_delimiter_scope(&lines, 0, '{', '}').unwrap();
         assert_eq!(scope.closing_line, Some(2));
         assert!(!scope.is_empty);
+    }
+
+    #[test]
+    fn non_ascii_content() {
+        // C1: byte/char index mismatch must not panic on multi-byte UTF-8.
+        let lines: Vec<&str> = vec![
+            "struct Café {",
+            "    naïve: String,",
+            "    über: i32,",
+            "}",
+        ];
+        let scope = detect_delimiter_scope(&lines, 0, '{', '}').unwrap();
+        assert_eq!(scope.start_line, 1);
+        assert_eq!(scope.end_line, 2);
+        assert_eq!(scope.closing_line, Some(3));
+    }
+
+    #[test]
+    fn emoji_in_strings() {
+        let lines: Vec<&str> = vec![
+            "let x = {",
+            "    msg: \"hello 🌍\",",
+            "    flag: \"🇺🇸\",",
+            "};",
+        ];
+        let scope = detect_delimiter_scope(&lines, 0, '{', '}').unwrap();
+        assert_eq!(scope.closing_line, Some(3));
+    }
+
+    #[test]
+    fn blank_lines_between_content() {
+        // M4: peek_next should work across blank lines.
+        let lines: Vec<&str> = vec![
+            "fn f() {",
+            "    // comment",
+            "",
+            "    x();",
+            "}",
+        ];
+        let scope = detect_delimiter_scope(&lines, 0, '{', '}').unwrap();
+        assert_eq!(scope.closing_line, Some(4));
     }
 
     #[test]

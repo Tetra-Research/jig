@@ -1,0 +1,16 @@
+name: patch-nested-delimiters
+description: Patch inside outermost braces, inserting before the closing brace.
+
+variables:
+  output:
+    type: string
+    required: true
+
+files:
+  - template: templates/statement.j2
+    patch: "main.rs"
+    anchor:
+      pattern: "^fn main\\(\\)"
+      scope: braces
+      position: before_close
+    skip_if: "println!(\"{{ output }}\")"

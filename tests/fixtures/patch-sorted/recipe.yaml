@@ -1,0 +1,12 @@
+name: patch-sorted
+description: Insert content in alphabetically sorted order among siblings.
+
+variables: {}
+
+files:
+  - template: templates/field.j2
+    patch: "fields.py"
+    anchor:
+      pattern: "^class Config:"
+      scope: class_body
+      position: sorted

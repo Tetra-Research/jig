@@ -1,0 +1,19 @@
+name: patch-indent-matching
+description: Verify that inserted content gets proper indentation matching the scope.
+
+variables:
+  field_name:
+    type: string
+    required: true
+  field_value:
+    type: string
+    required: true
+
+files:
+  - template: templates/field.j2
+    patch: "settings.py"
+    anchor:
+      pattern: "^class Config:"
+      scope: class_body
+      position: after_last_field
+    skip_if: "{{ field_name }} ="

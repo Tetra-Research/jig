@@ -121,6 +121,7 @@ pub fn execute(
         lines: injected_lines,
         location: Some(location),
         rendered_content: content_for_verbose,
+        scope_diagnostics: None,
     }
 }
 

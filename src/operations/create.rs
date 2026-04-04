@@ -55,6 +55,7 @@ pub fn execute(
             lines,
             location: None,
             rendered_content: content_for_verbose,
+            scope_diagnostics: None,
         };
     }
 
@@ -94,6 +95,7 @@ pub fn execute(
         lines,
         location: None,
         rendered_content: content_for_verbose,
+        scope_diagnostics: None,
     }
 }
 

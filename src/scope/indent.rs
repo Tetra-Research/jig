@@ -82,24 +82,18 @@ pub fn detect_indent_scope(
 }
 
 /// Find the start of the body for class/function declarations.
-/// Handles multi-line declarations by scanning for the colon.
+/// Handles multi-line declarations by scanning forward for the colon.
 fn find_body_start(lines: &[&str], anchor_line: usize) -> usize {
-    // Check if the declaration line has a colon (Python-style).
-    let mut decl_end = anchor_line;
     for i in anchor_line..lines.len() {
         if lines[i].contains(':') {
-            decl_end = i;
-            break;
+            return i + 1;
         }
-        // If it's a continuation (no colon, not a blank line), keep scanning.
-        if i > anchor_line && !lines[i].trim().is_empty() && !lines[i].contains(':') {
-            continue;
-        }
-        if i > anchor_line {
+        // Stop at blank lines or non-continuation lines after anchor.
+        if i > anchor_line && lines[i].trim().is_empty() {
             break;
         }
     }
-    decl_end + 1
+    anchor_line + 1
 }
 
 /// Measure raw whitespace prefix length (tab = 1 char, space = 1 char).

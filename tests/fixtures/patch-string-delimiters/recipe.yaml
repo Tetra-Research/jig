@@ -1,0 +1,12 @@
+name: patch-string-delimiters
+description: Delimiters inside strings should not confuse scope detection.
+
+variables: {}
+
+files:
+  - template: templates/content.j2
+    patch: "target.js"
+    anchor:
+      pattern: "^const config"
+      scope: braces
+      position: before_close

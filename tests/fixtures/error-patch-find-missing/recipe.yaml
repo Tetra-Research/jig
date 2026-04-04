@@ -1,0 +1,13 @@
+name: error-patch-find-missing
+description: Patch fails when find string does not exist within the scope.
+
+variables: {}
+
+files:
+  - template: templates/content.j2
+    patch: "target.py"
+    anchor:
+      pattern: "^class Foo:"
+      scope: class_body
+      find: "nonexistent_field"
+      position: before_close
