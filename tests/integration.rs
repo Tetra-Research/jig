@@ -28,6 +28,7 @@ fn fixtures_dir() -> PathBuf {
 }
 
 /// Discover all fixture directories (immediate children of tests/fixtures/).
+/// Supports both recipe fixtures (recipe.yaml) and workflow fixtures (workflow.yaml).
 fn discover_fixtures() -> Vec<PathBuf> {
     let dir = fixtures_dir();
     let mut fixtures: Vec<PathBuf> = fs::read_dir(&dir)
@@ -35,7 +36,9 @@ fn discover_fixtures() -> Vec<PathBuf> {
         .filter_map(|entry| {
             let entry = entry.ok()?;
             let path = entry.path();
-            if path.is_dir() && path.join("recipe.yaml").exists() {
+            if path.is_dir()
+                && (path.join("recipe.yaml").exists() || path.join("workflow.yaml").exists())
+            {
                 Some(path)
             } else {
                 None
@@ -44,6 +47,11 @@ fn discover_fixtures() -> Vec<PathBuf> {
         .collect();
     fixtures.sort();
     fixtures
+}
+
+/// Determine if a fixture is a workflow fixture (has workflow.yaml).
+fn is_workflow_fixture(fixture: &Path) -> bool {
+    fixture.join("workflow.yaml").exists()
 }
 
 /// Read expected exit code from fixture (default 0).
@@ -61,18 +69,30 @@ fn expected_exit_code(fixture: &Path) -> i32 {
 }
 
 /// Run jig on a fixture, returning (exit_code, stdout, stderr).
+/// Automatically detects recipe vs workflow fixtures.
 fn run_fixture(fixture: &Path, work_dir: &Path) -> (i32, String, String) {
-    let recipe = fixture.join("recipe.yaml");
     let vars_json = fs::read_to_string(fixture.join("vars.json")).unwrap_or_else(|_| "{}".into());
 
     let mut cmd = Command::new(jig_bin());
-    cmd.args(["run", &recipe.display().to_string()])
-        .args(["--vars", &vars_json])
+
+    if is_workflow_fixture(fixture) {
+        let workflow = fixture.join("workflow.yaml");
+        cmd.args(["workflow", &workflow.display().to_string()]);
+    } else {
+        let recipe = fixture.join("recipe.yaml");
+        cmd.args(["run", &recipe.display().to_string()]);
+    }
+
+    cmd.args(["--vars", &vars_json])
         .args(["--base-dir", &work_dir.display().to_string()])
         .arg("--json");
 
     if fixture.join("force").exists() {
         cmd.arg("--force");
+    }
+
+    if fixture.join("dry_run").exists() {
+        cmd.arg("--dry-run");
     }
 
     let output = cmd.output().expect("failed to run jig");
@@ -335,46 +355,54 @@ fn error_fixtures_have_structured_fields() {
         assert_ne!(exit_code, 0, "error fixture '{}' should not exit 0", name);
         exit_codes_seen.insert(exit_code);
 
-        // For exit code 3 (file operation errors), jig run outputs JSON with error details.
-        // For exit codes 1 and 4, jig exits before the run phase — errors go to stderr.
-        if exit_code == 3 && !stdout.trim().is_empty() {
-            let json: serde_json::Value = normalize_json(&stdout, work_dir);
-            let ops = json["operations"].as_array().expect("operations array");
-            let error_op = ops
-                .iter()
-                .find(|op| op["action"] == "error")
-                .expect("expected an error operation in output");
+        if is_workflow_fixture(fixture) {
+            // Workflow error fixtures: JSON output has steps array with error details,
+            // or pre-execution errors go to stderr.
+            if !stdout.trim().is_empty() {
+                let json: serde_json::Value = normalize_json(&stdout, work_dir);
+                // Workflow JSON has steps array.
+                if let Some(steps) = json["steps"].as_array() {
+                    let error_step = steps.iter().find(|s| s["status"] == "error");
+                    if let Some(step) = error_step {
+                        if let Some(err) = step.get("error") {
+                            assert!(err["what"].is_string(), "fixture '{}': error missing 'what'", name);
+                            assert!(err["where"].is_string(), "fixture '{}': error missing 'where'", name);
+                            assert!(err["why"].is_string(), "fixture '{}': error missing 'why'", name);
+                            assert!(err["hint"].is_string(), "fixture '{}': error missing 'hint'", name);
+                        }
+                    }
+                }
+            }
+            // Pre-execution errors (exit 1, 4) go to stderr.
+            if (exit_code == 1 || exit_code == 2 || exit_code == 4) && !stderr.is_empty() {
+                assert!(
+                    stderr.contains("where:") || stderr.contains("why:"),
+                    "fixture '{}': stderr should contain structured error fields\nstderr: {}",
+                    name, stderr
+                );
+            }
+        } else {
+            // Recipe error fixtures: JSON has operations array.
+            if exit_code == 3 && !stdout.trim().is_empty() {
+                let json: serde_json::Value = normalize_json(&stdout, work_dir);
+                let ops = json["operations"].as_array().expect("operations array");
+                let error_op = ops
+                    .iter()
+                    .find(|op| op["action"] == "error")
+                    .expect("expected an error operation in output");
 
-            assert!(
-                error_op["what"].is_string(),
-                "fixture '{}': error missing 'what'",
-                name
-            );
-            assert!(
-                error_op["where"].is_string(),
-                "fixture '{}': error missing 'where'",
-                name
-            );
-            assert!(
-                error_op["why"].is_string(),
-                "fixture '{}': error missing 'why'",
-                name
-            );
-            assert!(
-                error_op["hint"].is_string(),
-                "fixture '{}': error missing 'hint'",
-                name
-            );
-        }
-
-        // For exit codes 1, 2, and 4, the error is on stderr with structured format.
-        if (exit_code == 1 || exit_code == 2 || exit_code == 4) && !stderr.is_empty() {
-            assert!(
-                stderr.contains("where:") || stderr.contains("why:"),
-                "fixture '{}': stderr should contain structured error fields\nstderr: {}",
-                name,
-                stderr
-            );
+                assert!(error_op["what"].is_string(), "fixture '{}': error missing 'what'", name);
+                assert!(error_op["where"].is_string(), "fixture '{}': error missing 'where'", name);
+                assert!(error_op["why"].is_string(), "fixture '{}': error missing 'why'", name);
+                assert!(error_op["hint"].is_string(), "fixture '{}': error missing 'hint'", name);
+            }
+            if (exit_code == 1 || exit_code == 2 || exit_code == 4) && !stderr.is_empty() {
+                assert!(
+                    stderr.contains("where:") || stderr.contains("why:"),
+                    "fixture '{}': stderr should contain structured error fields\nstderr: {}",
+                    name, stderr
+                );
+            }
         }
     }
 

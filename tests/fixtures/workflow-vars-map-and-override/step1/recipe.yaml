@@ -1,0 +1,14 @@
+name: step1
+description: Create out.txt using target_name and extra.
+
+variables:
+  target_name:
+    type: string
+    required: true
+  extra:
+    type: string
+    required: true
+
+files:
+  - template: templates/out.j2
+    to: "out.txt"

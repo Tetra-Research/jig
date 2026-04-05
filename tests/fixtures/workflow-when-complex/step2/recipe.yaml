@@ -1,0 +1,6 @@
+name: step2
+description: Create extras.txt.
+
+files:
+  - template: templates/extras.j2
+    to: "extras.txt"

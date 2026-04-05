@@ -1,0 +1,4 @@
+name: workflow-empty-steps
+description: Empty steps array.
+
+steps: []

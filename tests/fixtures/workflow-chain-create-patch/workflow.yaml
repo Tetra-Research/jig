@@ -1,0 +1,11 @@
+name: workflow-chain-create-patch
+description: Step 1 creates a Python file, step 2 patches it.
+
+variables:
+  field_name:
+    type: string
+    required: true
+
+steps:
+  - recipe: step1/recipe.yaml
+  - recipe: step2/recipe.yaml

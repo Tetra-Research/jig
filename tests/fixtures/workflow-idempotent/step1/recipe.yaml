@@ -1,0 +1,7 @@
+name: step1
+description: Create target.txt with skip_if_exists.
+
+files:
+  - template: templates/target.j2
+    to: "target.txt"
+    skip_if_exists: true

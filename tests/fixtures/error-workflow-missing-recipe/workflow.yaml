@@ -1,0 +1,5 @@
+name: error-workflow-missing-recipe
+description: Step references nonexistent recipe.
+
+steps:
+  - recipe: nonexistent/recipe.yaml

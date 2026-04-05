@@ -1,0 +1,11 @@
+name: step1
+description: Create model.txt using model_name variable.
+
+variables:
+  model_name:
+    type: string
+    required: true
+
+files:
+  - template: templates/model.j2
+    to: "model.txt"

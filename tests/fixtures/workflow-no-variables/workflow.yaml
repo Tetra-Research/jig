@@ -1,0 +1,5 @@
+name: workflow-no-variables
+description: Workflow with no variables section.
+
+steps:
+  - recipe: step1/recipe.yaml
