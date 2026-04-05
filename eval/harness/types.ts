@@ -97,6 +97,8 @@ export interface TrialResult {
   agent: string;
   mode: "jig" | "baseline";
   rep: number;
+  tier: string;
+  category: string;
   timestamp: string;
   duration_ms: number;
   jig_version: string;
