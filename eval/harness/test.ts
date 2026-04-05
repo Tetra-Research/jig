@@ -325,6 +325,8 @@ await test("writeTrialResult + readResults: roundtrip preserves data", () => {
       agent: "claude-code",
       mode: "jig",
       rep: 1,
+      tier: "easy",
+      category: "test",
       timestamp: new Date().toISOString(),
       duration_ms: 1234,
       jig_version: "jig 0.1.0",
@@ -352,7 +354,7 @@ await test("writeTrialResult: appends without overwriting", () => {
   const tmpFile = path.join(os.tmpdir(), `jig-test-results-${Date.now()}.jsonl`);
   try {
     const base: TrialResult = {
-      scenario: "s1", agent: "a1", mode: "jig", rep: 1,
+      scenario: "s1", agent: "a1", mode: "jig", rep: 1, tier: "easy", category: "test",
       timestamp: new Date().toISOString(), duration_ms: 100, jig_version: "0.1.0",
       scores: { assertion_score: 1, file_score: 1, negative_score: 1, jig_used: true, jig_correct: true, total: 1 },
       assertions: [], negative_assertions: [], jig_invocations: [],
@@ -540,6 +542,8 @@ function makeResult(overrides: Partial<TrialResult> = {}): TrialResult {
     agent: "claude-code",
     mode: "jig",
     rep: 1,
+    tier: "easy",
+    category: "test",
     timestamp: new Date().toISOString(),
     duration_ms: 5000,
     jig_version: "jig 0.1.0",

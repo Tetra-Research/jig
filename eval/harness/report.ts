@@ -26,15 +26,15 @@ export function aggregate(results: TrialResult[]): AggregateScores {
 
   // By tier
   const by_tier: Record<string, number> = {};
-  for (const [name, group] of groupBy(results, (r) => {
-    // Look up tier from tags or scenario name
-    return (r.tags?.find((t) => ["easy", "medium", "hard", "discovery", "error-recovery"].includes(t))) ?? "unknown";
-  })) {
+  for (const [name, group] of groupBy(results, (r) => r.tier ?? "unknown")) {
     by_tier[name] = mean(group.map((r) => r.scores.total));
   }
 
-  // By category - not available in TrialResult, so group by scenario
+  // By category
   const by_category: Record<string, number> = {};
+  for (const [name, group] of groupBy(results, (r) => r.category ?? "unknown")) {
+    by_category[name] = mean(group.map((r) => r.scores.total));
+  }
 
   // Weakest scenarios
   const byScenario = new Map<string, number[]>();
@@ -98,6 +98,14 @@ export function generateReport(results: TrialResult[]): string {
   lines.push("--- By Tier ---");
   for (const [name, score] of Object.entries(agg.by_tier)) {
     lines.push(`  ${name}: ${score.toFixed(3)}`);
+  }
+
+  if (Object.keys(agg.by_category).length > 0) {
+    lines.push("");
+    lines.push("--- By Category ---");
+    for (const [name, score] of Object.entries(agg.by_category)) {
+      lines.push(`  ${name}: ${score.toFixed(3)}`);
+    }
   }
 
   if (agg.weakest_scenarios.length > 0) {

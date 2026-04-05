@@ -26,7 +26,7 @@ assertions:
     scope: "class Contact"
     weight: 1.0
   - file: models.py
-    contains: "CharField"
+    contains: "phone_number:"
     scope: "class Contact"
     weight: 0.5
 

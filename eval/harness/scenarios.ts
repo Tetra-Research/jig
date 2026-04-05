@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import { parse as parseYaml } from "yaml";
+import { readdirRecursive } from "../lib/fs.ts";
 import type { Assertion, NegativeAssertion, Scenario, ValidationError } from "./types.ts";
 
 const VALID_TIERS = ["easy", "medium", "hard", "discovery", "error-recovery"] as const;
@@ -146,15 +147,3 @@ export function validateScenario(scenario: Scenario): ValidationError[] {
   return errors;
 }
 
-function readdirRecursive(dir: string): string[] {
-  const results: string[] = [];
-  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
-    const full = path.join(dir, entry.name);
-    if (entry.isDirectory()) {
-      results.push(...readdirRecursive(full));
-    } else {
-      results.push(full);
-    }
-  }
-  return results;
-}

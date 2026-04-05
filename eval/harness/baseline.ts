@@ -3,8 +3,8 @@ import type { Scenario } from "./types.ts";
 const BASELINE_CONTEXT = `You are working on a codebase. Make the requested changes using your native Read, Edit, and Write tools. Do not use jig.`;
 
 const JIG_PATTERNS = [
-  /^.*\bjig\s+(run|workflow|library)\b.*$/gm,
-  /^.*\brecipe\b.*$/gm,
+  /^.*\bjig\s+(run|workflow|library|vars|validate|render)\b.*$/gm,
+  /^.*\bjig\b.*\brecipe\b.*$/gm,
   /^.*--vars\b.*$/gm,
 ];
 
