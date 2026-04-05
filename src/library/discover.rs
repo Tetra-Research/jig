@@ -39,13 +39,88 @@ pub struct WorkflowStepInfo {
     pub conditional: bool,
 }
 
-/// List all recipes in an installed library.
-pub fn list_recipes(library_name: &str, base_dir: &Path) -> Result<Vec<(String, String)>, JigError> {
+/// A recipe entry with its source (library or extension).
+#[derive(Debug, Clone)]
+pub struct RecipeEntry {
+    pub path: String,
+    pub description: String,
+    pub source: RecipeSource,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum RecipeSource {
+    Library,
+    Extension,
+}
+
+/// List all recipes including extensions, with source annotations (AC-8.1, AC-8.4).
+pub fn list_recipes_with_extensions(
+    library_name: &str,
+    base_dir: &Path,
+) -> Result<Vec<RecipeEntry>, JigError> {
     let manifest = install::load_installed_manifest(library_name, base_dir)?;
-    Ok(manifest
+
+    let mut entries: Vec<RecipeEntry> = manifest
         .recipes
-        .into_iter()
-        .collect())
+        .iter()
+        .map(|(path, desc)| RecipeEntry {
+            path: path.clone(),
+            description: desc.clone(),
+            source: RecipeSource::Library,
+        })
+        .collect();
+
+    let library_paths: std::collections::HashSet<&str> =
+        manifest.recipes.keys().map(|s| s.as_str()).collect();
+
+    // Scan .jig/extensions/<library>/ for additional recipes (AC-8.1).
+    let ext_dir = base_dir.join(".jig/extensions").join(library_name);
+    if ext_dir.is_dir() {
+        scan_extension_recipes(&ext_dir, "", &library_paths, &mut entries);
+    }
+
+    Ok(entries)
+}
+
+/// Recursively scan extension directory for recipe.yaml files.
+fn scan_extension_recipes(
+    dir: &Path,
+    prefix: &str,
+    library_paths: &std::collections::HashSet<&str>,
+    entries: &mut Vec<RecipeEntry>,
+) {
+    let Ok(read_dir) = std::fs::read_dir(dir) else { return };
+    for entry in read_dir.flatten() {
+        let path = entry.path();
+        if path.is_dir() {
+            let name = entry.file_name().to_string_lossy().to_string();
+            let recipe_path = if prefix.is_empty() {
+                name.clone()
+            } else {
+                format!("{prefix}/{name}")
+            };
+
+            // Check if this directory has a recipe.yaml
+            if path.join("recipe.yaml").exists() {
+                // Don't shadow library recipes (AC-8.3).
+                if !library_paths.contains(recipe_path.as_str()) {
+                    // Try to load description from recipe.
+                    let desc = Recipe::load(&path.join("recipe.yaml"))
+                        .ok()
+                        .and_then(|r| r.description.clone())
+                        .unwrap_or_else(|| "(extension)".to_string());
+                    entries.push(RecipeEntry {
+                        path: recipe_path.clone(),
+                        description: desc,
+                        source: RecipeSource::Extension,
+                    });
+                }
+            }
+
+            // Recurse into subdirectories.
+            scan_extension_recipes(&path, &recipe_path, library_paths, entries);
+        }
+    }
 }
 
 /// Get detailed info about a specific recipe in a library.
@@ -143,7 +218,6 @@ pub fn list_workflows(
 /// to the absolute path of the recipe.yaml file.
 ///
 /// Returns (library_name, recipe_path_within_library, absolute_recipe_yaml_path).
-#[allow(dead_code)] // Used in tests and future library-aware run command
 pub fn resolve_library_recipe(
     qualified_path: &str,
     base_dir: &Path,
@@ -189,7 +263,6 @@ pub fn resolve_library_recipe(
 /// Resolve a library-qualified workflow name (e.g., "django/add-field").
 ///
 /// Returns the manifest so the caller can use workflow metadata.
-#[allow(dead_code)] // Used in tests and future library-aware workflow command
 pub fn resolve_library_workflow(
     qualified_name: &str,
     base_dir: &Path,
@@ -290,10 +363,10 @@ files: []
         let tmp = TempDir::new().unwrap();
         let project_dir = setup_library(&tmp);
 
-        let recipes = list_recipes("testlib", &project_dir).unwrap();
+        let recipes = list_recipes_with_extensions("testlib", &project_dir).unwrap();
         assert_eq!(recipes.len(), 2);
-        assert_eq!(recipes[0].0, "model/add-field");
-        assert_eq!(recipes[0].1, "Add a field");
+        assert_eq!(recipes[0].path, "model/add-field");
+        assert_eq!(recipes[0].description, "Add a field");
     }
 
     #[test]
