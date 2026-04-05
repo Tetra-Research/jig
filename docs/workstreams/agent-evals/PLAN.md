@@ -87,22 +87,30 @@ Build the reporting layer and run the first full evaluation sweep.
 
 ### Outstanding Review Findings
 
-The code review (2026-04-05) identified issues that were partially addressed but several remain open. These should be resolved before running the first full sweep (4.3).
+The code review (2026-04-05) identified issues. A review-fix pass (2026-04-05) resolved all critical and most major findings.
 
-**Critical (must fix before sweep):**
+**Resolved (2026-04-05 review-fix):**
+- ~~Scoped assertions: `extractScope` expects bare identifier but scenarios use `"class Reservation"`~~ — Fixed: strips leading `class`/`def` keyword before matching
+- ~~`by_tier` grouping derives tier from tags~~ — Fixed: `tier` and `category` fields added to `TrialResult`, used directly
+- ~~`by_category` is always empty in reports~~ — Fixed: implemented per-category grouping
+- ~~Negative assertions use literal match instead of regex~~ — Fixed: uses `new RegExp()`
+- ~~scaffold-test expected file path mismatch~~ — Fixed: renamed to `test_booking_service.py`
+- ~~add-field inject ops target single-line lists~~ — Fixed: converted to multi-line lists
+- ~~error-recovery asserts `CharField` but expected output is Pydantic~~ — Fixed: assertion checks `phone_number:` (type annotation)
+- ~~`--vars` regex only matches single quotes~~ — Fixed: matches double quotes too
+- ~~`results/` directory not auto-created~~ — Fixed: `mkdirSync` before write
+- ~~Agent process tree not killed on timeout~~ — Fixed: `detached: true` + process group kill
+
+**Remaining (non-blocking for first sweep):**
 - Timeout trials still go through normal scoring instead of being forced to zero scores (AC-8.6)
-- Scoped assertions: `extractScope` expects bare identifier but scenarios use `"class Reservation"` — scope matching silently falls back to whole-file search (AC-1.11, AC-5.2)
-- `by_tier` grouping derives tier from tags instead of from the scenario's tier field
-- `by_category` is always empty in reports
-
-**Major (should fix before sweep):**
 - `category` not enforced as required field in validation (FR-1)
 - `--dry-run` doesn't validate agent config schema (FR-9.7, FR-3.1)
 - `scoreJigUsage` doesn't extract invocation exit codes or expose `within_expected_range`/`valid_vars` as distinct metrics (FR-6)
 - `tokens_used` and `jig_calls` not stored in trial results (FR-7)
 - Report baseline comparison uses `total` not `assertion_score + tool_calls` as spec describes
 - Sandbox doesn't ensure agent subprocess PATH includes discovered jig binary (FR-4.3)
-- `agents.yaml` uses `--print` but spec says `-p`; `--max-turns 25` vs spec's `50`
+- `agents.yaml` uses `--print` / `--max-turns 25` vs spec's `-p` / `50`
+- No `hard` tier scenario (requires library support from v0.4)
 
 ## Dependencies
 

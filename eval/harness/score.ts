@@ -1,6 +1,6 @@
 import fs from "node:fs";
 import path from "node:path";
-import { aggregateFileScore } from "../lib/diff.ts";
+import { readdirRecursive } from "../lib/fs.ts";
 import type {
   AssertionResult,
   JigInvocation,
@@ -40,11 +40,12 @@ export function scoreNegativeAssertions(
   for (const na of scenario.negative_assertions) {
     if (na.any_file) {
       // Check all files in workDir
-      const allFiles = readdirRecursive(workDir);
+      const allFiles = readdirRecursive(workDir, { skipGit: true });
       let found = false;
+      const re = new RegExp(na.not_contains);
       for (const f of allFiles) {
         const content = fs.readFileSync(f, "utf-8");
-        if (content.includes(na.not_contains)) {
+        if (re.test(content)) {
           found = true;
           break;
         }
@@ -62,7 +63,7 @@ export function scoreNegativeAssertions(
         results.push({ file: na.file, not_contains: na.not_contains, passed: true, description: na.description });
       } else {
         const content = fs.readFileSync(filePath, "utf-8");
-        const found = content.includes(na.not_contains);
+        const found = new RegExp(na.not_contains).test(content);
         results.push({ file: na.file, not_contains: na.not_contains, passed: !found, description: na.description });
       }
     }
@@ -70,9 +71,6 @@ export function scoreNegativeAssertions(
 
   return { passed: results.every((r) => r.passed), results };
 }
-
-const JIG_CMD_RE = /\bjig\s+(run|workflow|render)\b/g;
-const JIG_VARS_RE = /--vars\s+'([^']+)'/g;
 
 export function scoreJigUsage(
   agentOutput: string,
@@ -87,8 +85,8 @@ export function scoreJigUsage(
 
     const command = `jig ${cmdMatch[1]} ${cmdMatch[2]}`;
     let vars: string | undefined;
-    const varsMatch = line.match(/--vars\s+'([^']+)'/);
-    if (varsMatch) vars = varsMatch[1];
+    const varsMatch = line.match(/--vars\s+(?:'([^']+)'|"([^"]+)")/);
+    if (varsMatch) vars = varsMatch[1] ?? varsMatch[2];
 
     invocations.push({ command, vars });
   }
@@ -164,7 +162,9 @@ export function computeTrialScore(
 // Simple indentation-based scope extraction for Python
 function extractScope(content: string, scopeName: string): string {
   const lines = content.split("\n");
-  const pattern = new RegExp(`^(\\s*)(class|def)\\s+${escapeRegex(scopeName)}\\b`);
+  // Strip leading keyword if scope is "class Foo" or "def bar" — the regex already adds the keyword alternation
+  const stripped = scopeName.replace(/^(class|def)\s+/, "");
+  const pattern = new RegExp(`^(\\s*)(class|def)\\s+${escapeRegex(stripped)}\\b`);
 
   for (let i = 0; i < lines.length; i++) {
     const match = lines[i].match(pattern);
@@ -199,16 +199,3 @@ function escapeRegex(s: string): string {
   return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
-function readdirRecursive(dir: string): string[] {
-  const results: string[] = [];
-  for (const entry of fs.readdirSync(dir, { withFileTypes: true })) {
-    if (entry.name === ".git") continue;
-    const full = path.join(dir, entry.name);
-    if (entry.isDirectory()) {
-      results.push(...readdirRecursive(full));
-    } else {
-      results.push(full);
-    }
-  }
-  return results;
-}

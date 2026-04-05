@@ -156,6 +156,8 @@ for (const scenario of scenarios) {
           agent: agent.name,
           mode,
           rep,
+          tier: scenario.tier,
+          category: scenario.category,
           timestamp: new Date().toISOString(),
           duration_ms: agentResult.durationMs,
           jig_version: sandbox.jigVersion || jigVersion,

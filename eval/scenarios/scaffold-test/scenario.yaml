@@ -14,16 +14,16 @@ prompt: |
   Use the create-test recipe at recipes/create-test/recipe.yaml.
 
 expected_files_modified:
-  - tests/test_booking.py
+  - tests/test_booking_service.py
 
 assertions:
-  - file: tests/test_booking.py
+  - file: tests/test_booking_service.py
     contains: "class TestBookingService"
     weight: 1.0
-  - file: tests/test_booking.py
+  - file: tests/test_booking_service.py
     contains: "def test_"
     weight: 0.8
-  - file: tests/test_booking.py
+  - file: tests/test_booking_service.py
     contains: "import"
     weight: 0.5
 

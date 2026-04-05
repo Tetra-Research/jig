@@ -39,6 +39,7 @@ export function invokeAgent(
       cwd: workDir,
       env,
       stdio: ["ignore", "pipe", "pipe"],
+      detached: true,
     });
 
     let stdout = "";
@@ -54,7 +55,12 @@ export function invokeAgent(
     let timedOut = false;
     const timer = setTimeout(() => {
       timedOut = true;
-      child.kill("SIGKILL");
+      // Kill the entire process group to clean up agent subprocesses
+      try {
+        process.kill(-child.pid!, "SIGKILL");
+      } catch {
+        child.kill("SIGKILL");
+      }
     }, agent.timeout_ms);
 
     child.on("close", (code) => {
