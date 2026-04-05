@@ -1,7 +1,18 @@
 use std::path::{Path, PathBuf};
 
+use serde::{Deserialize, Serialize};
+
 use crate::error::{JigError, StructuredError};
 use crate::library::manifest::LibraryManifest;
+
+/// Metadata about how a library was installed, for smart updates.
+#[derive(Debug, Clone, Serialize, Deserialize)]
+pub struct InstallMeta {
+    pub source: String,
+    pub source_type: String, // "local" or "git"
+    pub installed_at: String,
+    pub version: String,
+}
 
 /// Information about an installed library.
 #[derive(Debug, Clone)]
@@ -50,14 +61,94 @@ pub fn project_libraries_dir(base_dir: &Path) -> PathBuf {
     base_dir.join(".jig").join("libraries")
 }
 
-/// Install a library from a local directory path.
-///
-/// Copies the library directory to the target location (global or project-local).
-/// Validates the manifest before installing.
-pub fn add_from_path(
+/// Check if a string looks like a git URL.
+pub fn is_git_url(source: &str) -> bool {
+    source.starts_with("https://")
+        || source.starts_with("git@")
+        || source.starts_with("ssh://")
+        || source.ends_with(".git")
+}
+
+/// Clone a git repo to a temp directory and return the path.
+pub fn git_clone(url: &str) -> Result<PathBuf, JigError> {
+    let tmp = std::env::temp_dir().join(format!("jig-git-clone-{}", std::process::id()));
+    if tmp.exists() {
+        let _ = std::fs::remove_dir_all(&tmp);
+    }
+
+    let output = std::process::Command::new("git")
+        .args(["clone", "--depth", "1", url, &tmp.display().to_string()])
+        .output()
+        .map_err(|e| {
+            JigError::FileOperation(StructuredError {
+                what: format!("failed to run git clone for '{url}'"),
+                where_: url.to_string(),
+                why: e.to_string(),
+                hint: "ensure git is installed and accessible".into(),
+            })
+        })?;
+
+    if !output.status.success() {
+        let stderr = String::from_utf8_lossy(&output.stderr);
+        return Err(JigError::FileOperation(StructuredError {
+            what: format!("git clone failed for '{url}'"),
+            where_: url.to_string(),
+            why: stderr.trim().to_string(),
+            hint: "check the URL, network connection, and authentication".into(),
+        }));
+    }
+
+    Ok(tmp)
+}
+
+/// Write install metadata alongside the library.
+pub fn write_install_meta(
+    install_dir: &Path,
+    source: &str,
+    source_type: &str,
+    version: &str,
+) -> Result<(), JigError> {
+    let meta = InstallMeta {
+        source: source.to_string(),
+        source_type: source_type.to_string(),
+        installed_at: chrono_now(),
+        version: version.to_string(),
+    };
+    let json = serde_json::to_string_pretty(&meta).unwrap();
+    std::fs::write(install_dir.join("_install_meta.json"), json).map_err(|e| {
+        JigError::FileOperation(StructuredError {
+            what: "failed to write install metadata".into(),
+            where_: install_dir.display().to_string(),
+            why: e.to_string(),
+            hint: "check directory permissions".into(),
+        })
+    })
+}
+
+/// Read install metadata for a library.
+pub fn read_install_meta(install_dir: &Path) -> Option<InstallMeta> {
+    let meta_path = install_dir.join("_install_meta.json");
+    let content = std::fs::read_to_string(meta_path).ok()?;
+    serde_json::from_str(&content).ok()
+}
+
+/// Simple timestamp string (no chrono dependency).
+fn chrono_now() -> String {
+    use std::time::SystemTime;
+    match SystemTime::now().duration_since(SystemTime::UNIX_EPOCH) {
+        Ok(d) => format!("{}", d.as_secs()),
+        Err(_) => "0".to_string(),
+    }
+}
+
+/// Install a library from a local directory path with options for force and metadata.
+pub fn add_from_path_with_options(
     source: &Path,
     location: InstallLocation,
     base_dir: &Path,
+    force: bool,
+    source_str: &str,
+    source_type: &str,
 ) -> Result<InstalledLibrary, JigError> {
     // Validate source exists and has a manifest.
     let manifest_path = source.join("jig-library.yaml");
@@ -82,12 +173,23 @@ pub fn add_from_path(
 
     // Check if already installed.
     if install_dir.exists() {
-        return Err(JigError::FileOperation(StructuredError {
-            what: format!("library '{}' is already installed", manifest.name),
-            where_: install_dir.display().to_string(),
-            why: "a library with this name already exists at the target location".into(),
-            hint: "use 'jig library update' to update, or 'jig library remove' first".into(),
-        }));
+        if force {
+            std::fs::remove_dir_all(&install_dir).map_err(|e| {
+                JigError::FileOperation(StructuredError {
+                    what: format!("failed to remove existing library '{}'", manifest.name),
+                    where_: install_dir.display().to_string(),
+                    why: e.to_string(),
+                    hint: "check directory permissions".into(),
+                })
+            })?;
+        } else {
+            return Err(JigError::FileOperation(StructuredError {
+                what: format!("library '{}' is already installed", manifest.name),
+                where_: install_dir.display().to_string(),
+                why: "a library with this name already exists at the target location".into(),
+                hint: "use --force to overwrite, 'jig library update' to update, or 'jig library remove' first".into(),
+            }));
+        }
     }
 
     // Create target directory and copy.
@@ -99,6 +201,9 @@ pub fn add_from_path(
             hint: "check directory permissions".into(),
         })
     })?;
+
+    // Write install metadata (AC-2.13).
+    write_install_meta(&install_dir, source_str, source_type, &manifest.version)?;
 
     Ok(InstalledLibrary {
         name: manifest.name,
@@ -161,6 +266,22 @@ pub fn update_from_path(
 
     let manifest = LibraryManifest::load(&manifest_path)?;
 
+    // Validate name match (C1 fix: prevent silent library swap).
+    if manifest.name != name {
+        return Err(JigError::RecipeValidation(StructuredError {
+            what: format!(
+                "library name mismatch: expected '{}', found '{}'",
+                name, manifest.name
+            ),
+            where_: source.display().to_string(),
+            why: format!(
+                "the source manifest declares name '{}' but you're updating '{}'",
+                manifest.name, name
+            ),
+            hint: "ensure the source directory contains the correct library".into(),
+        }));
+    }
+
     // Remove old, copy new.
     std::fs::remove_dir_all(&existing_path).map_err(|e| {
         JigError::FileOperation(StructuredError {
@@ -180,6 +301,9 @@ pub fn update_from_path(
         })
     })?;
 
+    // Update install metadata.
+    write_install_meta(&existing_path, &source.display().to_string(), "local", &manifest.version)?;
+
     Ok(InstalledLibrary {
         name: manifest.name,
         version: manifest.version,
@@ -191,8 +315,54 @@ pub fn update_from_path(
     })
 }
 
+/// Update an installed library using its recorded source metadata.
+pub fn update_from_meta(name: &str, base_dir: &Path) -> Result<InstalledLibrary, JigError> {
+    let (existing_path, _) = find_installed_library(name, base_dir)?;
+
+    let meta = read_install_meta(&existing_path).ok_or_else(|| {
+        JigError::FileOperation(StructuredError {
+            what: format!("no install metadata for library '{name}'"),
+            where_: existing_path.display().to_string(),
+            why: "the library was installed before metadata tracking was added".into(),
+            hint: format!("provide the source path: jig library update {name} <path>"),
+        })
+    })?;
+
+    match meta.source_type.as_str() {
+        "git" => {
+            let clone_dir = git_clone(&meta.source)?;
+            let result = update_from_path(name, &clone_dir, base_dir);
+            let _ = std::fs::remove_dir_all(&clone_dir);
+            // Re-write metadata with git source type.
+            if let Ok(ref lib) = result {
+                write_install_meta(&lib.path, &meta.source, "git", &lib.version)?;
+            }
+            result
+        }
+        "local" => {
+            let source = PathBuf::from(&meta.source);
+            if !source.exists() {
+                return Err(JigError::FileOperation(StructuredError {
+                    what: format!("original source path no longer exists: '{}'", meta.source),
+                    where_: meta.source,
+                    why: "the local directory used to install this library no longer exists".into(),
+                    hint: format!("provide a new source path: jig library update {name} <path>"),
+                }));
+            }
+            update_from_path(name, &source, base_dir)
+        }
+        other => Err(JigError::FileOperation(StructuredError {
+            what: format!("unknown install source type '{other}'"),
+            where_: existing_path.display().to_string(),
+            why: format!("metadata contains unrecognized source_type '{other}'"),
+            hint: format!("provide the source path: jig library update {name} <path>"),
+        })),
+    }
+}
+
 /// List all installed libraries (project-local first, then global).
 /// Project-local libraries shadow global ones with the same name.
+/// Results sorted by name for deterministic output (M5 fix).
 pub fn list_installed(base_dir: &Path) -> Result<Vec<InstalledLibrary>, JigError> {
     let mut libraries = Vec::new();
     let mut seen_names = std::collections::HashSet::new();
@@ -209,6 +379,9 @@ pub fn list_installed(base_dir: &Path) -> Result<Vec<InstalledLibrary>, JigError
     {
         scan_libraries_dir(&global_dir, InstallLocation::Global, &mut libraries, &mut seen_names)?;
     }
+
+    // Sort by name for deterministic output (M5 fix).
+    libraries.sort_by(|a, b| a.name.cmp(&b.name));
 
     Ok(libraries)
 }
@@ -230,7 +403,7 @@ pub fn find_installed_library(name: &str, base_dir: &Path) -> Result<(PathBuf, I
         }
     }
 
-    Err(JigError::RecipeValidation(StructuredError {
+    Err(JigError::FileOperation(StructuredError {
         what: format!("library '{name}' is not installed"),
         where_: "libraries".into(),
         why: format!("no library named '{name}' found in project or global libraries"),
@@ -283,7 +456,14 @@ fn scan_libraries_dir(
 
         let manifest = match LibraryManifest::load(&manifest_path) {
             Ok(m) => m,
-            Err(_) => continue, // Skip malformed manifests in listing
+            Err(e) => {
+                eprintln!(
+                    "Warning: skipping malformed library at '{}': {}",
+                    path.display(),
+                    e,
+                );
+                continue;
+            }
         };
 
         if seen.contains(&manifest.name) {
@@ -364,7 +544,7 @@ recipes:
         let project_dir = tmp.path().join("project");
         fs::create_dir_all(&project_dir).unwrap();
 
-        let result = add_from_path(&source_dir, InstallLocation::ProjectLocal, &project_dir).unwrap();
+        let result = add_from_path_with_options(&source_dir, InstallLocation::ProjectLocal, &project_dir, false, "", "local").unwrap();
         assert_eq!(result.name, "mylib");
         assert_eq!(result.version, "0.1.0");
         assert_eq!(result.location, InstallLocation::ProjectLocal);
@@ -385,8 +565,8 @@ recipes:
         let project_dir = tmp.path().join("project");
         fs::create_dir_all(&project_dir).unwrap();
 
-        add_from_path(&source_dir, InstallLocation::ProjectLocal, &project_dir).unwrap();
-        let err = add_from_path(&source_dir, InstallLocation::ProjectLocal, &project_dir).unwrap_err();
+        add_from_path_with_options(&source_dir, InstallLocation::ProjectLocal, &project_dir, false, "", "local").unwrap();
+        let err = add_from_path_with_options(&source_dir, InstallLocation::ProjectLocal, &project_dir, false, "", "local").unwrap_err();
         let msg = format!("{err}");
         assert!(msg.contains("already installed"));
     }
@@ -400,7 +580,7 @@ recipes:
         let project_dir = tmp.path().join("project");
         fs::create_dir_all(&project_dir).unwrap();
 
-        let err = add_from_path(&empty_dir, InstallLocation::ProjectLocal, &project_dir).unwrap_err();
+        let err = add_from_path_with_options(&empty_dir, InstallLocation::ProjectLocal, &project_dir, false, "", "local").unwrap_err();
         let msg = format!("{err}");
         assert!(msg.contains("no jig-library.yaml"));
     }
@@ -419,7 +599,7 @@ recipes:
         let project_dir = tmp.path().join("project");
         fs::create_dir_all(&project_dir).unwrap();
 
-        add_from_path(&source_dir, InstallLocation::ProjectLocal, &project_dir).unwrap();
+        add_from_path_with_options(&source_dir, InstallLocation::ProjectLocal, &project_dir, false, "", "local").unwrap();
         let removed = remove("mylib", &project_dir).unwrap();
         assert_eq!(removed.name, "mylib");
         assert!(!removed.path.exists());
@@ -448,7 +628,7 @@ recipes:
                 format!("name: {name}\nversion: 0.1.0\nrecipes: {{}}\n"),
             )
             .unwrap();
-            add_from_path(&source, InstallLocation::ProjectLocal, &project_dir).unwrap();
+            add_from_path_with_options(&source, InstallLocation::ProjectLocal, &project_dir, false, "", "local").unwrap();
         }
 
         let list = list_installed(&project_dir).unwrap();
@@ -472,7 +652,7 @@ recipes:
             "name: mylib\nversion: 0.1.0\nrecipes: {}\n",
         )
         .unwrap();
-        add_from_path(&source_v1, InstallLocation::ProjectLocal, &project_dir).unwrap();
+        add_from_path_with_options(&source_v1, InstallLocation::ProjectLocal, &project_dir, false, "", "local").unwrap();
 
         // Update with v2 source.
         let source_v2 = tmp.path().join("source-v2");
