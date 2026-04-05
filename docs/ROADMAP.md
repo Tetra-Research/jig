@@ -10,7 +10,7 @@ Last updated: 2026-04-04
 |-----------|--------|-------|------|
 | v0.1 core-engine | **Done** | 191 | PLAN, SPEC, SHARED-CONTEXT, NARRATIVE |
 | v0.2 replace-patch | **Done** | 308 total | PLAN, SPEC, SHARED-CONTEXT, NARRATIVE |
-| v0.3 workflows | Spec'd | — | PLAN, SPEC, SHARED-CONTEXT |
+| v0.3 workflows | **Done** | 343 total | PLAN, SPEC, SHARED-CONTEXT, NARRATIVE |
 | v0.4–v1.0 | Described in jig.md | — | Nothing beyond one-line mentions in ARCHITECTURE.md |
 
 The engine works. The planning infrastructure works. What's missing is the roadmap connecting the two through the remaining milestones.
