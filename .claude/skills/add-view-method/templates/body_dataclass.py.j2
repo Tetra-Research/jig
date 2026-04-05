@@ -1,5 +1,0 @@
-
-@dataclass
-class {{ body_class }}:
-{% for field in body_fields %}    {{ field.name }}: {{ field.type }}{% if field.default is defined %} = {{ field.default }}{% endif %}
-{% endfor %}
