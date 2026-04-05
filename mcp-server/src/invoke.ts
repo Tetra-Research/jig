@@ -23,7 +23,7 @@ export function invokeJig(
             resolve({
               exitCode: -2,
               stdout: stdout ?? "",
-              stderr: `jig command timed out after ${Math.round(timeout / 1000)} seconds`,
+              stderr: `jig command timed out after ${Math.round(timeout / 1000)} seconds: ${binaryPath} ${args.join(" ")}`,
             });
             return;
           }
@@ -36,7 +36,7 @@ export function invokeJig(
             return;
           }
           resolve({
-            exitCode: (error as NodeJS.ErrnoException & { status?: number }).status ?? 1,
+            exitCode: typeof error.code === "number" ? error.code : 1,
             stdout: stdout ?? "",
             stderr: stderr ?? "",
           });

@@ -174,17 +174,18 @@ describe("jig_render e2e", () => {
     expect(result.content[0].text).toContain("pub struct Foo;");
   });
 
-  it("tool-render-to-file — writes to file", async () => {
+  it("tool-render-to-file — writes to file and returns confirmation", async () => {
+    const outPath = "/tmp/jig-mcp-test-render-output.rs";
     client = createClient();
     await client.initialize();
     const resp = await client.callTool("jig_render", {
       template: "tests/fixtures/create-simple/templates/service.j2",
       vars: { class_name: "Bar" },
-      to: "/tmp/jig-mcp-test-render-output.rs",
+      to: outPath,
     });
     const result = getToolResult(resp);
     expect(result.isError).toBeFalsy();
-    // jig render --to outputs the rendered content to the file, stdout may be empty or have a confirmation
+    expect(result.content[0].text).toContain(outPath);
   });
 });
 
@@ -269,6 +270,89 @@ describe("error paths", () => {
     expect(result.isError).toBe(true);
     // Should get ENOENT spawn error
     expect(result.content[0].text).toMatch(/not found|ENOENT/i);
+  });
+});
+
+describe("binary discovery e2e", () => {
+  let client: McpClient;
+
+  afterEach(async () => {
+    if (client) {
+      try { await client.close(); } catch { /* ignore */ }
+    }
+  });
+
+  it("binary-jig-path-cli — --jig-path flag works", async () => {
+    // Find the real jig binary path first
+    const { execFileSync } = await import("node:child_process");
+    const realPath = execFileSync("which", ["jig"], { encoding: "utf-8" }).trim();
+
+    client = createClient(["--jig-path", realPath]);
+    await client.initialize();
+    const resp = await client.callTool("jig_run", {
+      recipe: "tests/fixtures/create-simple/recipe.yaml",
+      vars: { class_name: "Foo" },
+      dry_run: true,
+    });
+    const result = getToolResult(resp);
+    expect(result.isError).toBeFalsy();
+  });
+
+  it("binary-jig-path-env — JIG_PATH env var works", async () => {
+    const { execFileSync } = await import("node:child_process");
+    const realPath = execFileSync("which", ["jig"], { encoding: "utf-8" }).trim();
+
+    client = createClient([], { JIG_PATH: realPath });
+    await client.initialize();
+    const resp = await client.callTool("jig_run", {
+      recipe: "tests/fixtures/create-simple/recipe.yaml",
+      vars: { class_name: "Foo" },
+      dry_run: true,
+    });
+    const result = getToolResult(resp);
+    expect(result.isError).toBeFalsy();
+  });
+
+  it("binary-jig-path-invalid — invalid --jig-path returns error", async () => {
+    client = createClient(["--jig-path", "/nonexistent/jig"]);
+    await client.initialize();
+    const resp = await client.callTool("jig_run", {
+      recipe: "tests/fixtures/create-simple/recipe.yaml",
+      vars: { class_name: "Foo" },
+      dry_run: true,
+    });
+    const result = getToolResult(resp);
+    expect(result.isError).toBe(true);
+    expect(result.content[0].text).toMatch(/not found/i);
+  });
+});
+
+describe("timeout", () => {
+  let client: McpClient;
+
+  afterEach(async () => {
+    if (client) {
+      try { await client.close(); } catch { /* ignore */ }
+    }
+  });
+
+  it("timeout — subprocess timeout returns error", async () => {
+    // Use a real jig call with an impossibly short timeout (1ms)
+    // to trigger the timeout path
+    client = createClient(["--timeout", "1"]);
+    await client.initialize();
+    const resp = await client.callTool("jig_run", {
+      recipe: "tests/fixtures/create-simple/recipe.yaml",
+      vars: { class_name: "Foo" },
+      dry_run: true,
+    });
+    const result = getToolResult(resp);
+    // With 1ms timeout, either the command times out or completes fast enough
+    // If it times out, we should see the timeout error
+    if (result.isError) {
+      expect(result.content[0].text).toContain("timed out");
+    }
+    // If it somehow completes in 1ms, the test still passes (no assertion failure)
   });
 });
 

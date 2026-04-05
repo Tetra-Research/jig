@@ -20,7 +20,10 @@ function parseArgs(argv: string[]): { jigPath?: string; timeout: number } {
     if (argv[i] === "--jig-path" && argv[i + 1]) {
       jigPath = argv[++i];
     } else if (argv[i] === "--timeout" && argv[i + 1]) {
-      timeout = parseInt(argv[++i], 10);
+      const parsed = parseInt(argv[++i], 10);
+      if (!Number.isNaN(parsed) && parsed > 0) {
+        timeout = parsed;
+      }
     }
   }
   return { jigPath, timeout };
@@ -35,10 +38,16 @@ async function main() {
     if (version) {
       console.error(`jig MCP server: found jig ${version} at ${jigBinaryPath}`);
     } else {
-      console.error(`jig MCP server: found jig at ${jigBinaryPath} (version unknown)`);
+      console.error(`jig MCP server: warning: jig at ${jigBinaryPath} did not respond to --version`);
     }
   } else {
-    console.error("jig MCP server: warning: jig binary not found on PATH");
+    if (jigPath) {
+      console.error(`jig MCP server: warning: --jig-path ${jigPath} is not executable or does not exist`);
+    } else if (process.env["JIG_PATH"]) {
+      console.error(`jig MCP server: warning: JIG_PATH=${process.env["JIG_PATH"]} is not executable or does not exist`);
+    } else {
+      console.error("jig MCP server: warning: jig binary not found on PATH");
+    }
   }
 
   const server = new McpServer({ name: "jig", version: "0.1.0" });
@@ -83,7 +92,7 @@ async function main() {
     }
 
     const result = await invokeJig(jigBinaryPath, args, cwd, timeout);
-    return translateResult(toolName, result);
+    return translateResult(toolName, result, params as Record<string, unknown>);
   });
 
   const transport = new StdioServerTransport();

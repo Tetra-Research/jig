@@ -14,13 +14,20 @@ export interface McpToolResponse {
 
 export function translateResult(
   toolName: string,
-  result: JigResult
+  result: JigResult,
+  params?: Record<string, unknown>
 ): McpToolResponse {
   // Success
   if (result.exitCode === 0) {
-    const text = result.stdout || (toolName === "jig_render" ? "" : result.stdout);
+    // AC-4.7: jig_render with --to returns confirmation, not empty string
+    if (toolName === "jig_render" && params?.to && !result.stdout.trim()) {
+      return {
+        content: [{ type: "text", text: `Rendered template to ${params.to}` }],
+        isError: false,
+      };
+    }
     return {
-      content: [{ type: "text", text }],
+      content: [{ type: "text", text: result.stdout }],
       isError: false,
     };
   }
@@ -56,16 +63,22 @@ export function translateResult(
   const meaning = EXIT_CODE_MEANINGS[result.exitCode] ?? "unknown error";
   let text = `jig exited with code ${result.exitCode} (${meaning})\n\n${result.stderr}`;
 
-  // For exit code 3, try to extract rendered_content from JSON stdout
-  if (result.exitCode === 3 && result.stdout) {
-    try {
-      const json = JSON.parse(result.stdout);
-      const rendered = extractRenderedContent(json);
-      if (rendered) {
-        text += `\n\nRendered content (for manual fallback):\n${rendered}`;
+  // AC-4.2: Include stdout if non-empty (structured errors may be in stdout JSON)
+  if (result.stdout.trim()) {
+    // For exit code 3, try to extract rendered_content for LLM fallback (AC-4.3)
+    if (result.exitCode === 3) {
+      try {
+        const json = JSON.parse(result.stdout);
+        const rendered = extractRenderedContent(json);
+        if (rendered) {
+          text += `\n\nRendered content (for manual fallback):\n${rendered}`;
+        }
+      } catch {
+        // stdout wasn't valid JSON; include raw
+        text += `\n\n${result.stdout}`;
       }
-    } catch {
-      // stdout wasn't valid JSON; just use stderr
+    } else {
+      text += `\n\n${result.stdout}`;
     }
   }
 

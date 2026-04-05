@@ -18,14 +18,24 @@ describe("findJigBinary", () => {
     expect(result).toContain("jig");
   });
 
-  it("JIG_PATH env override", () => {
-    process.env["JIG_PATH"] = "/custom/path/jig";
-    expect(findJigBinary()).toBe("/custom/path/jig");
+  it("JIG_PATH env override — valid path", () => {
+    // Use a known executable for testing
+    process.env["JIG_PATH"] = "/bin/sh";
+    expect(findJigBinary()).toBe("/bin/sh");
+  });
+
+  it("JIG_PATH env override — invalid path returns null", () => {
+    process.env["JIG_PATH"] = "/nonexistent/path/jig";
+    expect(findJigBinary()).toBeNull();
   });
 
   it("CLI path takes precedence over JIG_PATH", () => {
-    process.env["JIG_PATH"] = "/env/path/jig";
-    expect(findJigBinary("/explicit/path/jig")).toBe("/explicit/path/jig");
+    process.env["JIG_PATH"] = "/bin/sh";
+    expect(findJigBinary("/usr/bin/env")).toBe("/usr/bin/env");
+  });
+
+  it("CLI path — invalid path returns null", () => {
+    expect(findJigBinary("/nonexistent/jig")).toBeNull();
   });
 
   it("returns null when not found", () => {

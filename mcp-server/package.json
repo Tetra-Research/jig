@@ -9,6 +9,7 @@
   "scripts": {
     "build": "tsc",
     "dev": "tsx src/index.ts",
+    "pretest": "tsc",
     "test": "vitest run",
     "test:watch": "vitest",
     "prepublishOnly": "npm run build"

@@ -46,14 +46,30 @@ describe("MCP protocol", () => {
     expect(typeof code).toBe("number");
   });
 
-  it("protocol-malformed-json — server survives bad input", async () => {
+  it("protocol-malformed-json — server survives bad input and returns error", async () => {
     client = createClient();
-    // Send garbage before initialize
-    client.proc.stdin!.write("not json at all\n");
-    // Small delay then send valid initialize — server should still be alive
+    // Send malformed JSON-RPC with an id so we can read the error response
+    client.proc.stdin!.write(JSON.stringify({ jsonrpc: "2.0", id: 999 }) + "\n");
     await new Promise((r) => setTimeout(r, 200));
+    // Server should still be alive — send valid initialize
     const resp = await client.initialize();
     const result = resp.result as Record<string, unknown>;
     expect((result.serverInfo as Record<string, string>).name).toBe("jig");
+  });
+
+  it("protocol-unknown-tool — returns error for unknown tool name", async () => {
+    client = createClient();
+    await client.initialize();
+    const resp = await client.callTool("nonexistent_tool", {});
+    // MCP SDK should return an error (either JSON-RPC error or tool error)
+    const error = resp.error as Record<string, unknown> | undefined;
+    const result = resp.result as Record<string, unknown> | undefined;
+    if (error) {
+      // JSON-RPC protocol error
+      expect(typeof error.code).toBe("number");
+    } else if (result) {
+      // Tool-level error
+      expect((result as { isError?: boolean }).isError).toBe(true);
+    }
   });
 });

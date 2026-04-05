@@ -15,6 +15,13 @@ describe("translateResult", () => {
     expect(res.content[0].text).toContain("bad recipe");
   });
 
+  it("exit code 1 — includes stdout when non-empty", () => {
+    const res = translateResult("jig_run", { exitCode: 1, stdout: '{"detail":"extra"}', stderr: "bad recipe" });
+    expect(res.isError).toBe(true);
+    expect(res.content[0].text).toContain("bad recipe");
+    expect(res.content[0].text).toContain('{"detail":"extra"}');
+  });
+
   it("exit code 2 — template rendering error", () => {
     const res = translateResult("jig_render", { exitCode: 2, stdout: "", stderr: "render fail" });
     expect(res.isError).toBe(true);
@@ -61,6 +68,18 @@ describe("translateResult", () => {
     const res = translateResult("jig_run", { exitCode: -2, stdout: "", stderr: "jig command timed out after 30 seconds" });
     expect(res.isError).toBe(true);
     expect(res.content[0].text).toContain("timed out");
+  });
+
+  it("jig_render --to success — confirmation message", () => {
+    const res = translateResult("jig_render", { exitCode: 0, stdout: "", stderr: "" }, { to: "/tmp/out.rs" });
+    expect(res.isError).toBe(false);
+    expect(res.content[0].text).toBe("Rendered template to /tmp/out.rs");
+  });
+
+  it("jig_render without --to — returns rendered content", () => {
+    const res = translateResult("jig_render", { exitCode: 0, stdout: "pub struct Foo;", stderr: "" });
+    expect(res.isError).toBe(false);
+    expect(res.content[0].text).toBe("pub struct Foo;");
   });
 
   it("determinism — same input gives same output", () => {
