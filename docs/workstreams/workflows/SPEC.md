@@ -537,17 +537,17 @@ Errors at parse/validation time always halt immediately — on_error modes only 
 
 ## Requirement Traceability
 
-| Requirement | Criteria | Test | Status |
-|-------------|----------|------|--------|
-| FR-1 | AC-1.1 through AC-1.20 | spec::fr1::* | PENDING |
-| FR-2 | AC-2.1 through AC-2.7 | spec::fr2::* | PENDING |
-| FR-3 | AC-3.1 through AC-3.8 | spec::fr3::* | PENDING |
-| FR-4 | AC-4.1 through AC-4.10 | spec::fr4::* | PENDING |
-| FR-5 | AC-5.1 through AC-5.10 | spec::fr5::* | PENDING |
-| FR-6 | AC-6.1 through AC-6.9 | spec::fr6::* | PENDING |
-| FR-7 | AC-7.1 through AC-7.8 | spec::fr7::* | PENDING |
-| FR-8 | AC-8.1 through AC-8.14 | spec::fr8::* | PENDING |
-| NFR-1 | AC-N1.1 through AC-N1.3 | spec::nfr1::* | PENDING |
-| NFR-2 | AC-N2.1, AC-N2.2 | spec::nfr2::* | PENDING |
-| NFR-3 | AC-N3.1 through AC-N3.3 | spec::nfr3::* | PENDING |
-| NFR-4 | AC-N4.1, AC-N4.2 | spec::nfr4::* | PENDING |
+| Requirement | Criteria | Test Coverage | Status |
+|-------------|----------|---------------|--------|
+| FR-1 | AC-1.1 through AC-1.20 | Unit tests in `workflow::tests` (parsing), fixtures: workflow-basic, workflow-empty-steps, workflow-no-variables, error-workflow-* | PASS |
+| FR-2 | AC-2.1 through AC-2.7 | Unit tests in `workflow::tests` (variable resolution), fixtures: workflow-vars-map, workflow-vars-override, error-workflow-bad-vars | PASS |
+| FR-3 | AC-3.1 through AC-3.8 | Unit tests in `workflow::tests` (when evaluation), fixtures: workflow-when-true, workflow-when-false, workflow-when-complex, error-workflow-when-undef | PASS |
+| FR-4 | AC-4.1 through AC-4.10 | Unit tests in `workflow::tests` (variable resolution), fixtures: workflow-vars-map, workflow-vars-override, workflow-vars-map-and-override, error-workflow-step-missing-var | PASS |
+| FR-5 | AC-5.1 through AC-5.10 | Unit tests in `workflow::tests` (execution), fixtures: workflow-on-error-stop, workflow-on-error-continue, workflow-on-error-report, workflow-step-on-error | PASS |
+| FR-6 | AC-6.1 through AC-6.9 | Unit + integration tests, fixtures: workflow-basic, workflow-three-steps, workflow-chain-create-inject, workflow-chain-create-patch, workflow-dry-run-chain | PASS |
+| FR-7 | AC-7.1 through AC-7.8 | CLI integration in `cmd_workflow`, `cmd_validate`, `cmd_vars`; auto-detection tested via fixtures. **Gap: no fixture for AC-7.8** (recipe passed to `jig workflow`) | PASS (partial — m3) |
+| FR-8 | AC-8.1 through AC-8.14 | `format_workflow_json`, `format_workflow_human` in output.rs; tested via integration. **Bug: C1 (rendered_content wrong), M1 (status logic), m5 (dry-run wording)** | PASS (with bugs) |
+| NFR-1 | AC-N1.1 through AC-N1.3 | Integration test `determinism_identical_output_across_runs` | PASS |
+| NFR-2 | AC-N2.1, AC-N2.2 | Fixtures: workflow-chain-create-inject, workflow-chain-create-patch | PASS |
+| NFR-3 | AC-N3.1 through AC-N3.3 | Error fixtures verify structured errors with exit codes. **Bug: C1 (rendered_content extraction)** | PASS (with bug) |
+| NFR-4 | AC-N4.1, AC-N4.2 | Integration test `idempotency_second_run_all_skips`, fixture: workflow-idempotent | PASS |

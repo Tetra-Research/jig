@@ -301,12 +301,31 @@ enum JigError {
 
 Every error includes: what, where, why, hint (I-4). File operation errors include the rendered content so the caller can fall back to manual editing (I-10).
 
-### `src/workflow.rs` — Multi-Recipe Orchestration (v0.3+)
+### `src/workflow.rs` — Multi-Recipe Orchestration (v0.3)
 
 Owns: Workflow definition, step execution, conditional logic, variable mapping.
 Depends on: recipe, variables, renderer, operations.
 
-Not built until v0.3. Included here for architectural completeness.
+Key types and functions:
+```rust
+// Types
+struct Workflow { name, description, variables, steps, on_error, workflow_dir }
+struct WorkflowStep { recipe, when, vars_map, vars, on_error }
+enum OnError { Stop, Continue, Report }
+enum StepResult { Success { recipe, operations }, Skipped { recipe, reason }, Error { recipe, error, operations, rendered_content } }
+struct WorkflowResult { name, on_error, steps: Vec<StepResult> }
+enum FileType { Workflow, Recipe }
+
+// Functions
+fn detect_file_type(path) -> Result<FileType>       // auto-detect workflow vs recipe
+fn load_workflow(path) -> Result<Workflow>            // parse + validate + resolve paths
+fn resolve_step_variables(vars, step) -> Value        // vars_map rename + vars override
+fn evaluate_when(expr, vars) -> Result<bool>          // Jinja2 render + truthiness check
+fn execute_workflow(wf, vars, ctx, verbose) -> WorkflowResult
+fn run_recipe(recipe, vars, ctx, verbose) -> Result<Vec<OpResult>>
+```
+
+Note: `run_recipe()` duplicates the rendering pipeline from `cmd_run` in `main.rs` (review finding M4). Should be consolidated before v0.4.
 
 ### `src/library/` — Library Management (v0.4+)
 
@@ -529,19 +548,23 @@ jig run recipe.yaml --vars '...'         # second run: skip_if prevents duplicat
 - Full patch recipe from the PRD (add-model-field) works against a Django-style fixture
 - Scope parse failure produces structured error with rendered content (I-4, I-10)
 
-### Phase H: Workflows (v0.3)
+### Phase H: Workflows (v0.3) — Complete
 
-**Build:**
-- `src/workflow.rs` — workflow definition, step execution
-- `workflow` subcommand in CLI
-- Conditional steps, variable mapping, error handling modes
+**Built:**
+- `src/workflow.rs` (1234 lines) — `Workflow`/`WorkflowStep`/`OnError` types, `load_workflow()`, `detect_file_type()`, `resolve_step_variables()`, `evaluate_when()`, `execute_workflow()`, `run_recipe()`
+- `workflow` subcommand in CLI (`cmd_workflow()` in `main.rs`)
+- Auto-detection in `jig validate` and `jig vars` via `detect_file_type()`
+- `format_workflow_json()` and `format_workflow_human()` in `output.rs`
+- 25 integration test fixtures (18 success, 7 error), 37 unit tests in workflow.rs
 
-**Evaluate:**
-- Multi-recipe workflows execute in order
-- `when` expressions skip/include steps correctly
-- `vars_map` renames variables between steps
-- `on_error: stop/continue/report` behaves correctly
-- Per-step results in JSON output
+**Evaluated:**
+- Multi-recipe workflows execute in order — tested via chain-create-inject, chain-create-patch fixtures
+- `when` expressions skip/include steps correctly — truthy/falsy/complex Jinja2 conditions tested
+- `vars_map` renames variables between steps (simultaneous, not chained) — snapshot-remove-insert pattern
+- `on_error: stop/continue/report` behaves correctly — per-step override supported
+- Per-step results in JSON output — success/skipped/error with aggregate files_written/files_skipped
+- Dry-run virtual_files carryover across steps — single ExecutionContext spans all steps
+- 343 total tests passing
 
 ### Phase I: Libraries (v0.4)
 
