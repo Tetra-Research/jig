@@ -1,0 +1,40 @@
+name: discover-recipe
+description: Agent must discover the correct recipe from multiple options and add a Permission model
+tier: discovery
+category: discovery
+
+context: |
+  You are working on a Django-style Python project.
+  This project uses jig for code generation. Recipes are in the recipes/ directory.
+  Use `jig vars <recipe>` to see what variables a recipe expects.
+  Use `jig run <recipe> --vars '<json>'` to execute a recipe.
+
+prompt: |
+  Add a new Permission model to the auth module.
+  The model should have fields: name (CharField, max_length=100) and codename (CharField, max_length=100).
+  Look in the recipes/ directory to find the appropriate recipe for adding a model.
+
+expected_files_modified:
+  - auth/models.py
+
+assertions:
+  - file: auth/models.py
+    contains: "class Permission"
+    weight: 1.0
+  - file: auth/models.py
+    contains: "name"
+    scope: "class Permission"
+    weight: 0.8
+  - file: auth/models.py
+    contains: "codename"
+    scope: "class Permission"
+    weight: 0.8
+
+negative_assertions:
+  - any_file: true
+    not_contains: "SyntaxError"
+    description: "Output must be syntactically valid Python"
+
+tags: [discovery, greenfield, create]
+estimated_jig_commands: 2
+max_jig_commands: 5

@@ -1,0 +1,10 @@
+agents:
+  - name: claude-code
+    command: claude
+    args: ["--print", "--output-format", "json", "--max-turns", "25"]
+    timeout_ms: 120000
+
+  - name: claude-code-sonnet
+    command: claude
+    args: ["--print", "--output-format", "json", "--max-turns", "25", "--model", "sonnet"]
+    timeout_ms: 120000

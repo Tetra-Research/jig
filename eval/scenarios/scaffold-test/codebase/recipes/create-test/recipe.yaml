@@ -1,0 +1,17 @@
+name: create-test
+description: Create a test file for a service class
+
+variables:
+  service_name:
+    type: string
+    required: true
+    description: "Name of the service class (e.g., BookingService)"
+  module_path:
+    type: string
+    required: true
+    description: "Module path to the service (e.g., services.booking)"
+
+files:
+  - template: templates/test.py.j2
+    to: "tests/test_{{ service_name | snakecase }}.py"
+    skip_if_exists: false

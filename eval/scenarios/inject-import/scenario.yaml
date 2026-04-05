@@ -1,0 +1,34 @@
+name: inject-import
+description: Add the missing DateTimeField import to models.py using the inject-import recipe
+tier: easy
+category: brownfield-extension
+
+context: |
+  You are working on a Django-style Python project.
+  This project uses jig for code generation. Recipes are in the recipes/ directory.
+  Use `jig vars <recipe>` to see what variables a recipe expects, then
+  use `jig run <recipe> --vars '<json>'` to execute it.
+
+prompt: |
+  The models.py file is missing an import for DateTimeField from django.db.models.
+  Add it using the inject-import recipe at recipes/inject-import/recipe.yaml.
+
+expected_files_modified:
+  - models.py
+
+assertions:
+  - file: models.py
+    contains: "from django.db.models import DateTimeField"
+    weight: 1.0
+  - file: models.py
+    contains: "class Reservation"
+    weight: 0.5
+
+negative_assertions:
+  - file: models.py
+    not_contains: "from django.db.models import DateTimeField\nfrom django.db.models import DateTimeField"
+    description: "No duplicate imports"
+
+tags: [easy, brownfield-extension, inject]
+estimated_jig_commands: 1
+max_jig_commands: 2

@@ -1,0 +1,21 @@
+import pytest
+from {{ module_path }} import {{ service_name }}
+
+
+class Test{{ service_name }}:
+    """Tests for {{ service_name }}."""
+
+    def setup_method(self):
+        self.service = {{ service_name }}()
+
+    def test_create_booking(self):
+        result = self.service.create_booking(
+            guest_name="Alice",
+            check_in="2024-01-01",
+            check_out="2024-01-03",
+        )
+        assert result is not None
+
+    def test_cancel_booking(self):
+        result = self.service.cancel_booking(booking_id="123")
+        assert result["status"] == "cancelled"

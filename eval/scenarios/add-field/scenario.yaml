@@ -1,0 +1,46 @@
+name: add-field
+description: Add a loyalty_tier field to the Reservation model and propagate to admin, serializer, and factory
+tier: medium
+category: brownfield-extension
+
+context: |
+  You are working on a Django application with models, admin, factories, and serializers.
+  This project uses jig for code generation. Recipes are in the recipes/ directory.
+  Use `jig vars <recipe>` to see what variables a recipe expects, then
+  use `jig run <recipe> --vars '<json>'` to execute it.
+  The add-field recipe handles adding a field to the model, admin, serializer, and factory.
+
+prompt: |
+  Add a loyalty_tier field (CharField, max_length=20, default="bronze") to the Reservation model.
+  Propagate the field to admin.py (list_display), serializers.py (fields), and factories.py.
+  Use the add-field recipe at recipes/add-field/recipe.yaml.
+
+expected_files_modified:
+  - models.py
+  - admin.py
+  - serializers.py
+  - factories.py
+
+assertions:
+  - file: models.py
+    contains: "loyalty_tier"
+    scope: "class Reservation"
+    weight: 2.0
+  - file: admin.py
+    contains: "loyalty_tier"
+    weight: 1.0
+  - file: serializers.py
+    contains: "loyalty_tier"
+    weight: 1.0
+  - file: factories.py
+    contains: "loyalty_tier"
+    weight: 1.0
+
+negative_assertions:
+  - any_file: true
+    not_contains: "SyntaxError"
+    description: "Output must be syntactically valid Python"
+
+tags: [medium, brownfield-extension, multi-file, patch]
+estimated_jig_commands: 1
+max_jig_commands: 4
