@@ -1,0 +1,7 @@
+name: step2
+description: Inject into target.txt.
+
+files:
+  - template: templates/append.j2
+    inject: "target.txt"
+    append: true

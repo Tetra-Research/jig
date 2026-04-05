@@ -1,0 +1,12 @@
+name: workflow-when-false
+description: Conditional step with when=false — step2 skipped.
+
+variables:
+  enabled:
+    type: boolean
+    required: true
+
+steps:
+  - recipe: step1/recipe.yaml
+  - recipe: step2/recipe.yaml
+    when: "{{ enabled }}"

@@ -1,0 +1,6 @@
+name: step1
+description: Create out.txt with literal content.
+
+files:
+  - template: templates/out.j2
+    to: "out.txt"

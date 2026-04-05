@@ -1,0 +1,6 @@
+name: step2
+description: Create created.txt.
+
+files:
+  - template: templates/content.j2
+    to: "created.txt"

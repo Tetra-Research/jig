@@ -1,0 +1,6 @@
+name: step1
+description: Create target.txt.
+
+files:
+  - template: templates/target.j2
+    to: "target.txt"

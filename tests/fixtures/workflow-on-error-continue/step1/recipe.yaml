@@ -1,0 +1,7 @@
+name: step1
+description: Inject into nonexistent file.
+
+files:
+  - template: templates/content.j2
+    inject: "missing.txt"
+    append: true

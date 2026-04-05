@@ -1,0 +1,6 @@
+name: error-workflow-when-undef
+description: When references undefined variable.
+
+steps:
+  - recipe: step1/recipe.yaml
+    when: "{{ nonexistent }}"

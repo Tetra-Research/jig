@@ -1,0 +1,6 @@
+name: step2
+description: Create conditional.txt.
+
+files:
+  - template: templates/conditional.j2
+    to: "conditional.txt"
