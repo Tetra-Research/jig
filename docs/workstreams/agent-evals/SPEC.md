@@ -1,7 +1,7 @@
 # SPEC.md
 
 > Workstream: agent-evals
-> Last updated: 2026-04-04
+> Last updated: 2026-04-05
 > Scope: Agent evaluation harness for measuring LLM usability of jig
 
 ## Overview
@@ -587,23 +587,23 @@ Key test fixtures:
 
 ## Requirement Traceability
 
-| Requirement | Criteria | Test | Status |
-|-------------|----------|------|--------|
-| FR-1 | AC-1.1 through AC-1.12 | spec::fr1::* | PENDING |
-| FR-2 | AC-2.1 through AC-2.7 | spec::fr2::* | PENDING |
-| FR-3 | AC-3.1 through AC-3.8 | spec::fr3::* | PENDING |
-| FR-4 | AC-4.1 through AC-4.7 | spec::fr4::* | PENDING |
-| FR-5 | AC-5.1 through AC-5.8 | spec::fr5::* | PENDING |
-| FR-6 | AC-6.1 through AC-6.5 | spec::fr6::* | PENDING |
-| FR-7 | AC-7.1 through AC-7.4 | spec::fr7::* | PENDING |
-| FR-8 | AC-8.1 through AC-8.6 | spec::fr8::* | PENDING |
-| FR-9 | AC-9.1 through AC-9.9 | spec::fr9::* | PENDING |
-| FR-10 | AC-10.1 through AC-10.5 | spec::fr10::* | PENDING |
-| FR-11 | AC-11.1 through AC-11.6 | spec::fr11::* | PENDING |
-| FR-12 | AC-12.1, AC-12.2 | spec::fr12::* | PENDING |
-| FR-13 | AC-13.1 through AC-13.5 | spec::fr13::* | PENDING |
-| NFR-1 | AC-N1.1, AC-N1.2 | spec::nfr1::* | PENDING |
-| NFR-2 | AC-N2.1 through AC-N2.3 | spec::nfr2::* | PENDING |
-| NFR-3 | AC-N3.1, AC-N3.2 | spec::nfr3::* | PENDING |
-| NFR-4 | AC-N4.1 through AC-N4.3 | spec::nfr4::* | PENDING |
-| NFR-5 | AC-N5.1, AC-N5.2 | spec::nfr5::* | PENDING |
+| Requirement | Criteria | Test | Status | Notes |
+|-------------|----------|------|--------|-------|
+| FR-1 | AC-1.1 through AC-1.12 | test.ts | PARTIAL | AC-1.11 scope extraction buggy (falls back to whole-file). AC-1.9 missing `category` enforcement. |
+| FR-2 | AC-2.1 through AC-2.7 | test.ts | DONE | All validation checks implemented and tested. |
+| FR-3 | AC-3.1 through AC-3.8 | test.ts | DONE | Agent config, invocation, timeout all working. |
+| FR-4 | AC-4.1 through AC-4.7 | test.ts | PARTIAL | AC-4.3 jig not injected into agent PATH. AC-4.7 library install deferred (no libraries yet). |
+| FR-5 | AC-5.1 through AC-5.8 | test.ts | PARTIAL | AC-5.2 scope extraction unreliable (see FR-1 note). |
+| FR-6 | AC-6.1 through AC-6.5 | test.ts | PARTIAL | AC-6.2 exit code not extracted. AC-6.3 `within_expected_range`/`valid_vars` not exposed as metrics. |
+| FR-7 | AC-7.1 through AC-7.4 | test.ts | PARTIAL | AC-7.3 tokens best-effort. AC-7.4 `jig_calls` not persisted in trial result. |
+| FR-8 | AC-8.1 through AC-8.6 | test.ts | PARTIAL | AC-8.6 timeout trials not forced to zero scores. |
+| FR-9 | AC-9.1 through AC-9.9 | test.ts | DONE | All CLI flags, orchestration, progress logging working. |
+| FR-10 | AC-10.1 through AC-10.5 | test.ts | DONE | Baseline prompt transformation and mode tagging working. |
+| FR-11 | AC-11.1 through AC-11.6 | test.ts | PARTIAL | AC-11.3 baseline comparison uses `total` not `assertion_score`. `by_category` always empty. |
+| FR-12 | AC-12.1, AC-12.2 | — | DONE | Template file created at `eval/log/experiments.md`. |
+| FR-13 | AC-13.1 through AC-13.5 | test.ts | DONE | Normalization, Jaccard similarity, aggregate scoring all working. |
+| NFR-1 | AC-N1.1, AC-N1.2 | — | DONE | All code under `eval/`, no Rust modifications. |
+| NFR-2 | AC-N2.1 through AC-N2.3 | test.ts | DONE | Deterministic sandbox setup, sorted scenario loading, jig version recorded. |
+| NFR-3 | AC-N3.1, AC-N3.2 | — | DONE | Only `yaml` and `tsx` dependencies. Runs via `npx tsx`. |
+| NFR-4 | AC-N4.1 through AC-N4.3 | test.ts | DONE | Fresh temp dir per trial, cleanup in finally block. |
+| NFR-5 | AC-N5.1, AC-N5.2 | — | PARTIAL | Duration tracked. Token extraction best-effort. |
