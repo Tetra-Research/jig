@@ -1,0 +1,7 @@
+name: step2
+description: Inject into virtual.txt.
+
+files:
+  - template: templates/inject.j2
+    inject: "virtual.txt"
+    append: true

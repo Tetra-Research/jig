@@ -1,0 +1,6 @@
+name: step3
+description: Create other.txt.
+
+files:
+  - template: templates/other.j2
+    to: "other.txt"

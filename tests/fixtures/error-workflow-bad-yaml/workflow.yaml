@@ -1,0 +1,4 @@
+name: error-workflow-bad-yaml
+steps:
+  - recipe: [invalid yaml
+    this is broken: {{{

@@ -1,0 +1,8 @@
+name: step2
+description: Inject into target.txt with skip_if.
+
+files:
+  - template: templates/extra.j2
+    inject: "target.txt"
+    append: true
+    skip_if: "extra line"

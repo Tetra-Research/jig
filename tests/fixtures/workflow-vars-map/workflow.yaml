@@ -1,0 +1,12 @@
+name: workflow-vars-map
+description: Step uses vars_map to rename a variable.
+
+variables:
+  name:
+    type: string
+    required: true
+
+steps:
+  - recipe: step1/recipe.yaml
+    vars_map:
+      name: model_name

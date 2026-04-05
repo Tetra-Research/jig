@@ -1,0 +1,5 @@
+name: error-workflow-step-missing-var
+description: Recipe requires variable not in resolved vars.
+
+steps:
+  - recipe: step1/recipe.yaml

@@ -1,0 +1,6 @@
+name: step1
+description: Create base.txt.
+
+files:
+  - template: templates/base.j2
+    to: "base.txt"

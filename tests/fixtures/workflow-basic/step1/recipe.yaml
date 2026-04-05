@@ -1,0 +1,6 @@
+name: step1
+description: Create file a.
+
+files:
+  - template: templates/a.j2
+    to: "a.txt"
