@@ -2,7 +2,7 @@
 
 Full delivery plan for jig, bridging the product spec (`jig.md`) to workstream execution. Every feature in the spec is accounted for here — either assigned to a milestone, explicitly deferred, or marked as cross-cutting infrastructure.
 
-Last updated: 2026-04-04
+Last updated: 2026-04-05
 
 ## Current State
 
@@ -11,9 +11,10 @@ Last updated: 2026-04-04
 | v0.1 core-engine | **Done** | 191 | PLAN, SPEC, SHARED-CONTEXT, NARRATIVE |
 | v0.2 replace-patch | **Done** | 308 total | PLAN, SPEC, SHARED-CONTEXT, NARRATIVE |
 | v0.3 workflows | **Done** | 343 total | PLAN, SPEC, SHARED-CONTEXT, NARRATIVE |
-| v0.4–v1.0 | Described in jig.md | — | Nothing beyond one-line mentions in ARCHITECTURE.md |
+| v0.4 libraries | **Partial** | 386 total | SHARED-CONTEXT, NARRATIVE |
+| v0.5–v1.0 | Described in jig.md | — | Nothing beyond one-line mentions in ARCHITECTURE.md |
 
-The engine works. The planning infrastructure works. What's missing is the roadmap connecting the two through the remaining milestones.
+v0.4 delivered library management infrastructure (install/remove/list/inspect) but not execution integration (`jig run django/model/add-field` doesn't work yet). See libraries SHARED-CONTEXT.md for the full gap analysis and remaining work.
 
 ---
 
@@ -42,9 +43,9 @@ The engine track is sequential — each milestone builds on the previous. The ag
 
 ## Milestone Details
 
-### v0.3 — Workflows (next up)
+### v0.3 — Workflows (DONE)
 
-**Workstream docs:** Complete (PLAN, SPEC, SHARED-CONTEXT)
+**Workstream docs:** Complete (PLAN, SPEC, SHARED-CONTEXT, NARRATIVE)
 **Depends on:** v0.2 (done)
 **jig.md reference:** lines 1223–1253, roadmap line 1920
 
@@ -70,50 +71,43 @@ Multi-recipe orchestration. Chain recipes into a single `jig workflow` invocatio
 
 ---
 
-### v0.4 — Libraries
+### v0.4 — Libraries (PARTIAL)
 
-**Workstream docs:** None (needs PLAN + SPEC)
+**Workstream docs:** SHARED-CONTEXT, NARRATIVE (in `docs/workstreams/libraries/`)
 **Depends on:** v0.3 (workflows reference library recipes)
 **jig.md reference:** lines 1059–1376, roadmap line 1929
 
 Libraries are versioned recipe collections for a framework. This is where framework opinions live — jig itself stays agnostic.
 
-**Scope (from jig.md):**
+**What was delivered:**
+- [x] `jig-library.yaml` manifest parsing with field validation and cross-reference checks
+- [x] `jig library add <path>` — install from local directory (project-local or `--global`)
+- [x] `jig library remove <name>` — uninstall
+- [x] `jig library update <name> <path>` — replace with new version (requires source path)
+- [x] `jig library list` — show installed libraries with JSON/human output
+- [x] `jig library recipes <name>` — list all recipes in a library
+- [x] `jig library info <name>/<recipe>` — show recipe details (variables, operations)
+- [x] `jig library workflows <name>` — list workflows from manifest
+- [x] Project-local (`.jig/libraries/`) shadows global (`~/.jig/libraries/`)
+- [x] Convention parsing and resolution logic (implemented but dead code)
+- [x] 43 new tests (30 unit + 13 integration)
 
-*Library manifest:*
-- `jig-library.yaml` format: name, version, description, framework, language
-- `conventions` block: path templates mapping concerns to file locations
-- `recipes` block: flat list of recipe paths + descriptions
-- `workflows` block: multi-recipe workflow definitions (uses v0.3 workflow format)
-
-*CLI commands:*
-- `jig library add <url|path>` — install from git repo or local directory
-- `jig library remove <name>` — uninstall
-- `jig library update <name>` — pull latest
-- `jig library list` — show installed libraries
-- `jig library recipes <name>` — list all recipes in a library
-- `jig library info <name>/<recipe>` — show recipe details
-- `jig library workflows <name>` — list workflows
-
-*Installation:*
-- Global: `~/.jig/libraries/`
-- Project-local: `.jig/libraries/` (takes precedence)
-
-*Convention overrides:*
-- `.jigrc.yaml` per-project convention remapping
-- Override just the path patterns, keep everything else
-
-*Project extensions:*
-- `.jig/overrides/<library>/<recipe>/templates/` — replace a single template without forking
-- `.jig/extensions/<library>/<recipe>/` — add new recipes namespaced under a library
+**What remains:**
+- [ ] **Execution integration** — wire `resolve_library_recipe/workflow` into `cmd_run`/`cmd_workflow` so `jig run django/model/add-field` works
+- [ ] **Convention injection** — call `resolve_conventions()` during template rendering, inject as `{{ conventions.* }}`
+- [ ] **Git install** — `jig library add <git-url>`, `.jig-source` metadata for remembering origin
+- [ ] **One-arg update** — `jig library update django` re-fetches from saved source
+- [ ] **Template overrides** — `.jig/overrides/<lib>/<recipe>/templates/`
+- [ ] **Project extensions** — `.jig/extensions/<lib>/<recipe>/`
+- [ ] **Review fixes** — 3 critical (name validation, dead code wiring), 5 major (silent swallow, exit codes, ordering)
 
 **What this unlocks:** Libraries make jig useful beyond a single project. They're also a prerequisite for the MCP server (which needs `jig_library_recipes` to work), the Claude Code plugin (which wraps a library), and meaningful agent evals (which need a library like jig-django to test against).
 
-**Open questions for SPEC:**
-- Does `jig library add` from git clone the whole repo or just the jig-library.yaml + recipe dirs?
-- Versioning strategy: git tags? semver in manifest? lock file?
-- How does `jig run` resolve a library recipe path (e.g., `jig run django/model/add-field`)? Is it `jig run --library django model/add-field` or path-based?
-- Does `jig workflow` accept library-qualified workflow names directly?
+**Resolved questions (from implementation):**
+- `jig library add` clones the whole repo (planned; currently local copy only)
+- Versioning: semver string in manifest, no lock file yet
+- Resolution: slash syntax — `jig run django/model/add-field` splits on first `/`. Filesystem paths take precedence for backward compat.
+- `jig workflow` accepts library-qualified names via same resolution (planned, not wired)
 
 ---
 
