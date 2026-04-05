@@ -1,0 +1,7 @@
+name: workflow-three-steps
+description: Three steps — create, inject, create.
+
+steps:
+  - recipe: step1/recipe.yaml
+  - recipe: step2/recipe.yaml
+  - recipe: step3/recipe.yaml

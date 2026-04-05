@@ -1,0 +1,8 @@
+name: workflow-on-error-continue
+description: on_error continue — step fails, workflow continues, exit 0.
+
+on_error: continue
+
+steps:
+  - recipe: step1/recipe.yaml
+  - recipe: step2/recipe.yaml

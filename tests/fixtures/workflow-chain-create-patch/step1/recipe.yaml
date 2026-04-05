@@ -1,0 +1,6 @@
+name: step1
+description: Create app.py with a class.
+
+files:
+  - template: templates/app.j2
+    to: "app.py"
