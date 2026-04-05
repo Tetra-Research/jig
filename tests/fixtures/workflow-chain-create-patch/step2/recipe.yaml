@@ -1,0 +1,15 @@
+name: step2
+description: Patch app.py to add a field.
+
+variables:
+  field_name:
+    type: string
+    required: true
+
+files:
+  - template: templates/field.j2
+    patch: "app.py"
+    anchor:
+      pattern: "^class App:"
+      scope: class_body
+      position: after_last_field

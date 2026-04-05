@@ -1,0 +1,8 @@
+name: workflow-on-error-report
+description: on_error report — step fails, workflow continues, exit 3.
+
+on_error: report
+
+steps:
+  - recipe: step1/recipe.yaml
+  - recipe: step2/recipe.yaml

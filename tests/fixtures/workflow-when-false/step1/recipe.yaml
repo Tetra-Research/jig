@@ -1,0 +1,6 @@
+name: step1
+description: Create always.txt.
+
+files:
+  - template: templates/always.j2
+    to: "always.txt"

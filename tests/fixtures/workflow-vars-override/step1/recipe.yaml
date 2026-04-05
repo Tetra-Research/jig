@@ -1,0 +1,11 @@
+name: step1
+description: Create greet.txt.
+
+variables:
+  greeting:
+    type: string
+    required: true
+
+files:
+  - template: templates/greet.j2
+    to: "greet.txt"

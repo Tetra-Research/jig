@@ -1,0 +1,17 @@
+name: workflow-vars-map-and-override
+description: Combines vars_map and vars overrides.
+
+variables:
+  source_name:
+    type: string
+    required: true
+  extra:
+    type: string
+    required: true
+
+steps:
+  - recipe: step1/recipe.yaml
+    vars_map:
+      source_name: target_name
+    vars:
+      extra: "overridden"

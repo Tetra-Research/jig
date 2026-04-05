@@ -5,6 +5,8 @@ use owo_colors::OwoColorize;
 use serde_json::Value;
 
 use crate::operations::OpResult;
+use crate::variables;
+use crate::workflow;
 
 // ── Output mode ───────────────────────────────────────────────────
 
@@ -41,7 +43,7 @@ pub fn format_json(results: &[OpResult], dry_run: bool, verbose: bool) -> Value 
     })
 }
 
-fn op_result_to_json(result: &OpResult, verbose: bool) -> Value {
+pub(crate) fn op_result_to_json(result: &OpResult, verbose: bool) -> Value {
     match result {
         OpResult::Success { action, path, lines, location, rendered_content, scope_diagnostics } => {
             let mut obj = serde_json::json!({
@@ -107,7 +109,7 @@ fn op_result_to_json(result: &OpResult, verbose: bool) -> Value {
 /// A path appears in files_written if any operation wrote to it.
 /// A path appears in files_skipped only if ALL operations targeting it were skipped.
 /// Paths appear in order of first encounter.
-fn compute_file_summaries(results: &[OpResult]) -> (IndexSet<String>, IndexSet<String>) {
+pub(crate) fn compute_file_summaries(results: &[OpResult]) -> (IndexSet<String>, IndexSet<String>) {
     // Track encounter order, writes, and errors to compute summaries.
     let mut encounter_order: IndexSet<String> = IndexSet::new();
     let mut was_written: std::collections::HashSet<String> = std::collections::HashSet::new();
@@ -143,7 +145,42 @@ fn compute_file_summaries(results: &[OpResult]) -> (IndexSet<String>, IndexSet<S
     (written, skipped)
 }
 
-// ── Human output ──────────────────────────────────────────────────
+/// Same as compute_file_summaries but takes references (for workflow aggregation).
+fn compute_file_summaries_from_refs(results: &[&OpResult]) -> (IndexSet<String>, IndexSet<String>) {
+    let mut encounter_order: IndexSet<String> = IndexSet::new();
+    let mut was_written: std::collections::HashSet<String> = std::collections::HashSet::new();
+    let mut had_error: std::collections::HashSet<String> = std::collections::HashSet::new();
+
+    for result in results {
+        let path_str = result.path().display().to_string();
+        encounter_order.insert(path_str.clone());
+
+        match result {
+            OpResult::Success { .. } => {
+                was_written.insert(path_str);
+            }
+            OpResult::Error { .. } => {
+                had_error.insert(path_str);
+            }
+            OpResult::Skip { .. } => {}
+        }
+    }
+
+    let mut written: IndexSet<String> = IndexSet::new();
+    let mut skipped: IndexSet<String> = IndexSet::new();
+
+    for path in &encounter_order {
+        if was_written.contains(path) {
+            written.insert(path.clone());
+        } else if !had_error.contains(path) {
+            skipped.insert(path.clone());
+        }
+    }
+
+    (written, skipped)
+}
+
+// ─�� Human output ──────────────────────────────────────────────────
 
 /// Write human-readable output to stderr.
 pub fn format_human(results: &[OpResult], dry_run: bool, verbose: bool) {
@@ -215,6 +252,203 @@ pub fn format_human(results: &[OpResult], dry_run: bool, verbose: bool) {
             eprintln!("skipped: {}", skipped.len());
         }
     }
+}
+
+// ── Workflow validation JSON ──────────────────────────────────────
+
+pub fn build_workflow_validate_json(validation: &workflow::WorkflowValidation) -> Value {
+    let vars = variables::vars_json(&validation.variables);
+
+    let steps: Vec<Value> = validation
+        .steps
+        .iter()
+        .map(|step| {
+            let mut obj = serde_json::json!({
+                "recipe": step.recipe,
+                "valid": step.valid,
+                "conditional": step.conditional,
+            });
+            if let Some(ref when) = step.when {
+                obj["when"] = Value::String(when.clone());
+            }
+            if let Some(ref err) = step.error {
+                obj["error"] = Value::String(err.clone());
+            }
+            obj
+        })
+        .collect();
+
+    serde_json::json!({
+        "type": "workflow",
+        "valid": true,
+        "name": validation.name,
+        "description": validation.description,
+        "variables": vars,
+        "steps": steps,
+    })
+}
+
+// ── Workflow execution JSON ──────────────────────────────────────
+
+pub fn format_workflow_json(
+    result: &workflow::WorkflowResult,
+    dry_run: bool,
+    verbose: bool,
+    exit_code: i32,
+) -> Value {
+    let has_errors = result.steps.iter().any(|s| s.is_error());
+    let status = if !has_errors || exit_code == 0 {
+        "success"
+    } else if exit_code == 3 && result.on_error == workflow::OnError::Report {
+        "partial"
+    } else {
+        "error"
+    };
+
+    let mut all_ops: Vec<&OpResult> = Vec::new();
+    let steps: Vec<Value> = result
+        .steps
+        .iter()
+        .map(|step| match step {
+            workflow::StepResult::Success { recipe, operations } => {
+                let ops_json: Vec<Value> = operations
+                    .iter()
+                    .map(|r| op_result_to_json(r, verbose))
+                    .collect();
+                let (written, skipped) = compute_file_summaries(operations);
+                all_ops.extend(operations.iter());
+                serde_json::json!({
+                    "recipe": recipe,
+                    "status": "success",
+                    "operations": ops_json,
+                    "files_written": written.into_iter().collect::<Vec<_>>(),
+                    "files_skipped": skipped.into_iter().collect::<Vec<_>>(),
+                })
+            }
+            workflow::StepResult::Skipped { recipe, reason } => {
+                serde_json::json!({
+                    "recipe": recipe,
+                    "status": "skipped",
+                    "reason": reason,
+                })
+            }
+            workflow::StepResult::Error {
+                recipe,
+                error,
+                operations,
+                rendered_content,
+            } => {
+                let ops_json: Vec<Value> = operations
+                    .iter()
+                    .map(|r| op_result_to_json(r, verbose))
+                    .collect();
+                all_ops.extend(operations.iter());
+                let se = error.structured_error();
+                let mut obj = serde_json::json!({
+                    "recipe": recipe,
+                    "status": "error",
+                    "error": {
+                        "what": se.what,
+                        "where": se.where_,
+                        "why": se.why,
+                        "hint": se.hint,
+                    },
+                    "operations": ops_json,
+                });
+                if let Some(content) = rendered_content {
+                    obj["rendered_content"] = Value::String(content.clone());
+                }
+                obj
+            }
+        })
+        .collect();
+
+    // Aggregate file summaries across all steps.
+    let (agg_written, agg_skipped) = compute_file_summaries_from_refs(&all_ops);
+
+    serde_json::json!({
+        "dry_run": dry_run,
+        "workflow": result.name,
+        "on_error": result.on_error.to_string(),
+        "status": status,
+        "steps": steps,
+        "files_written": agg_written.into_iter().collect::<Vec<_>>(),
+        "files_skipped": agg_skipped.into_iter().collect::<Vec<_>>(),
+    })
+}
+
+// ── Workflow execution human output ──────────────────────────────
+
+pub fn format_workflow_human(
+    result: &workflow::WorkflowResult,
+    dry_run: bool,
+    verbose: bool,
+) {
+    if dry_run {
+        eprintln!("{}", "(dry run)".dimmed());
+    }
+
+    let total = result.steps.len();
+    let mut succeeded = 0usize;
+    let mut skipped = 0usize;
+    let mut failed = 0usize;
+
+    for (i, step) in result.steps.iter().enumerate() {
+        match step {
+            workflow::StepResult::Success { recipe, operations } => {
+                eprintln!(
+                    "\n{} {}/{}: {}",
+                    "Step".bold(),
+                    i + 1,
+                    total,
+                    recipe
+                );
+                format_human(operations, false, verbose);
+                succeeded += 1;
+            }
+            workflow::StepResult::Skipped { recipe, reason } => {
+                eprintln!(
+                    "\n{} {}/{}: {} {} — {}",
+                    "Step".bold(),
+                    i + 1,
+                    total,
+                    "skip".yellow(),
+                    recipe,
+                    reason
+                );
+                skipped += 1;
+            }
+            workflow::StepResult::Error {
+                recipe,
+                error,
+                operations,
+                rendered_content: _,
+            } => {
+                eprintln!(
+                    "\n{} {}/{}: {} {}",
+                    "Step".bold(),
+                    i + 1,
+                    total,
+                    "error".red(),
+                    recipe
+                );
+                if !operations.is_empty() {
+                    format_human(operations, false, verbose);
+                }
+                let se = error.structured_error();
+                eprintln!("    what: {}", se.what);
+                eprintln!("    where: {}", se.where_);
+                eprintln!("    why: {}", se.why);
+                eprintln!("    hint: {}", se.hint);
+                failed += 1;
+            }
+        }
+    }
+
+    eprintln!(
+        "\n{} steps: {} succeeded, {} skipped, {} failed",
+        total, succeeded, skipped, failed
+    );
 }
 
 // ── Tests ──────────────────────────────────────────────────────────

@@ -6,6 +6,7 @@ mod recipe;
 mod renderer;
 mod scope;
 mod variables;
+mod workflow;
 
 use std::path::PathBuf;
 use std::process;
@@ -83,6 +84,11 @@ enum Commands {
         /// Path to the recipe YAML file
         recipe: PathBuf,
     },
+    /// Execute a multi-recipe workflow
+    Workflow {
+        /// Path to the workflow YAML file
+        path: PathBuf,
+    },
 }
 
 fn main() {
@@ -118,35 +124,90 @@ fn run(cli: Cli) -> Result<i32, JigError> {
                 cli.verbose,
             )
         }
+        Commands::Workflow { path } => {
+            cmd_workflow(
+                &path,
+                cli.vars.as_deref(),
+                cli.vars_file.as_deref(),
+                cli.vars_stdin,
+                cli.dry_run,
+                cli.json,
+                cli.quiet,
+                cli.force,
+                cli.base_dir.as_deref(),
+                cli.verbose,
+            )
+        }
     }
 }
 
 fn cmd_validate(path: &std::path::Path, json: bool) -> Result<i32, JigError> {
-    let recipe = Recipe::load(path)?;
-
-    if json {
-        let output = build_validate_json(&recipe);
-        println!("{}", serde_json::to_string_pretty(&output).unwrap());
-    } else {
-        eprintln!("Recipe is valid: {}", path.display());
-        eprintln!("  Variables: {}", recipe.variables.len());
-        if !recipe.variables.is_empty() {
-            for name in recipe.variables.keys() {
-                eprintln!("    - {name}");
+    match workflow::detect_file_type(path)? {
+        workflow::FileType::Recipe => {
+            let recipe = Recipe::load(path)?;
+            if json {
+                let output = build_validate_json(&recipe);
+                println!("{}", serde_json::to_string_pretty(&output).unwrap());
+            } else {
+                eprintln!("Recipe is valid: {}", path.display());
+                eprintln!("  Variables: {}", recipe.variables.len());
+                if !recipe.variables.is_empty() {
+                    for name in recipe.variables.keys() {
+                        eprintln!("    - {name}");
+                    }
+                }
+                let op_types = summarize_op_types(&recipe);
+                eprintln!("  Operations: {} ({})", recipe.files.len(), op_types);
             }
         }
-
-        let op_types = summarize_op_types(&recipe);
-        eprintln!("  Operations: {} ({})", recipe.files.len(), op_types);
+        workflow::FileType::Workflow => {
+            let validation = workflow::validate_workflow(path)?;
+            if json {
+                let output = output::build_workflow_validate_json(&validation);
+                println!("{}", serde_json::to_string_pretty(&output).unwrap());
+            } else {
+                eprintln!("Workflow is valid: {}", path.display());
+                if let Some(ref name) = validation.name {
+                    eprintln!("  Name: {name}");
+                }
+                eprintln!("  Variables: {}", validation.variables.len());
+                if !validation.variables.is_empty() {
+                    for name in validation.variables.keys() {
+                        eprintln!("    - {name}");
+                    }
+                }
+                let unconditional = validation.steps.iter().filter(|s| !s.conditional).count();
+                let conditional = validation.steps.iter().filter(|s| s.conditional).count();
+                eprintln!(
+                    "  Steps: {} ({} unconditional, {} conditional)",
+                    validation.steps.len(),
+                    unconditional,
+                    conditional
+                );
+                for (i, step) in validation.steps.iter().enumerate() {
+                    let cond = if step.conditional { " (conditional)" } else { "" };
+                    let status = if step.valid { "valid" } else { "INVALID" };
+                    eprintln!("    {}. {} — {}{}", i + 1, step.recipe, status, cond);
+                }
+            }
+        }
     }
 
     Ok(0)
 }
 
 fn cmd_vars(path: &std::path::Path) -> Result<i32, JigError> {
-    let recipe = Recipe::load(path)?;
-    let json = variables::vars_json(&recipe.variables);
-    println!("{}", serde_json::to_string_pretty(&json).unwrap());
+    let vars = match workflow::detect_file_type(path)? {
+        workflow::FileType::Recipe => {
+            let recipe = Recipe::load(path)?;
+            variables::vars_json(&recipe.variables)
+        }
+        workflow::FileType::Workflow => {
+            let wf = workflow::load_workflow(path)?;
+            variables::vars_json(&wf.variables)
+        }
+    };
+    println!("{}", serde_json::to_string_pretty(&vars).unwrap());
     Ok(0)
 }
 
@@ -391,6 +452,167 @@ fn cmd_run(
     }
 
     Ok(0)
+}
+
+#[allow(clippy::too_many_arguments)]
+fn cmd_workflow(
+    workflow_path: &std::path::Path,
+    inline_vars: Option<&str>,
+    vars_file: Option<&std::path::Path>,
+    vars_stdin: bool,
+    dry_run: bool,
+    force_json: bool,
+    quiet: bool,
+    force: bool,
+    base_dir: Option<&std::path::Path>,
+    verbose: bool,
+) -> Result<i32, JigError> {
+    let mode = output::detect_mode(force_json);
+
+    // Helper for early errors.
+    let handle_early_error = |e: JigError| -> Result<i32, JigError> {
+        let code = e.exit_code();
+        match mode {
+            output::OutputMode::Json => {
+                let se = e.structured_error().clone();
+                let json = serde_json::json!({
+                    "dry_run": dry_run,
+                    "workflow": serde_json::Value::Null,
+                    "on_error": "stop",
+                    "status": "error",
+                    "steps": [{
+                        "recipe": "",
+                        "status": "error",
+                        "error": {
+                            "what": se.what,
+                            "where": se.where_,
+                            "why": se.why,
+                            "hint": se.hint,
+                        },
+                        "operations": [],
+                    }],
+                    "files_written": [],
+                    "files_skipped": [],
+                });
+                println!("{}", serde_json::to_string_pretty(&json).unwrap());
+                Ok(code)
+            }
+            output::OutputMode::Human => {
+                if !quiet {
+                    eprintln!("{e}");
+                }
+                Ok(code)
+            }
+        }
+    };
+
+    // Guard: check if file is a recipe instead of a workflow.
+    match workflow::detect_file_type(workflow_path) {
+        Ok(workflow::FileType::Recipe) => {
+            return handle_early_error(JigError::RecipeValidation(
+                crate::error::StructuredError {
+                    what: "expected a workflow file, got a recipe file".into(),
+                    where_: workflow_path.display().to_string(),
+                    why: "file has 'files' (recipe) instead of 'steps' (workflow)".into(),
+                    hint: "use 'jig run' to execute recipes, or provide a workflow file with 'steps'".into(),
+                },
+            ));
+        }
+        Ok(workflow::FileType::Workflow) => {} // proceed
+        Err(e) => return handle_early_error(e),
+    }
+
+    // Load workflow.
+    let wf = match workflow::load_workflow(workflow_path) {
+        Ok(w) => w,
+        Err(e) => return handle_early_error(e),
+    };
+
+    // Collect and validate workflow-level variables.
+    let provided = match variables::collect_vars(inline_vars, vars_file, vars_stdin) {
+        Ok(v) => v,
+        Err(e) => return handle_early_error(e),
+    };
+    let vars = match variables::validate_variables(&wf.variables, &provided) {
+        Ok(v) => v,
+        Err(e) => return handle_early_error(e),
+    };
+
+    // Validate base_dir exists.
+    let resolved_base = match base_dir {
+        Some(bd) => {
+            if !bd.is_dir() {
+                return handle_early_error(JigError::FileOperation(crate::error::StructuredError {
+                    what: format!("base directory does not exist: '{}'", bd.display()),
+                    where_: bd.display().to_string(),
+                    why: "the specified --base-dir path is not an existing directory".into(),
+                    hint: "create the directory first, or omit --base-dir to use the current directory".into(),
+                }));
+            }
+            bd.to_path_buf()
+        }
+        None => std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")),
+    };
+
+    // Execute workflow.
+    let mut ctx = operations::ExecutionContext::new(resolved_base, dry_run, force);
+    let result = workflow::execute_workflow(&wf, vars, &mut ctx, verbose);
+
+    // Determine exit code based on step results and their effective on_error modes.
+    let exit_code = compute_workflow_exit_code(&wf, &result);
+
+    // Format output.
+    match mode {
+        output::OutputMode::Json => {
+            let json = output::format_workflow_json(&result, dry_run, verbose, exit_code);
+            println!("{}", serde_json::to_string_pretty(&json).unwrap());
+        }
+        output::OutputMode::Human => {
+            if !quiet {
+                output::format_workflow_human(&result, dry_run, verbose);
+            }
+        }
+    }
+
+    Ok(exit_code)
+}
+
+/// Compute the exit code for a completed workflow based on step results
+/// and their effective on_error modes.
+fn compute_workflow_exit_code(
+    wf: &workflow::Workflow,
+    result: &workflow::WorkflowResult,
+) -> i32 {
+    let mut has_report_error = false;
+
+    for (i, step_result) in result.steps.iter().enumerate() {
+        if let workflow::StepResult::Error { error, .. } = step_result {
+            let effective_mode = wf
+                .steps
+                .get(i)
+                .and_then(|s| s.on_error)
+                .unwrap_or(wf.on_error);
+
+            match effective_mode {
+                workflow::OnError::Stop => {
+                    // This step halted execution — return its error code.
+                    return error.exit_code();
+                }
+                workflow::OnError::Continue => {
+                    // Tolerated — no effect on exit code.
+                }
+                workflow::OnError::Report => {
+                    has_report_error = true;
+                }
+            }
+        }
+    }
+
+    if has_report_error {
+        3
+    } else {
+        0
+    }
 }
 
 fn build_validate_json(recipe: &Recipe) -> serde_json::Value {
