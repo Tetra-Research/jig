@@ -1,1 +1,3 @@
 /target
+eval/node_modules/
+eval/results/results.jsonl

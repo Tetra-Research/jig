@@ -1,0 +1,7 @@
+description: Missing the name field
+tier: easy
+category: test
+prompt: Do something
+assertions:
+  - file: test.py
+    contains: "hello"
