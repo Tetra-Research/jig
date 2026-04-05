@@ -1,5 +1,6 @@
 mod error;
 mod filters;
+mod library;
 mod operations;
 mod output;
 mod recipe;
@@ -89,6 +90,52 @@ enum Commands {
         /// Path to the workflow YAML file
         path: PathBuf,
     },
+    /// Manage recipe libraries
+    Library {
+        #[command(subcommand)]
+        action: LibraryAction,
+    },
+}
+
+#[derive(Subcommand)]
+enum LibraryAction {
+    /// Install a library from a local directory
+    Add {
+        /// Path to the library directory
+        path: PathBuf,
+        /// Install globally instead of project-local
+        #[arg(long)]
+        global: bool,
+    },
+    /// Remove an installed library
+    Remove {
+        /// Library name
+        name: String,
+    },
+    /// Update an installed library from a source path
+    Update {
+        /// Library name
+        name: String,
+        /// Path to the updated library directory
+        path: PathBuf,
+    },
+    /// List installed libraries
+    List,
+    /// List all recipes in a library
+    Recipes {
+        /// Library name
+        name: String,
+    },
+    /// Show details for a specific recipe
+    Info {
+        /// Library-qualified recipe path (e.g., django/model/add-field)
+        path: String,
+    },
+    /// List all workflows in a library
+    Workflows {
+        /// Library name
+        name: String,
+    },
 }
 
 fn main() {
@@ -137,6 +184,12 @@ fn run(cli: Cli) -> Result<i32, JigError> {
                 cli.base_dir.as_deref(),
                 cli.verbose,
             )
+        }
+        Commands::Library { action } => {
+            let base_dir = cli.base_dir.as_deref()
+                .map(|p| p.to_path_buf())
+                .unwrap_or_else(|| std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")));
+            cmd_library(action, &base_dir, cli.json, cli.quiet)
         }
     }
 }
@@ -612,6 +665,301 @@ fn compute_workflow_exit_code(
         3
     } else {
         0
+    }
+}
+
+fn cmd_library(
+    action: LibraryAction,
+    base_dir: &std::path::Path,
+    force_json: bool,
+    quiet: bool,
+) -> Result<i32, JigError> {
+    let mode = output::detect_mode(force_json);
+
+    match action {
+        LibraryAction::Add { path, global } => {
+            let source = path.canonicalize().map_err(|e| {
+                JigError::FileOperation(crate::error::StructuredError {
+                    what: format!("cannot resolve path '{}'", path.display()),
+                    where_: path.display().to_string(),
+                    why: e.to_string(),
+                    hint: "check the path exists".into(),
+                })
+            })?;
+            let location = if global {
+                library::install::InstallLocation::Global
+            } else {
+                library::install::InstallLocation::ProjectLocal
+            };
+            let installed = library::install::add_from_path(&source, location, base_dir)?;
+            match mode {
+                output::OutputMode::Json => {
+                    let json = serde_json::json!({
+                        "action": "add",
+                        "library": installed.name,
+                        "version": installed.version,
+                        "location": installed.location.to_string(),
+                        "path": installed.path.display().to_string(),
+                    });
+                    println!("{}", serde_json::to_string_pretty(&json).unwrap());
+                }
+                output::OutputMode::Human => {
+                    if !quiet {
+                        eprintln!(
+                            "Installed library '{}' v{} ({})",
+                            installed.name, installed.version, installed.location
+                        );
+                    }
+                }
+            }
+            Ok(0)
+        }
+
+        LibraryAction::Remove { name } => {
+            let removed = library::install::remove(&name, base_dir)?;
+            match mode {
+                output::OutputMode::Json => {
+                    let json = serde_json::json!({
+                        "action": "remove",
+                        "library": removed.name,
+                        "version": removed.version,
+                        "location": removed.location.to_string(),
+                    });
+                    println!("{}", serde_json::to_string_pretty(&json).unwrap());
+                }
+                output::OutputMode::Human => {
+                    if !quiet {
+                        eprintln!("Removed library '{}' v{}", removed.name, removed.version);
+                    }
+                }
+            }
+            Ok(0)
+        }
+
+        LibraryAction::Update { name, path } => {
+            let source = path.canonicalize().map_err(|e| {
+                JigError::FileOperation(crate::error::StructuredError {
+                    what: format!("cannot resolve path '{}'", path.display()),
+                    where_: path.display().to_string(),
+                    why: e.to_string(),
+                    hint: "check the path exists".into(),
+                })
+            })?;
+            let updated = library::install::update_from_path(&name, &source, base_dir)?;
+            match mode {
+                output::OutputMode::Json => {
+                    let json = serde_json::json!({
+                        "action": "update",
+                        "library": updated.name,
+                        "version": updated.version,
+                        "location": updated.location.to_string(),
+                        "path": updated.path.display().to_string(),
+                    });
+                    println!("{}", serde_json::to_string_pretty(&json).unwrap());
+                }
+                output::OutputMode::Human => {
+                    if !quiet {
+                        eprintln!(
+                            "Updated library '{}' to v{} ({})",
+                            updated.name, updated.version, updated.location
+                        );
+                    }
+                }
+            }
+            Ok(0)
+        }
+
+        LibraryAction::List => {
+            let libraries = library::install::list_installed(base_dir)?;
+            match mode {
+                output::OutputMode::Json => {
+                    let items: Vec<serde_json::Value> = libraries
+                        .iter()
+                        .map(|lib| {
+                            serde_json::json!({
+                                "name": lib.name,
+                                "version": lib.version,
+                                "description": lib.description,
+                                "framework": lib.framework,
+                                "language": lib.language,
+                                "location": lib.location.to_string(),
+                                "path": lib.path.display().to_string(),
+                            })
+                        })
+                        .collect();
+                    let json = serde_json::json!({ "libraries": items });
+                    println!("{}", serde_json::to_string_pretty(&json).unwrap());
+                }
+                output::OutputMode::Human => {
+                    if !quiet {
+                        if libraries.is_empty() {
+                            eprintln!("No libraries installed.");
+                        } else {
+                            for lib in &libraries {
+                                let desc = lib
+                                    .description
+                                    .as_deref()
+                                    .map(|d| format!(" — {d}"))
+                                    .unwrap_or_default();
+                                eprintln!(
+                                    "  {} v{} ({}){desc}",
+                                    lib.name, lib.version, lib.location
+                                );
+                            }
+                        }
+                    }
+                }
+            }
+            Ok(0)
+        }
+
+        LibraryAction::Recipes { name } => {
+            let recipes = library::discover::list_recipes(&name, base_dir)?;
+            match mode {
+                output::OutputMode::Json => {
+                    let items: Vec<serde_json::Value> = recipes
+                        .iter()
+                        .map(|(path, desc)| {
+                            serde_json::json!({
+                                "path": path,
+                                "description": desc,
+                            })
+                        })
+                        .collect();
+                    let json = serde_json::json!({
+                        "library": name,
+                        "recipes": items,
+                    });
+                    println!("{}", serde_json::to_string_pretty(&json).unwrap());
+                }
+                output::OutputMode::Human => {
+                    if !quiet {
+                        if recipes.is_empty() {
+                            eprintln!("Library '{name}' has no recipes.");
+                        } else {
+                            eprintln!("Recipes in '{name}':");
+                            for (path, desc) in &recipes {
+                                eprintln!("  {path} — {desc}");
+                            }
+                        }
+                    }
+                }
+            }
+            Ok(0)
+        }
+
+        LibraryAction::Info { path } => {
+            // Parse "library/recipe/path".
+            let slash = path.find('/').ok_or_else(|| {
+                JigError::RecipeValidation(crate::error::StructuredError {
+                    what: format!("invalid recipe path '{path}'"),
+                    where_: path.clone(),
+                    why: "expected format: <library>/<recipe-path>".into(),
+                    hint: "example: django/model/add-field".into(),
+                })
+            })?;
+            let lib_name = &path[..slash];
+            let recipe_path = &path[slash + 1..];
+            let info = library::discover::recipe_info(lib_name, recipe_path, base_dir)?;
+            match mode {
+                output::OutputMode::Json => {
+                    let vars: Vec<serde_json::Value> = info
+                        .variables
+                        .iter()
+                        .map(|v| {
+                            serde_json::json!({
+                                "name": v.name,
+                                "type": v.var_type,
+                                "required": v.required,
+                                "description": v.description,
+                            })
+                        })
+                        .collect();
+                    let json = serde_json::json!({
+                        "library": info.library,
+                        "recipe": info.path,
+                        "description": info.description,
+                        "variables": vars,
+                        "operations": info.operations,
+                    });
+                    println!("{}", serde_json::to_string_pretty(&json).unwrap());
+                }
+                output::OutputMode::Human => {
+                    if !quiet {
+                        eprintln!("{}/{}", info.library, info.path);
+                        eprintln!("  {}", info.description);
+                        if !info.variables.is_empty() {
+                            eprintln!("  Variables:");
+                            for v in &info.variables {
+                                let req = if v.required { " (required)" } else { "" };
+                                let desc = v
+                                    .description
+                                    .as_deref()
+                                    .map(|d| format!(" — {d}"))
+                                    .unwrap_or_default();
+                                eprintln!("    {} [{}]{req}{desc}", v.name, v.var_type);
+                            }
+                        }
+                        if !info.operations.is_empty() {
+                            eprintln!("  Operations: {}", info.operations.join(", "));
+                        }
+                    }
+                }
+            }
+            Ok(0)
+        }
+
+        LibraryAction::Workflows { name } => {
+            let workflows = library::discover::list_workflows(&name, base_dir)?;
+            match mode {
+                output::OutputMode::Json => {
+                    let items: Vec<serde_json::Value> = workflows
+                        .iter()
+                        .map(|wf| {
+                            let steps: Vec<serde_json::Value> = wf
+                                .steps
+                                .iter()
+                                .map(|s| {
+                                    serde_json::json!({
+                                        "recipe": s.recipe,
+                                        "conditional": s.conditional,
+                                    })
+                                })
+                                .collect();
+                            serde_json::json!({
+                                "name": wf.name,
+                                "description": wf.description,
+                                "steps": steps,
+                            })
+                        })
+                        .collect();
+                    let json = serde_json::json!({
+                        "library": name,
+                        "workflows": items,
+                    });
+                    println!("{}", serde_json::to_string_pretty(&json).unwrap());
+                }
+                output::OutputMode::Human => {
+                    if !quiet {
+                        if workflows.is_empty() {
+                            eprintln!("Library '{name}' has no workflows.");
+                        } else {
+                            eprintln!("Workflows in '{name}':");
+                            for wf in &workflows {
+                                let desc = wf
+                                    .description
+                                    .as_deref()
+                                    .map(|d| format!(" — {d}"))
+                                    .unwrap_or_default();
+                                let steps_info = format!("{} steps", wf.steps.len());
+                                eprintln!("  {} ({steps_info}){desc}", wf.name);
+                            }
+                        }
+                    }
+                }
+            }
+            Ok(0)
+        }
     }
 }
 
