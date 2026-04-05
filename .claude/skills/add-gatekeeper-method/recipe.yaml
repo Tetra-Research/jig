@@ -1,0 +1,48 @@
+name: add-gatekeeper-method
+description: Render a resource lookup method for injection into a gatekeeper class
+
+variables:
+  gatekeeper_class:
+    type: string
+    required: true
+
+  resource:
+    type: string
+    required: true
+    description: "Resource name (e.g., reservation, reservation_note)"
+
+  return_type:
+    type: string
+    required: true
+    description: "Return type (e.g., Reservation, ReservationNote)"
+
+  method_params:
+    type: string
+    required: true
+    description: "Keyword params for the public method (e.g., hotel_slug: str, uuid: UUID)"
+
+  forward_args:
+    type: string
+    required: true
+    description: "Args forwarded to private methods (e.g., hotel_slug, uuid)"
+
+  forward_params:
+    type: string
+    required: true
+    description: "Param signature for private methods (e.g., self, hotel_slug: str, uuid: UUID)"
+
+  hotel_user_body:
+    type: string
+    required: true
+
+  support_guest:
+    type: boolean
+    default: false
+
+  guest_body:
+    type: string
+    default: ""
+
+files:
+  - template: templates/gatekeeper_method.py.j2
+    to: "_rendered/gatekeeper_method.py"

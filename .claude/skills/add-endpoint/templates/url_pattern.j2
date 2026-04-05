@@ -1,0 +1,5 @@
+path(
+    "api/hotels/<slug:hotel_slug>/{{ url_path }}",
+    {{ view_name }}View.as_view(),
+    name="{{ url_name }}",
+),
