@@ -1,0 +1,17 @@
+name: add-test
+description: Scaffold a Rust unit test function
+
+variables:
+  test_name:
+    type: string
+    required: true
+    description: "Test function name (e.g., sorted_insertion_empty_scope)"
+
+  body:
+    type: string
+    required: true
+    description: "The test function body (assertions, setup, etc.)"
+
+files:
+  - template: templates/test.j2
+    to: "test_{{ test_name }}.rs"
