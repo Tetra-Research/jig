@@ -103,6 +103,16 @@ impl LibraryManifest {
             }));
         }
 
+        // Validate semver format (AC-1.13).
+        if !is_valid_semver(&raw.version) {
+            return Err(JigError::RecipeValidation(StructuredError {
+                what: format!("invalid version '{}': must be semver (MAJOR.MINOR.PATCH)", raw.version),
+                where_: source_path.display().to_string(),
+                why: format!("'{}' does not conform to semver format", raw.version),
+                hint: "use MAJOR.MINOR.PATCH format, e.g., '1.0.0' or '0.3.1'".into(),
+            }));
+        }
+
         // Validate that recipe paths in workflows reference declared recipes.
         for (wf_name, wf) in &raw.workflows {
             for step in &wf.steps {
@@ -127,6 +137,18 @@ impl LibraryManifest {
             .parent()
             .unwrap_or(Path::new("."))
             .to_path_buf();
+
+        // Warn about recipe paths that lack a recipe.yaml (AC-1.4, AC-1.9).
+        for recipe_path in raw.recipes.keys() {
+            let recipe_yaml = library_dir.join(recipe_path).join("recipe.yaml");
+            if !recipe_yaml.exists() {
+                eprintln!(
+                    "Warning: recipe '{}' declared in manifest but no recipe.yaml found at '{}'",
+                    recipe_path,
+                    recipe_yaml.display(),
+                );
+            }
+        }
 
         Ok(LibraryManifest {
             name: raw.name,
@@ -162,6 +184,15 @@ impl LibraryManifest {
     pub fn has_workflow(&self, workflow_name: &str) -> bool {
         self.workflows.contains_key(workflow_name)
     }
+}
+
+/// Basic semver validation: MAJOR.MINOR.PATCH where each part is a non-negative integer.
+fn is_valid_semver(version: &str) -> bool {
+    let parts: Vec<&str> = version.split('.').collect();
+    if parts.len() != 3 {
+        return false;
+    }
+    parts.iter().all(|p| !p.is_empty() && p.chars().all(|c| c.is_ascii_digit()))
 }
 
 #[cfg(test)]
