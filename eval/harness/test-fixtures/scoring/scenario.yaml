@@ -1,0 +1,26 @@
+name: scoring-test
+description: Scenario for testing scoring logic
+tier: medium
+category: test
+
+prompt: Add a field to the model
+
+expected_files_modified:
+  - models.py
+
+assertions:
+  - file: models.py
+    contains: "loyalty_tier"
+    scope: "class Reservation"
+    weight: 2.0
+  - file: models.py
+    contains: "phone_number"
+    weight: 1.0
+
+negative_assertions:
+  - file: models.py
+    not_contains: "SyntaxError"
+  - any_file: true
+    not_contains: "FORBIDDEN_PATTERN"
+
+tags: [scoring]

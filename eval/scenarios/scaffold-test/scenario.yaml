@@ -1,0 +1,37 @@
+name: scaffold-test
+description: Create a test file for the BookingService using the create-test recipe
+tier: easy
+category: greenfield
+
+context: |
+  You are working on a Django-style Python project.
+  This project uses jig for code generation. Recipes are in the recipes/ directory.
+  Use `jig vars <recipe>` to see what variables a recipe expects, then
+  use `jig run <recipe> --vars '<json>'` to execute it.
+
+prompt: |
+  Create a test file for the BookingService located at services/booking.py.
+  Use the create-test recipe at recipes/create-test/recipe.yaml.
+
+expected_files_modified:
+  - tests/test_booking.py
+
+assertions:
+  - file: tests/test_booking.py
+    contains: "class TestBookingService"
+    weight: 1.0
+  - file: tests/test_booking.py
+    contains: "def test_"
+    weight: 0.8
+  - file: tests/test_booking.py
+    contains: "import"
+    weight: 0.5
+
+negative_assertions:
+  - any_file: true
+    not_contains: "SyntaxError"
+    description: "Output must be syntactically valid Python"
+
+tags: [easy, greenfield, create]
+estimated_jig_commands: 1
+max_jig_commands: 2

@@ -1,0 +1,45 @@
+name: add-endpoint
+description: Add a new API endpoint with view, URL, schema, and test
+
+variables:
+  view_name:
+    type: string
+    required: true
+    description: "Name of the view function"
+  url_path:
+    type: string
+    required: true
+    description: "URL path segment (e.g., reservations/<int:pk>/receipt/)"
+  url_name:
+    type: string
+    required: true
+    description: "URL name for reverse lookup"
+  schema_name:
+    type: string
+    required: true
+    description: "Name of the response schema class"
+  model_name:
+    type: string
+    required: true
+    description: "Name of the model to query"
+
+files:
+  - template: templates/view.py.j2
+    inject: "views.py"
+    append: true
+    skip_if: "def {{ view_name }}"
+
+  - template: templates/url.py.j2
+    inject: "urls.py"
+    before: "^]"
+    skip_if: "{{ view_name }}"
+
+  - template: templates/schema.py.j2
+    inject: "schemas.py"
+    append: true
+    skip_if: "class {{ schema_name }}"
+
+  - template: templates/test.py.j2
+    inject: "tests/test_views.py"
+    append: true
+    skip_if: "def test_{{ view_name }}"

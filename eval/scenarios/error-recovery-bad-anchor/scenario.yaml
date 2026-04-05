@@ -1,0 +1,40 @@
+name: error-recovery-bad-anchor
+description: Agent must recover when jig's anchor pattern fails to match the actual code
+tier: error-recovery
+category: error-recovery
+
+context: |
+  You are working on a Django-style Python project.
+  This project uses jig for code generation. Recipes are in the recipes/ directory.
+  Use `jig vars <recipe>` to see what variables a recipe expects, then
+  use `jig run <recipe> --vars '<json>'` to execute it.
+  If jig fails, it will show the rendered content in the error output.
+  You can use this rendered content to manually apply the changes.
+
+prompt: |
+  Add a phone_number field (CharField, max_length=20) to the Contact model.
+  Use the add-field recipe at recipes/add-field/recipe.yaml.
+  Note: the recipe may fail because of an anchor mismatch. If jig fails,
+  use the rendered content from the error to apply the changes manually.
+
+expected_files_modified:
+  - models.py
+
+assertions:
+  - file: models.py
+    contains: "phone_number"
+    scope: "class Contact"
+    weight: 1.0
+  - file: models.py
+    contains: "CharField"
+    scope: "class Contact"
+    weight: 0.5
+
+negative_assertions:
+  - any_file: true
+    not_contains: "SyntaxError"
+    description: "Output must be syntactically valid Python"
+
+tags: [error-recovery, brownfield-extension, patch]
+estimated_jig_commands: 1
+max_jig_commands: 3

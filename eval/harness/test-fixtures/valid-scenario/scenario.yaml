@@ -1,0 +1,30 @@
+name: test-scenario
+description: A minimal valid scenario for testing
+tier: easy
+category: test
+
+prompt: |
+  Create a greeting function in hello.py
+
+context: |
+  You are working on a Python project.
+
+expected_files_modified:
+  - hello.py
+
+assertions:
+  - file: hello.py
+    contains: "def greet"
+    weight: 1.0
+  - file: hello.py
+    contains: "return"
+    weight: 0.5
+
+negative_assertions:
+  - file: hello.py
+    not_contains: "SyntaxError"
+    description: "Output must be valid Python"
+
+tags: [test, easy]
+estimated_jig_commands: 1
+max_jig_commands: 2
