@@ -327,24 +327,54 @@ fn run_recipe(recipe, vars, ctx, verbose) -> Result<Vec<OpResult>>
 
 Note: `run_recipe()` duplicates the rendering pipeline from `cmd_run` in `main.rs` (review finding M4). Should be consolidated before v0.4.
 
-### `src/library/` — Library Management (v0.4+)
+### `src/library/` — Library Management (v0.4, partial)
 
 Owns: Library manifest parsing, installation, discovery, convention mapping.
-Depends on: recipe, filesystem, git (for remote installs).
+Depends on: recipe, filesystem. Git dependency planned but not yet implemented.
 
-Not built until v0.4. Included here for architectural completeness.
+Submodules:
+- `manifest.rs` (312 lines) — `LibraryManifest` struct, `jig-library.yaml` parsing, field validation, recipe/workflow cross-reference checks at parse time.
+- `install.rs` (509 lines) — `add_from_path()`, `remove()`, `update_from_path()`, `list_installed()`, `find_installed_library()`. Recursive directory copy. Project-local (`.jig/libraries/`) and global (`~/.jig/libraries/`) storage with project-local precedence.
+- `discover.rs` (378 lines) — `list_recipes()`, `recipe_info()`, `list_workflows()`. Also contains `resolve_library_recipe()` and `resolve_library_workflow()` but these are dead code — not wired into `cmd_run`/`cmd_workflow`.
+- `conventions.rs` (234 lines) — `ProjectConfig` for `.jigrc.yaml`, `resolve_conventions()` merging manifest + project overrides. **Entirely dead code** — never called from execution path.
+
+Key types:
+```rust
+struct LibraryManifest {
+    name: String,
+    version: String,
+    description: Option<String>,
+    framework: Option<String>,
+    language: Option<String>,
+    conventions: IndexMap<String, String>,
+    recipes: IndexMap<String, RecipeEntry>,
+    workflows: IndexMap<String, ManifestWorkflow>,
+}
+
+struct InstalledLibrary {
+    name: String,
+    version: String,
+    description: Option<String>,
+    location: LibraryLocation,  // Global or ProjectLocal
+    path: PathBuf,
+    recipe_count: usize,
+    workflow_count: usize,
+}
+```
+
+**Status:** Management CLI complete (add/remove/update/list/recipes/info/workflows). Execution integration missing — cannot run `jig run django/model/add-field`. See `docs/workstreams/libraries/SHARED-CONTEXT.md` for full gap analysis.
 
 ## Dependency Map
 
 ```
                      main.rs
-                    /   |   \
-                   /    |    \
-              recipe  variables  output
-                |       |         |
-                v       v         v
-             renderer  (merges)  error
-                |
+                    /   |   \       \
+                   /    |    \       \
+              recipe  variables  output  library/
+                |       |         |      /  |  \   \
+                v       v         v     /   |   \   \
+             renderer  (merges)  error  manifest install discover conventions
+                |                                           (dead)   (dead)
                 v
            operations/mod
            /    |    \    \
@@ -355,6 +385,8 @@ Not built until v0.4. Included here for architectural completeness.
                          /    |    \
                     indent  delim  position
 ```
+
+Note: `library/discover` and `library/conventions` contain resolution/injection functions that are implemented but not called from `main.rs`. Wiring them in is the remaining v0.4 work.
 
 External crate usage:
 - clap: main.rs only
@@ -566,21 +598,32 @@ jig run recipe.yaml --vars '...'         # second run: skip_if prevents duplicat
 - Dry-run virtual_files carryover across steps — single ExecutionContext spans all steps
 - 343 total tests passing
 
-### Phase I: Libraries (v0.4)
+### Phase I: Libraries (v0.4) — Partial
 
-**Build:**
-- `src/library/mod.rs` — manifest parsing
-- `src/library/install.rs` — add/remove/update
-- `src/library/discover.rs` — recipe listing
-- `src/library/conventions.rs` — convention mapping and overrides
-- `library` subcommand in CLI
+**Built:**
+- `src/library/mod.rs` (6 lines) — module root
+- `src/library/manifest.rs` (312 lines) — `LibraryManifest` parsing, validation, cross-reference checks
+- `src/library/install.rs` (509 lines) — add/remove/update/list with project-local and global storage
+- `src/library/discover.rs` (378 lines) — recipe/workflow enumeration + dead-code resolution functions
+- `src/library/conventions.rs` (234 lines) — convention parsing + resolution (entirely dead code)
+- `library` subcommand in CLI with 7 actions (add, remove, update, list, recipes, info, workflows)
+- `tests/library.rs` (551 lines) — 13 integration tests covering full management lifecycle
+- 386 total tests passing (359 unit + 2 CLI + 12 integration + 13 library)
 
-**Evaluate:**
-- Install from local directory works
-- Install from git URL works
-- Convention overrides in .jigrc.yaml apply correctly
-- `jig library recipes <name>` lists all recipes
-- Project-local extensions and template overrides work
+**Evaluated (passing):**
+- [x] Install from local directory works
+- [x] `jig library recipes <name>` lists all recipes
+- [x] Project-local shadows global correctly
+- [x] Full lifecycle: add → list → recipes → info → update → remove
+
+**Evaluated (not yet passing):**
+- [ ] Install from git URL works (Phase 5 not implemented)
+- [ ] Convention overrides in .jigrc.yaml apply correctly (dead code)
+- [ ] Project-local extensions and template overrides work (Phase 6 not implemented)
+- [ ] `jig run django/model/add-field` executes library recipe (resolve functions are dead code)
+- [ ] `jig workflow django/add-field` executes library workflow (resolve functions are dead code)
+
+**Code review:** 3 critical, 5 major, 7 minor findings. Not fixed in code. See `docs/workstreams/libraries/SHARED-CONTEXT.md`.
 
 ## Testing Strategy
 
