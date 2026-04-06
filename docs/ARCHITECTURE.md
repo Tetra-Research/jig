@@ -327,26 +327,56 @@ fn run_recipe(recipe, vars, ctx, verbose) -> Result<Vec<OpResult>>
 
 Note: `run_recipe()` duplicates the rendering pipeline from `cmd_run` in `main.rs` (review finding M4). Should be consolidated before v0.4.
 
-### `src/library/` — Library Management (v0.4+)
+### `src/library/` — Library Management (v0.4)
 
-Owns: Library manifest parsing, installation, discovery, convention mapping.
-Depends on: recipe, filesystem, git (for remote installs).
+Owns: Library manifest parsing, installation (local + git), discovery, convention mapping, template overrides, project extensions.
+Depends on: recipe, filesystem, git CLI (install-time only).
 
-Not built until v0.4. Included here for architectural completeness.
+Submodules:
+- `manifest.rs` (~343 lines) — `LibraryManifest` struct, `jig-library.yaml` parsing, field validation, semver validation, recipe dir existence checks, recipe/workflow cross-reference checks at parse time.
+- `install.rs` (~689 lines) — `add_from_path()`, `install_from_git()`, `remove()`, `update_from_path()`, `list_installed()`, `find_installed_library()`. Recursive directory copy. Project-local (`.jig/libraries/`) and global (`~/.jig/libraries/`) storage with project-local precedence. `_install_meta.json` for source tracking. Deterministic sort on list output.
+- `discover.rs` (~451 lines) — `list_recipes()`, `recipe_info()`, `list_workflows()`, `resolve_library_recipe()`, `resolve_library_workflow()`. Extension scanning from `.jig/extensions/`.
+- `conventions.rs` (~234 lines) — `ProjectConfig` for `.jigrc.yaml`, `resolve_conventions()` merging manifest defaults + project overrides. Called from `cmd_run` execution path.
+
+Key types:
+```rust
+struct LibraryManifest {
+    name: String,
+    version: String,
+    description: Option<String>,
+    framework: Option<String>,
+    language: Option<String>,
+    conventions: IndexMap<String, String>,
+    recipes: IndexMap<String, RecipeEntry>,
+    workflows: IndexMap<String, ManifestWorkflow>,
+}
+
+struct InstalledLibrary {
+    name: String,
+    version: String,
+    description: Option<String>,
+    location: LibraryLocation,  // Global or ProjectLocal
+    path: PathBuf,
+    recipe_count: usize,
+    workflow_count: usize,
+}
+```
+
+**Status:** Complete. All library features operational — management CLI, execution integration, conventions, overrides, extensions, git install. 29 library-specific integration tests.
 
 ## Dependency Map
 
 ```
                      main.rs
-                    /   |   \
-                   /    |    \
-              recipe  variables  output
-                |       |         |
-                v       v         v
-             renderer  (merges)  error
-                |
-                v
-           operations/mod
+                    /   |   \       \
+                   /    |    \       \
+              recipe  variables  output  library/
+                |       |         |      /  |  \   \
+                v       v         v     /   |   \   \
+             renderer  (merges)  error  manifest install discover conventions
+                |                                     |
+                v                                     v
+           operations/mod                         git CLI (install-time)
            /    |    \    \
        create inject replace patch
                               |
@@ -566,21 +596,39 @@ jig run recipe.yaml --vars '...'         # second run: skip_if prevents duplicat
 - Dry-run virtual_files carryover across steps — single ExecutionContext spans all steps
 - 343 total tests passing
 
-### Phase I: Libraries (v0.4)
+### Phase I: Libraries (v0.4) — Complete
 
-**Build:**
-- `src/library/mod.rs` — manifest parsing
-- `src/library/install.rs` — add/remove/update
-- `src/library/discover.rs` — recipe listing
-- `src/library/conventions.rs` — convention mapping and overrides
-- `library` subcommand in CLI
+**Built:**
+- `src/library/mod.rs` (~6 lines) — module root
+- `src/library/manifest.rs` (~343 lines) — `LibraryManifest` parsing, semver validation, recipe dir checks, cross-reference checks
+- `src/library/install.rs` (~689 lines) — add (local+git)/remove/update/list with project-local and global storage, `_install_meta.json`, `--force`, deterministic sort
+- `src/library/discover.rs` (~451 lines) — recipe/workflow enumeration, resolution functions wired into execution, extension scanning
+- `src/library/conventions.rs` (~234 lines) — convention parsing + resolution, called from execution path
+- `src/renderer.rs` (+32 lines) — template override resolution support
+- `library` subcommand in CLI with 7 actions (add, remove, update, list, recipes, info, workflows)
+- Library resolution wired into `cmd_run`, `cmd_workflow`, `cmd_validate`, `cmd_vars` in `main.rs`
+- `tests/library.rs` (~1289 lines) — 29 integration tests covering full lifecycle + execution + conventions + overrides + extensions
+- 402 total tests passing (359 unit + 2 CLI + 12 integration + 29 library)
 
-**Evaluate:**
-- Install from local directory works
-- Install from git URL works
-- Convention overrides in .jigrc.yaml apply correctly
-- `jig library recipes <name>` lists all recipes
-- Project-local extensions and template overrides work
+**Evaluated (all passing):**
+- [x] Install from local directory works
+- [x] Install from git URL works (URL detection + shallow clone + metadata)
+- [x] `jig library recipes <name>` lists all recipes (including extensions with `[ext]` marker)
+- [x] Project-local shadows global correctly
+- [x] Full lifecycle: add → list → recipes → info → update → remove
+- [x] Convention overrides in `.jigrc.yaml` apply correctly
+- [x] Project-local template overrides work (`.jig/overrides/`)
+- [x] Project extensions work (`.jig/extensions/`) with no-shadow rule
+- [x] `jig run django/model/add-field` executes library recipe end-to-end
+- [x] `jig workflow django/add-field` executes library workflow
+- [x] `jig validate` and `jig vars` resolve library-namespaced paths
+- [x] `{{ conventions.models }}` renders to correct path in templates
+- [x] Semver validation rejects invalid versions
+- [x] `update_from_path()` validates name match (prevents silent library swap)
+- [x] Deterministic output ordering
+- [x] Correct exit codes (exit 3 for file ops, exit 1 for validation)
+
+**Code review findings:** Two review cycles across two iterations. All 3 critical, 5 major, and 7 minor findings fixed. See `docs/workstreams/libraries/SHARED-CONTEXT.md`.
 
 ## Testing Strategy
 

@@ -1,5 +1,6 @@
 mod error;
 mod filters;
+mod library;
 mod operations;
 mod output;
 mod recipe;
@@ -89,6 +90,55 @@ enum Commands {
         /// Path to the workflow YAML file
         path: PathBuf,
     },
+    /// Manage recipe libraries
+    Library {
+        #[command(subcommand)]
+        action: LibraryAction,
+    },
+}
+
+#[derive(Subcommand)]
+enum LibraryAction {
+    /// Install a library from a local directory or git URL
+    Add {
+        /// Path to the library directory or git URL
+        source: String,
+        /// Install globally instead of project-local
+        #[arg(long)]
+        global: bool,
+        /// Overwrite existing library with same name
+        #[arg(long)]
+        force: bool,
+    },
+    /// Remove an installed library
+    Remove {
+        /// Library name
+        name: String,
+    },
+    /// Update an installed library from source (or re-fetch from original)
+    Update {
+        /// Library name
+        name: String,
+        /// Path to the updated library directory (optional if metadata exists)
+        source: Option<String>,
+    },
+    /// List installed libraries
+    List,
+    /// List all recipes in a library
+    Recipes {
+        /// Library name
+        name: String,
+    },
+    /// Show details for a specific recipe
+    Info {
+        /// Library-qualified recipe path (e.g., django/model/add-field)
+        path: String,
+    },
+    /// List all workflows in a library
+    Workflows {
+        /// Library name
+        name: String,
+    },
 }
 
 fn main() {
@@ -104,15 +154,26 @@ fn main() {
 }
 
 fn run(cli: Cli) -> Result<i32, JigError> {
+    let base_dir = cli.base_dir.as_deref()
+        .map(|p| p.to_path_buf())
+        .unwrap_or_else(|| std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")));
+
     match cli.command {
-        Commands::Validate { recipe } => cmd_validate(&recipe, cli.json),
-        Commands::Vars { recipe } => cmd_vars(&recipe),
+        Commands::Validate { recipe } => {
+            let resolved = resolve_recipe_or_library(&recipe, &base_dir);
+            cmd_validate(&resolved.path, cli.json)
+        }
+        Commands::Vars { recipe } => {
+            let resolved = resolve_recipe_or_library(&recipe, &base_dir);
+            cmd_vars(&resolved.path, &base_dir)
+        }
         Commands::Render { template, to } => {
             cmd_render(&template, to.as_deref(), cli.vars.as_deref(), cli.vars_file.as_deref(), cli.vars_stdin)
         }
         Commands::Run { recipe } => {
+            let resolved = resolve_recipe_or_library(&recipe, &base_dir);
             cmd_run(
-                &recipe,
+                &resolved.path,
                 cli.vars.as_deref(),
                 cli.vars_file.as_deref(),
                 cli.vars_stdin,
@@ -122,6 +183,9 @@ fn run(cli: Cli) -> Result<i32, JigError> {
                 cli.force,
                 cli.base_dir.as_deref(),
                 cli.verbose,
+                &base_dir,
+                resolved.library_name.as_deref(),
+                resolved.recipe_path.as_deref(),
             )
         }
         Commands::Workflow { path } => {
@@ -136,9 +200,95 @@ fn run(cli: Cli) -> Result<i32, JigError> {
                 cli.force,
                 cli.base_dir.as_deref(),
                 cli.verbose,
+                &base_dir,
             )
         }
+        Commands::Library { action } => {
+            cmd_library(action, &base_dir, cli.json, cli.quiet)
+        }
     }
+}
+
+/// Result of resolving a recipe path — either a filesystem path or a library recipe.
+struct ResolvedRecipe {
+    path: PathBuf,
+    /// If this recipe came from a library, the library name.
+    library_name: Option<String>,
+    /// If this recipe came from a library, the recipe path within the library.
+    recipe_path: Option<String>,
+}
+
+/// Resolve a recipe/workflow path: if the path doesn't exist as a file and looks
+/// like a library-namespaced path (contains '/'), try to resolve via installed library.
+/// Falls back to the original path for filesystem paths (backward compat: AC-4.5, AC-N2.1).
+fn resolve_recipe_or_library(path: &std::path::Path, base_dir: &std::path::Path) -> ResolvedRecipe {
+    // Filesystem paths take precedence (AC-N2.1).
+    if path.exists() {
+        return ResolvedRecipe { path: path.to_path_buf(), library_name: None, recipe_path: None };
+    }
+
+    let path_str = path.to_string_lossy();
+    if let Some(slash) = path_str.find('/') {
+        let lib_name = &path_str[..slash];
+        let recipe_path = &path_str[slash + 1..];
+        // Check if this matches an installed library.
+        if library::install::find_installed_library(lib_name, base_dir).is_ok() {
+            // Try to resolve as a library recipe first (library takes precedence: AC-8.3).
+            if let Ok((lib, rp, resolved)) = library::discover::resolve_library_recipe(&path_str, base_dir) {
+                return ResolvedRecipe { path: resolved, library_name: Some(lib), recipe_path: Some(rp) };
+            }
+
+            // Fall back to extension recipe (AC-8.2).
+            let ext_recipe = base_dir
+                .join(".jig/extensions")
+                .join(lib_name)
+                .join(recipe_path)
+                .join("recipe.yaml");
+            if ext_recipe.exists() {
+                return ResolvedRecipe {
+                    path: ext_recipe,
+                    library_name: Some(lib_name.to_string()),
+                    recipe_path: Some(recipe_path.to_string()),
+                };
+            }
+        }
+    }
+
+    // Return the original path (will fail naturally with normal error messages).
+    ResolvedRecipe { path: path.to_path_buf(), library_name: None, recipe_path: None }
+}
+
+/// Resolve conventions for a library recipe: load .jigrc.yaml, merge with manifest
+/// defaults, render convention templates with recipe variables, and return as a
+/// serde_json::Value suitable for injection into template context.
+fn resolve_library_conventions(
+    library_name: &str,
+    vars: &serde_json::Value,
+    base_dir: &std::path::Path,
+) -> Result<serde_json::Value, JigError> {
+    let manifest = library::install::load_installed_manifest(library_name, base_dir)?;
+    let project_config = library::conventions::ProjectConfig::load(base_dir)?;
+    let conventions = library::conventions::resolve_conventions(&manifest, &project_config);
+
+    // Two-pass: render convention templates with recipe variables (AC-5.3).
+    // Skip conventions whose templates reference variables not present in the
+    // current recipe (common when an extension recipe uses only a subset of vars).
+    let env = renderer::create_standalone_env();
+    let mut rendered = serde_json::Map::new();
+    for (key, template) in &conventions {
+        match renderer::render_string(&env, template, vars, &format!("conventions.{key}")) {
+            Ok(value) => {
+                rendered.insert(key.clone(), serde_json::Value::String(value));
+            }
+            Err(_) => {
+                // Convention template references variables not available in this recipe.
+                // Keep the raw template as-is so it doesn't vanish from context.
+                rendered.insert(key.clone(), serde_json::Value::String(template.clone()));
+            }
+        }
+    }
+
+    Ok(serde_json::Value::Object(rendered))
 }
 
 fn cmd_validate(path: &std::path::Path, json: bool) -> Result<i32, JigError> {
@@ -196,7 +346,22 @@ fn cmd_validate(path: &std::path::Path, json: bool) -> Result<i32, JigError> {
     Ok(0)
 }
 
-fn cmd_vars(path: &std::path::Path) -> Result<i32, JigError> {
+fn cmd_vars(path: &std::path::Path, base_dir: &std::path::Path) -> Result<i32, JigError> {
+    // Check if this is a library workflow (path was resolved as recipe.yaml but user
+    // might have meant a workflow). Try library workflow resolution from original path.
+    let path_str = path.to_string_lossy();
+    if path_str.contains('/') && !path.exists() {
+        // Could be a library workflow — try resolving.
+        if let Ok((_, wf_name, manifest)) =
+            library::discover::resolve_library_workflow(&path_str, base_dir)
+        {
+            let wf_def = &manifest.workflows[&wf_name];
+            let vars = build_library_workflow_vars(&manifest, wf_def);
+            println!("{}", serde_json::to_string_pretty(&vars).unwrap());
+            return Ok(0);
+        }
+    }
+
     let vars = match workflow::detect_file_type(path)? {
         workflow::FileType::Recipe => {
             let recipe = Recipe::load(path)?;
@@ -209,6 +374,94 @@ fn cmd_vars(path: &std::path::Path) -> Result<i32, JigError> {
     };
     println!("{}", serde_json::to_string_pretty(&vars).unwrap());
     Ok(0)
+}
+
+/// Build a vars JSON output for a library workflow by collecting variables
+/// from all referenced recipes in the workflow steps.
+fn build_library_workflow_vars(
+    manifest: &library::manifest::LibraryManifest,
+    wf_def: &library::manifest::ManifestWorkflow,
+) -> serde_json::Value {
+    let mut all_vars = indexmap::IndexMap::new();
+    for step in &wf_def.steps {
+        if let Some(recipe_path) = manifest.resolve_recipe_path(&step.recipe) {
+            if let Ok(recipe) = Recipe::load(&recipe_path) {
+                for (name, decl) in &recipe.variables {
+                    all_vars.entry(name.clone()).or_insert_with(|| decl.clone());
+                }
+            }
+        }
+    }
+    variables::vars_json(&all_vars)
+}
+
+/// Build a Workflow struct from a library manifest's workflow definition.
+/// Resolves all recipe paths relative to the library root (AC-4.9).
+fn build_library_workflow(
+    manifest: &library::manifest::LibraryManifest,
+    workflow_name: &str,
+) -> Result<workflow::Workflow, JigError> {
+    let wf_def = manifest.workflows.get(workflow_name).ok_or_else(|| {
+        JigError::RecipeValidation(crate::error::StructuredError {
+            what: format!("workflow '{workflow_name}' not found in library '{}'", manifest.name),
+            where_: manifest.name.clone(),
+            why: format!("the library does not declare workflow '{workflow_name}'"),
+            hint: format!("use 'jig library workflows {}' to see available workflows", manifest.name),
+        })
+    })?;
+
+    let on_error = match wf_def.on_error.as_deref() {
+        Some("continue") => workflow::OnError::Continue,
+        Some("report") => workflow::OnError::Report,
+        _ => workflow::OnError::Stop,
+    };
+
+    // Collect variables from all referenced recipes.
+    let mut all_vars = indexmap::IndexMap::new();
+    let mut steps = Vec::with_capacity(wf_def.steps.len());
+
+    for step in &wf_def.steps {
+        let resolved = manifest.resolve_recipe_path(&step.recipe).ok_or_else(|| {
+            JigError::RecipeValidation(crate::error::StructuredError {
+                what: format!("recipe '{}' not found in library '{}'", step.recipe, manifest.name),
+                where_: format!("{}/{}", manifest.name, workflow_name),
+                why: format!("workflow step references recipe '{}' which is not declared", step.recipe),
+                hint: format!("use 'jig library recipes {}' to see available recipes", manifest.name),
+            })
+        })?;
+
+        // Load recipe to collect variables.
+        if let Ok(recipe) = Recipe::load(&resolved) {
+            for (name, decl) in &recipe.variables {
+                all_vars.entry(name.clone()).or_insert_with(|| decl.clone());
+            }
+        }
+
+        let step_on_error = match step.on_error.as_deref() {
+            Some("continue") => Some(workflow::OnError::Continue),
+            Some("report") => Some(workflow::OnError::Report),
+            Some("stop") => Some(workflow::OnError::Stop),
+            _ => None,
+        };
+
+        steps.push(workflow::WorkflowStep {
+            recipe: step.recipe.clone(),
+            resolved_recipe: resolved,
+            when: step.when.clone(),
+            vars_map: step.vars_map.clone(),
+            vars: step.vars.clone(),
+            on_error: step_on_error,
+        });
+    }
+
+    Ok(workflow::Workflow {
+        name: Some(workflow_name.to_string()),
+        description: wf_def.description.clone(),
+        variables: all_vars,
+        steps,
+        on_error,
+        workflow_dir: manifest.library_dir.clone(),
+    })
 }
 
 fn cmd_render(
@@ -278,6 +531,9 @@ fn cmd_run(
     force: bool,
     base_dir: Option<&std::path::Path>,
     verbose: bool,
+    project_dir: &std::path::Path,
+    library_name: Option<&str>,
+    library_recipe_path: Option<&str>,
 ) -> Result<i32, JigError> {
     let mode = output::detect_mode(force_json);
 
@@ -327,13 +583,34 @@ fn cmd_run(
         Ok(v) => v,
         Err(e) => return handle_early_error(e),
     };
-    let vars = match variables::validate_variables(&recipe.variables, &provided) {
+    let mut vars = match variables::validate_variables(&recipe.variables, &provided) {
         Ok(v) => v,
         Err(e) => return handle_early_error(e),
     };
 
+    // 2b. Inject conventions for library recipes (AC-5.3, AC-5.5).
+    if let Some(lib_name) = library_name {
+        match resolve_library_conventions(lib_name, &vars, project_dir) {
+            Ok(conventions) => {
+                if let Some(obj) = vars.as_object_mut() {
+                    obj.insert("conventions".to_string(), conventions);
+                }
+            }
+            Err(e) => return handle_early_error(e),
+        }
+    }
+
     // 3. Create recipe-aware environment and render ALL templates upfront (exit 2 on failure).
-    let env = match renderer::create_recipe_env(&recipe) {
+    // For library recipes, check .jig/overrides/<library>/<recipe-path>/ (AC-7.1).
+    // Template paths like "templates/model.rs.j2" are resolved relative to this dir.
+    let override_dir = match (library_name, library_recipe_path) {
+        (Some(lib), Some(rp)) => {
+            let d = project_dir.join(".jig/overrides").join(lib).join(rp);
+            if d.is_dir() { Some(d) } else { None }
+        }
+        _ => None,
+    };
+    let env = match renderer::create_recipe_env_with_overrides(&recipe, override_dir.as_deref()) {
         Ok(e) => e,
         Err(e) => return handle_early_error(e),
     };
@@ -466,6 +743,7 @@ fn cmd_workflow(
     force: bool,
     base_dir: Option<&std::path::Path>,
     verbose: bool,
+    project_dir: &std::path::Path,
 ) -> Result<i32, JigError> {
     let mode = output::detect_mode(force_json);
 
@@ -506,26 +784,40 @@ fn cmd_workflow(
         }
     };
 
-    // Guard: check if file is a recipe instead of a workflow.
-    match workflow::detect_file_type(workflow_path) {
-        Ok(workflow::FileType::Recipe) => {
-            return handle_early_error(JigError::RecipeValidation(
-                crate::error::StructuredError {
-                    what: "expected a workflow file, got a recipe file".into(),
-                    where_: workflow_path.display().to_string(),
-                    why: "file has 'files' (recipe) instead of 'steps' (workflow)".into(),
-                    hint: "use 'jig run' to execute recipes, or provide a workflow file with 'steps'".into(),
-                },
-            ));
+    // Try library workflow resolution if the path doesn't exist as a file.
+    let wf = if !workflow_path.exists() {
+        let path_str = workflow_path.to_string_lossy();
+        match library::discover::resolve_library_workflow(&path_str, project_dir) {
+            Ok((_, wf_name, manifest)) => {
+                match build_library_workflow(&manifest, &wf_name) {
+                    Ok(w) => w,
+                    Err(e) => return handle_early_error(e),
+                }
+            }
+            Err(e) => return handle_early_error(e),
         }
-        Ok(workflow::FileType::Workflow) => {} // proceed
-        Err(e) => return handle_early_error(e),
-    }
+    } else {
+        // Guard: check if file is a recipe instead of a workflow.
+        match workflow::detect_file_type(workflow_path) {
+            Ok(workflow::FileType::Recipe) => {
+                return handle_early_error(JigError::RecipeValidation(
+                    crate::error::StructuredError {
+                        what: "expected a workflow file, got a recipe file".into(),
+                        where_: workflow_path.display().to_string(),
+                        why: "file has 'files' (recipe) instead of 'steps' (workflow)".into(),
+                        hint: "use 'jig run' to execute recipes, or provide a workflow file with 'steps'".into(),
+                    },
+                ));
+            }
+            Ok(workflow::FileType::Workflow) => {} // proceed
+            Err(e) => return handle_early_error(e),
+        }
 
-    // Load workflow.
-    let wf = match workflow::load_workflow(workflow_path) {
-        Ok(w) => w,
-        Err(e) => return handle_early_error(e),
+        // Load workflow.
+        match workflow::load_workflow(workflow_path) {
+            Ok(w) => w,
+            Err(e) => return handle_early_error(e),
+        }
     };
 
     // Collect and validate workflow-level variables.
@@ -612,6 +904,343 @@ fn compute_workflow_exit_code(
         3
     } else {
         0
+    }
+}
+
+fn cmd_library(
+    action: LibraryAction,
+    base_dir: &std::path::Path,
+    force_json: bool,
+    quiet: bool,
+) -> Result<i32, JigError> {
+    let mode = output::detect_mode(force_json);
+
+    match action {
+        LibraryAction::Add { source, global, force: force_install } => {
+            let location = if global {
+                library::install::InstallLocation::Global
+            } else {
+                library::install::InstallLocation::ProjectLocal
+            };
+
+            let installed = if library::install::is_git_url(&source) {
+                // Git install (AC-2.2).
+                let clone_dir = library::install::git_clone(&source)?;
+                let result = library::install::add_from_path_with_options(
+                    &clone_dir, location, base_dir, force_install, &source, "git",
+                );
+                let _ = std::fs::remove_dir_all(&clone_dir);
+                result?
+            } else {
+                let path = PathBuf::from(&source);
+                let resolved = path.canonicalize().map_err(|e| {
+                    JigError::FileOperation(crate::error::StructuredError {
+                        what: format!("cannot resolve path '{source}'"),
+                        where_: source.clone(),
+                        why: e.to_string(),
+                        hint: "check the path exists".into(),
+                    })
+                })?;
+                library::install::add_from_path_with_options(
+                    &resolved, location, base_dir, force_install,
+                    &resolved.display().to_string(), "local",
+                )?
+            };
+            match mode {
+                output::OutputMode::Json => {
+                    let json = serde_json::json!({
+                        "action": "add",
+                        "library": installed.name,
+                        "version": installed.version,
+                        "location": installed.location.to_string(),
+                        "path": installed.path.display().to_string(),
+                    });
+                    println!("{}", serde_json::to_string_pretty(&json).unwrap());
+                }
+                output::OutputMode::Human => {
+                    if !quiet {
+                        eprintln!(
+                            "Installed library '{}' v{} ({})",
+                            installed.name, installed.version, installed.location
+                        );
+                    }
+                }
+            }
+            Ok(0)
+        }
+
+        LibraryAction::Remove { name } => {
+            let removed = library::install::remove(&name, base_dir)?;
+            match mode {
+                output::OutputMode::Json => {
+                    let json = serde_json::json!({
+                        "action": "remove",
+                        "library": removed.name,
+                        "version": removed.version,
+                        "location": removed.location.to_string(),
+                    });
+                    println!("{}", serde_json::to_string_pretty(&json).unwrap());
+                }
+                output::OutputMode::Human => {
+                    if !quiet {
+                        eprintln!("Removed library '{}' v{}", removed.name, removed.version);
+                    }
+                }
+            }
+            Ok(0)
+        }
+
+        LibraryAction::Update { name, source } => {
+            let updated = match source {
+                Some(src) => {
+                    if library::install::is_git_url(&src) {
+                        let clone_dir = library::install::git_clone(&src)?;
+                        let result = library::install::update_from_path(&name, &clone_dir, base_dir);
+                        let _ = std::fs::remove_dir_all(&clone_dir);
+                        let lib = result?;
+                        // Re-write metadata with git source.
+                        library::install::write_install_meta(&lib.path, &src, "git", &lib.version)?;
+                        lib
+                    } else {
+                        let path = PathBuf::from(&src);
+                        let resolved = path.canonicalize().map_err(|e| {
+                            JigError::FileOperation(crate::error::StructuredError {
+                                what: format!("cannot resolve path '{src}'"),
+                                where_: src.clone(),
+                                why: e.to_string(),
+                                hint: "check the path exists".into(),
+                            })
+                        })?;
+                        library::install::update_from_path(&name, &resolved, base_dir)?
+                    }
+                }
+                None => {
+                    // No source provided — try to update from recorded metadata (AC-2.9, AC-2.10).
+                    library::install::update_from_meta(&name, base_dir)?
+                }
+            };
+            match mode {
+                output::OutputMode::Json => {
+                    let json = serde_json::json!({
+                        "action": "update",
+                        "library": updated.name,
+                        "version": updated.version,
+                        "location": updated.location.to_string(),
+                        "path": updated.path.display().to_string(),
+                    });
+                    println!("{}", serde_json::to_string_pretty(&json).unwrap());
+                }
+                output::OutputMode::Human => {
+                    if !quiet {
+                        eprintln!(
+                            "Updated library '{}' to v{} ({})",
+                            updated.name, updated.version, updated.location
+                        );
+                    }
+                }
+            }
+            Ok(0)
+        }
+
+        LibraryAction::List => {
+            let libraries = library::install::list_installed(base_dir)?;
+            match mode {
+                output::OutputMode::Json => {
+                    let items: Vec<serde_json::Value> = libraries
+                        .iter()
+                        .map(|lib| {
+                            serde_json::json!({
+                                "name": lib.name,
+                                "version": lib.version,
+                                "description": lib.description,
+                                "framework": lib.framework,
+                                "language": lib.language,
+                                "location": lib.location.to_string(),
+                                "path": lib.path.display().to_string(),
+                            })
+                        })
+                        .collect();
+                    let json = serde_json::json!({ "libraries": items });
+                    println!("{}", serde_json::to_string_pretty(&json).unwrap());
+                }
+                output::OutputMode::Human => {
+                    if !quiet {
+                        if libraries.is_empty() {
+                            eprintln!("No libraries installed.");
+                        } else {
+                            for lib in &libraries {
+                                let desc = lib
+                                    .description
+                                    .as_deref()
+                                    .map(|d| format!(" — {d}"))
+                                    .unwrap_or_default();
+                                eprintln!(
+                                    "  {} v{} ({}){desc}",
+                                    lib.name, lib.version, lib.location
+                                );
+                            }
+                        }
+                    }
+                }
+            }
+            Ok(0)
+        }
+
+        LibraryAction::Recipes { name } => {
+            let recipes = library::discover::list_recipes_with_extensions(&name, base_dir)?;
+            match mode {
+                output::OutputMode::Json => {
+                    let items: Vec<serde_json::Value> = recipes
+                        .iter()
+                        .map(|entry| {
+                            serde_json::json!({
+                                "path": entry.path,
+                                "description": entry.description,
+                                "source": match entry.source {
+                                    library::discover::RecipeSource::Library => "library",
+                                    library::discover::RecipeSource::Extension => "extension",
+                                },
+                            })
+                        })
+                        .collect();
+                    let json = serde_json::json!({
+                        "library": name,
+                        "recipes": items,
+                    });
+                    println!("{}", serde_json::to_string_pretty(&json).unwrap());
+                }
+                output::OutputMode::Human => {
+                    if !quiet {
+                        if recipes.is_empty() {
+                            eprintln!("Library '{name}' has no recipes.");
+                        } else {
+                            eprintln!("Recipes in '{name}':");
+                            for entry in &recipes {
+                                let marker = match entry.source {
+                                    library::discover::RecipeSource::Extension => " [ext]",
+                                    _ => "",
+                                };
+                                eprintln!("  {} — {}{marker}", entry.path, entry.description);
+                            }
+                        }
+                    }
+                }
+            }
+            Ok(0)
+        }
+
+        LibraryAction::Info { path } => {
+            // Parse "library/recipe/path".
+            let slash = path.find('/').ok_or_else(|| {
+                JigError::RecipeValidation(crate::error::StructuredError {
+                    what: format!("invalid recipe path '{path}'"),
+                    where_: path.clone(),
+                    why: "expected format: <library>/<recipe-path>".into(),
+                    hint: "example: django/model/add-field".into(),
+                })
+            })?;
+            let lib_name = &path[..slash];
+            let recipe_path = &path[slash + 1..];
+            let info = library::discover::recipe_info(lib_name, recipe_path, base_dir)?;
+            match mode {
+                output::OutputMode::Json => {
+                    let vars: Vec<serde_json::Value> = info
+                        .variables
+                        .iter()
+                        .map(|v| {
+                            serde_json::json!({
+                                "name": v.name,
+                                "type": v.var_type,
+                                "required": v.required,
+                                "description": v.description,
+                            })
+                        })
+                        .collect();
+                    let json = serde_json::json!({
+                        "library": info.library,
+                        "recipe": info.path,
+                        "description": info.description,
+                        "variables": vars,
+                        "operations": info.operations,
+                    });
+                    println!("{}", serde_json::to_string_pretty(&json).unwrap());
+                }
+                output::OutputMode::Human => {
+                    if !quiet {
+                        eprintln!("{}/{}", info.library, info.path);
+                        eprintln!("  {}", info.description);
+                        if !info.variables.is_empty() {
+                            eprintln!("  Variables:");
+                            for v in &info.variables {
+                                let req = if v.required { " (required)" } else { "" };
+                                let desc = v
+                                    .description
+                                    .as_deref()
+                                    .map(|d| format!(" — {d}"))
+                                    .unwrap_or_default();
+                                eprintln!("    {} [{}]{req}{desc}", v.name, v.var_type);
+                            }
+                        }
+                        if !info.operations.is_empty() {
+                            eprintln!("  Operations: {}", info.operations.join(", "));
+                        }
+                    }
+                }
+            }
+            Ok(0)
+        }
+
+        LibraryAction::Workflows { name } => {
+            let workflows = library::discover::list_workflows(&name, base_dir)?;
+            match mode {
+                output::OutputMode::Json => {
+                    let items: Vec<serde_json::Value> = workflows
+                        .iter()
+                        .map(|wf| {
+                            let steps: Vec<serde_json::Value> = wf
+                                .steps
+                                .iter()
+                                .map(|s| {
+                                    serde_json::json!({
+                                        "recipe": s.recipe,
+                                        "conditional": s.conditional,
+                                    })
+                                })
+                                .collect();
+                            serde_json::json!({
+                                "name": wf.name,
+                                "description": wf.description,
+                                "steps": steps,
+                            })
+                        })
+                        .collect();
+                    let json = serde_json::json!({
+                        "library": name,
+                        "workflows": items,
+                    });
+                    println!("{}", serde_json::to_string_pretty(&json).unwrap());
+                }
+                output::OutputMode::Human => {
+                    if !quiet {
+                        if workflows.is_empty() {
+                            eprintln!("Library '{name}' has no workflows.");
+                        } else {
+                            eprintln!("Workflows in '{name}':");
+                            for wf in &workflows {
+                                let desc = wf
+                                    .description
+                                    .as_deref()
+                                    .map(|d| format!(" — {d}"))
+                                    .unwrap_or_default();
+                                let steps_info = format!("{} steps", wf.steps.len());
+                                eprintln!("  {} ({steps_info}){desc}", wf.name);
+                            }
+                        }
+                    }
+                }
+            }
+            Ok(0)
+        }
     }
 }
 
@@ -928,6 +1557,9 @@ mod tests {
             force,
             Some(base_dir),
             verbose,
+            base_dir,
+            None,
+            None,
         )
     }
 
@@ -1075,6 +1707,7 @@ files:
             &recipe_path, Some("{}"), None, false,
             false, true, true, false,
             Some(&nonexistent), false,
+            dir.path(), None, None,
         ).unwrap();
         assert_eq!(code, 3);
     }
