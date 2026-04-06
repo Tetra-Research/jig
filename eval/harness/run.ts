@@ -8,10 +8,10 @@ import { loadAgentConfigs, getAgentByName, invokeAgent } from "./agents.ts";
 import { createSandbox } from "../lib/sandbox.ts";
 import { scoreAssertions, scoreNegativeAssertions, scoreJigUsage, scoreEfficiency, computeTrialScore } from "./score.ts";
 import { aggregateFileScore } from "../lib/diff.ts";
-import { writeTrialResult, readResults } from "./results.ts";
+import { writeTrialResult, readResults, ResultSchemaError, formatDiagnosticsSummary } from "./results.ts";
 import { transformPromptForBaseline } from "./baseline.ts";
 import { generateReport, generateMetricsOnly } from "./report.ts";
-import type { Scenario, AgentConfig, TrialResult, PromptTier, ClaudeMdMode } from "./types.ts";
+import type { Scenario, AgentConfig, TrialResult, PromptTier, ClaudeMdMode, SchemaPolicyMode } from "./types.ts";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const EVAL_ROOT = path.resolve(__dirname, "..");
@@ -28,6 +28,7 @@ const { values: args } = parseArgs({
     "strip-skills": { type: "boolean", default: false },
     "dry-run": { type: "boolean", default: false },
     "metrics-only": { type: "boolean", default: false },
+    "schema-mode": { type: "string", default: "strict" },
   },
   strict: true,
 });
@@ -38,10 +39,17 @@ const stripSkills = args["strip-skills"] ?? false;
 const promptTierFilter = args["prompt-tier"] as PromptTier | undefined;
 const claudeMd = args["claude-md"] as ClaudeMdMode;
 const VALID_CLAUDE_MD: ClaudeMdMode[] = ["shared", "empty", "none"];
+const schemaMode = args["schema-mode"] as SchemaPolicyMode;
+const VALID_SCHEMA_MODES: SchemaPolicyMode[] = ["strict", "compat"];
 
 // Validate --claude-md
 if (!VALID_CLAUDE_MD.includes(claudeMd)) {
   console.error(`Invalid --claude-md "${claudeMd}". Valid: ${VALID_CLAUDE_MD.join(", ")}`);
+  process.exit(1);
+}
+
+if (!VALID_SCHEMA_MODES.includes(schemaMode)) {
+  console.error(`Invalid --schema-mode "${schemaMode}". Valid: ${VALID_SCHEMA_MODES.join(", ")}`);
   process.exit(1);
 }
 
@@ -137,6 +145,7 @@ if (args["dry-run"]) {
   console.error("By difficulty tier:", JSON.stringify(byTier));
   console.error("By prompt tier:", JSON.stringify(byPromptTier));
   console.error(`Mode: ${mode}`);
+  console.error(`Schema mode: ${schemaMode}`);
   console.error(`CLAUDE.md: ${claudeMd}`);
   console.error(`Strip skills: ${stripSkills}`);
   if (promptTierFilter) console.error(`Prompt tier filter: ${promptTierFilter}`);
@@ -173,6 +182,23 @@ function getPromptTiersForScenario(scenario: Scenario): PromptTier[] {
 
 // Run trials
 const resultsPath = path.join(EVAL_ROOT, "results", "results.jsonl");
+
+// Strict mode fail-fast before expensive trial execution.
+if (schemaMode === "strict" && fs.existsSync(resultsPath)) {
+  try {
+    readResults(resultsPath, { schemaMode });
+  } catch (err) {
+    if (err instanceof ResultSchemaError) {
+      console.error(err.message);
+      for (const line of formatDiagnosticsSummary(err.diagnostics)) {
+        console.error(line);
+      }
+      process.exit(1);
+    }
+    throw err;
+  }
+}
+
 let totalTrials = 0;
 for (const s of scenarios) {
   totalTrials += getPromptTiersForScenario(s).length * agents.length * reps;
@@ -294,12 +320,31 @@ for (const scenario of scenarios) {
 }
 
 // Report
-const allResults = readResults(resultsPath);
-if (allResults.length > 0) {
+let loadedResults;
+try {
+  loadedResults = readResults(resultsPath, { schemaMode });
+} catch (err) {
+  if (err instanceof ResultSchemaError) {
+    console.error(err.message);
+    for (const line of formatDiagnosticsSummary(err.diagnostics)) {
+      console.error(line);
+    }
+    process.exit(1);
+  }
+  throw err;
+}
+
+if (schemaMode === "compat") {
+  for (const line of formatDiagnosticsSummary(loadedResults.diagnostics)) {
+    console.error(line);
+  }
+}
+
+if (loadedResults.results.length > 0) {
   if (args["metrics-only"]) {
-    console.log(generateMetricsOnly(allResults));
+    console.log(generateMetricsOnly(loadedResults.results));
   } else {
-    console.error(generateReport(allResults));
-    console.log(generateMetricsOnly(allResults));
+    console.error(generateReport(loadedResults.results));
+    console.log(generateMetricsOnly(loadedResults.results));
   }
 }
