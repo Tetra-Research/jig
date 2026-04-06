@@ -1,8 +1,8 @@
 # ROADMAP.md
 
-Full delivery plan for jig, bridging the product spec (`jig.md`) to workstream execution. Every feature in the spec is accounted for here — either assigned to a milestone, explicitly deferred, or marked as cross-cutting infrastructure.
+Full delivery plan for jig, bridging the product spec (`PRD.md`) to workstream execution. Every feature in the spec is accounted for here — either assigned to a milestone, explicitly deferred, or marked as cross-cutting infrastructure.
 
-Last updated: 2026-04-05
+Last updated: 2026-04-06
 
 ## Current State
 
@@ -11,10 +11,10 @@ Last updated: 2026-04-05
 | v0.1 core-engine | **Done** | 191 | PLAN, SPEC, SHARED-CONTEXT, NARRATIVE |
 | v0.2 replace-patch | **Done** | 308 total | PLAN, SPEC, SHARED-CONTEXT, NARRATIVE |
 | v0.3 workflows | **Done** | 343 total | PLAN, SPEC, SHARED-CONTEXT, NARRATIVE |
-| v0.4 libraries | **Partial** | 386 total | SHARED-CONTEXT, NARRATIVE |
-| v0.5–v1.0 | Described in jig.md | — | Nothing beyond one-line mentions in ARCHITECTURE.md |
+| v0.4 libraries | **Done (core)** | 408 total | SHARED-CONTEXT, NARRATIVE |
+| v0.5–v1.0 | Described in PRD.md | — | Nothing beyond one-line mentions in ARCHITECTURE.md |
 
-v0.4 delivered library management infrastructure (install/remove/list/inspect) but not execution integration (`jig run django/model/add-field` doesn't work yet). See libraries SHARED-CONTEXT.md for the full gap analysis and remaining work.
+v0.4 delivered library management and execution integration (`jig run django/model/add-field` path is covered by integration tests). Remaining v0.4+ bullets below are roadmap follow-ons, not blockers for current distribution readiness.
 
 ---
 
@@ -47,7 +47,7 @@ The engine track is sequential — each milestone builds on the previous. The ag
 
 **Workstream docs:** Complete (PLAN, SPEC, SHARED-CONTEXT, NARRATIVE)
 **Depends on:** v0.2 (done)
-**jig.md reference:** lines 1223–1253, roadmap line 1920
+**PRD.md reference:** lines 1223–1253, roadmap line 1920
 
 Multi-recipe orchestration. Chain recipes into a single `jig workflow` invocation with conditional steps (`when`), variable mapping (`vars_map`, `vars`), and error handling modes (`stop`, `continue`, `report`).
 
@@ -75,7 +75,7 @@ Multi-recipe orchestration. Chain recipes into a single `jig workflow` invocatio
 
 **Workstream docs:** Archived on branch `archive/workstreams-artifacts-2026-04-06` (draft PR #8)
 **Depends on:** v0.3 (workflows reference library recipes)
-**jig.md reference:** lines 1059–1376, roadmap line 1929
+**PRD.md reference:** lines 1059–1376, roadmap line 1929
 
 Libraries are versioned recipe collections for a framework. This is where framework opinions live — jig itself stays agnostic.
 
@@ -115,11 +115,11 @@ Libraries are versioned recipe collections for a framework. This is where framew
 
 **Workstream docs:** [docs/DISTRIBUTION-MANUAL-RELEASE-PLAN-2026-04-06.md](docs/DISTRIBUTION-MANUAL-RELEASE-PLAN-2026-04-06.md), [docs/RELEASE-MANUAL.md](docs/RELEASE-MANUAL.md)
 **Depends on:** v0.4 (distribution should include library install capability)
-**jig.md reference:** lines 806–950, roadmap line 1937
+**PRD.md reference:** lines 806–950, roadmap line 1937
 
 Package and ship jig so others can install it.
 
-**Scope (from jig.md):**
+**Scope (from PRD.md):**
 
 | Channel | Mechanism |
 |---------|-----------|
@@ -154,11 +154,11 @@ Package and ship jig so others can install it.
 
 **Workstream docs:** None (needs PLAN + SPEC)
 **Depends on:** v0.4 (libraries), MCP server (agent track)
-**jig.md reference:** lines 650–730, 1307–1376, roadmap line 1946
+**PRD.md reference:** lines 650–730, 1307–1376, roadmap line 1946
 
 The deepest integration: jig as a Claude Code plugin bundling MCP tools, skills, and hooks.
 
-**Scope (from jig.md):**
+**Scope (from PRD.md):**
 
 *jig plugin itself:*
 - `.claude-plugin/plugin.json` manifest
@@ -171,7 +171,7 @@ The deepest integration: jig as a Claude Code plugin bundling MCP tools, skills,
 - Claude Code skills wrapping each workflow: read code → extract variables → call jig
 - Dual-publish: installable as `jig library add` AND as a Claude Code plugin
 
-*Skill structure (from jig.md):*
+*Skill structure (from PRD.md):*
 ```
 jig-django/
   jig-library.yaml              # library manifest
@@ -198,11 +198,11 @@ jig-django/
 
 **Workstream docs:** None (needs PLAN + SPEC)
 **Depends on:** v0.4 (needs library recipes to scan/check against)
-**jig.md reference:** lines 1435–1720, roadmap line 1961
+**PRD.md reference:** lines 1435–1720, roadmap line 1961
 
 Reverse operations that close the loop: instead of variables → files, go files → variables (scan) and files → conformance report (check).
 
-**Scope (from jig.md):**
+**Scope (from PRD.md):**
 
 *`jig scan`:*
 - Reverse a recipe: given an existing file, extract the variables that would have produced it
@@ -232,11 +232,11 @@ Reverse operations that close the loop: instead of variables → files, go files
 
 **Workstream docs:** None (needs PLAN + SPEC)
 **Depends on:** v0.7 (scan provides the foundation for pattern recognition)
-**jig.md reference:** lines 1526–1625, roadmap line 1968
+**PRD.md reference:** lines 1526–1625, roadmap line 1968
 
 Learn recipes from examples instead of writing them by hand.
 
-**Scope (from jig.md):**
+**Scope (from PRD.md):**
 - `jig infer --before <file> --after <file>` — learn from a single before/after pair
 - `jig infer --example <file>:before,after` (multiple) — variable detection improves with more examples
 - `jig infer --from-git --pattern "Add * field to *"` — learn from commit history
@@ -252,11 +252,11 @@ Learn recipes from examples instead of writing them by hand.
 
 **Workstream docs:** None (needs PLAN + SPEC)
 **Depends on:** v0.4 (libraries), v0.3 (workflows)
-**jig.md reference:** lines 1722–1851, roadmap line 1975
+**PRD.md reference:** lines 1722–1851, roadmap line 1975
 
 Cross the framework boundary. A single command touches Django backend + Vue frontend.
 
-**Scope (from jig.md):**
+**Scope (from PRD.md):**
 - Cross-library workflows: steps reference different libraries (`library: django`, `library: vue`)
 - `jig from-schema openapi|sql|proto|graphql` command: derive variables from schema definitions
 - Type mapping definitions in library manifests (`openapi_to_django`, `openapi_to_typescript`)
@@ -268,7 +268,7 @@ Cross the framework boundary. A single command touches Django backend + Vue fron
 
 **Workstream docs:** None
 **Depends on:** All previous milestones at a quality bar
-**jig.md reference:** roadmap line 1981
+**PRD.md reference:** roadmap line 1981
 
 Semver stability guarantees on:
 - Recipe YAML format
@@ -289,7 +289,7 @@ These are not milestones in the engine sense — they're infrastructure that dev
 
 **Workstream docs:** None (needs PLAN)
 **Can start after:** v0.2 (core engine exists), but full value requires v0.4 (libraries)
-**jig.md reference:** lines 2042–2243
+**PRD.md reference:** lines 2042–2243
 
 A thin stdio wrapper (~100-200 lines) that exposes jig commands as typed MCP tools. Agents get automatic tool discovery instead of parsing `--help`.
 
@@ -302,7 +302,7 @@ jig-mcp-server
 jig CLI binary
 ```
 
-**6 tools defined in jig.md:**
+**6 tools defined in PRD.md:**
 
 | MCP Tool | Maps to CLI |
 |----------|------------|
@@ -313,7 +313,7 @@ jig CLI binary
 | `jig_workflow` | `jig workflow <workflow> --vars '<json>' --json` |
 | `jig_library_recipes` | `jig library recipes <library> --json` |
 
-**Implementation options (from jig.md):**
+**Implementation options (from PRD.md):**
 1. TypeScript via `@modelcontextprotocol/sdk` (~100 lines, distributed via npm as `npx @jig/mcp-server`) — most pragmatic
 2. Rust binary alongside jig (~200 lines) — shares release pipeline
 3. Python via `mcp` SDK — minimal code
@@ -323,7 +323,7 @@ jig CLI binary
 - Phase 2 (after v0.4): add `jig_library_recipes` — agents can discover library recipes
 - Phase 3 (after v0.7): add `jig_scan`, `jig_check` — full tool surface
 
-**Per-tool config (from jig.md):**
+**Per-tool config (from PRD.md):**
 - Claude Code: `.mcp.json` or `~/.claude/settings.json`
 - Codex: `~/.codex/config.toml`
 - Cursor: `.cursor/mcp.json`
@@ -340,7 +340,7 @@ jig CLI binary
 
 **Workstream docs:** None (trivial — just a markdown snippet)
 **Can start after:** v0.3 (when `jig workflow` exists)
-**jig.md reference:** lines 2244–2278
+**PRD.md reference:** lines 2244–2278
 
 A CLAUDE.md / AGENTS.md / .cursorrules snippet telling agents about available jig commands:
 
@@ -366,7 +366,7 @@ This costs nothing, works immediately with 6/11 agentic tools, and doesn't need 
 
 **Workstream docs:** None (needs PLAN + SPEC — this is substantial infrastructure)
 **Can start after:** v0.3 (needs workflows for meaningful scenarios), full value at v0.4+ (needs libraries)
-**jig.md reference:** lines 2315–2904 (590 lines — the most detailed section in the spec)
+**PRD.md reference:** lines 2315–2904 (590 lines — the most detailed section in the spec)
 
 The eval system measures whether agents can actually *use* jig. It's the scientific method applied to CLI ergonomics.
 
@@ -378,7 +378,7 @@ The eval system measures whether agents can actually *use* jig. It's the scienti
 - Do agents know when to fall back to manual editing?
 - How does success vary across agent models?
 
-**Architecture (from jig.md):**
+**Architecture (from PRD.md):**
 ```
 eval/
   scenarios/          # fixture codebases + prompts + assertions
@@ -424,7 +424,7 @@ eval/
 
 ### Observation Engine (post-1.0)
 
-**jig.md reference:** lines 1852–1897
+**PRD.md reference:** lines 1852–1897
 
 A Claude Code hook that logs edit patterns across sessions and proposes recipes from repeated behavior. `/jig:discover` analyzes the log and suggests what to automate.
 
@@ -438,7 +438,7 @@ These don't belong to a single milestone but span multiple:
 
 ### `.jigrc.yaml` Configuration
 
-**jig.md reference:** lines 1023–1055
+**PRD.md reference:** lines 1023–1055
 
 Project-wide defaults: `base_dir`, `vars_file`, custom shell filters. Convention overrides for libraries land in the same file.
 
@@ -450,7 +450,7 @@ Project-wide defaults: `base_dir`, `vars_file`, custom shell filters. Convention
 
 ### `includes` → Workflows Migration
 
-**jig.md reference:** lines 1246–1252
+**PRD.md reference:** lines 1246–1252
 
 The spec explicitly states that the `includes` concept from the patches section is "subsumed by workflows" and removed. Workflows are the composition primitive. No `includes` support should be built.
 
@@ -511,9 +511,9 @@ Key dependencies:
 
 ## Post-1.0 Features (Captured, Not Planned)
 
-From jig.md, for completeness. None of these have workstream docs or timeline commitments:
+From PRD.md, for completeness. None of these have workstream docs or timeline commitments:
 
-| Feature | jig.md ref | Notes |
+| Feature | PRD.md ref | Notes |
 |---------|-----------|-------|
 | Observation engine | lines 1852–1897 | Claude Code hook + `/jig:discover` skill |
 | Recipe hooks (`pre_run`, `post_run`) | line 1991 | Run formatters/linters on generated files |

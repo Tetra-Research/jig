@@ -780,9 +780,11 @@ generate_spec_population_prompt() {
     local prompt="You are populating the SPEC.md, PLAN.md, SHARED-CONTEXT.md, and NARRATIVE.md for workstream '$ws_name'.\n\n"
     prompt+="These files currently contain templates. Your job is to fill them with real content derived from the project specification and existing codebase.\n\n"
 
-    # Load the project spec (jig.md or similar)
-    if [[ -f "$repo_root/jig.md" ]]; then
-        prompt+="## Project Specification\n\n$(cat "$repo_root/jig.md")\n\n"
+    # Load the project spec (PRD.md preferred, legacy jig.md fallback)
+    if [[ -f "$repo_root/PRD.md" ]]; then
+        prompt+="## Project Specification\n\n$(cat \"$repo_root/PRD.md\")\n\n"
+    elif [[ -f "$repo_root/jig.md" ]]; then
+        prompt+="## Project Specification\n\n$(cat \"$repo_root/jig.md\")\n\n"
     fi
 
     # Load project-level context

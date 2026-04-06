@@ -4,6 +4,7 @@ Spec-driven development workflow with dual-agent planning and iterative executio
 
 ## Key Documents
 
+- [PRD.md](PRD.md) - Product requirements document
 - [docs/INVARIANTS.md](docs/INVARIANTS.md) - Project-wide constraints
 - [docs/ARCHITECTURE.md](docs/ARCHITECTURE.md) - System architecture
 - [docs/development/](docs/development/) - Methodology and philosophy
