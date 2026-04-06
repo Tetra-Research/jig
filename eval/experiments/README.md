@@ -37,6 +37,19 @@ Each entry in `experiments.jsonl` captures:
 |----|------|-------------|--------|------------|------|
 | (entries added as experiments run) |
 
+## Findings
+
+### Discovery tax is a prompting problem, not a utility problem (2026-04-06)
+
+The L2→L3 gap (0.890 vs 0.935) is almost entirely explained by whether the agent connects its task to jig, not by whether jig is useful once invoked. Evidence:
+
+- **When agents find jig, they use it correctly.** L2 jig usage is 67% and rising. When jig is used, scores match L3.
+- **scaffold-test is the clearest signal.** L0: 0.00, L1: 0.25, L2: 0.50, L3: 1.00. The `create-test` recipe works perfectly — the variable is whether the agent thinks to look for it given a natural prompt like "create a test file."
+- **Strengthening the CLAUDE.md nudge moved L2 from 0.844 → 0.890** without changing any recipes or agent behavior. The discover skill description listing concrete tasks ("scaffold a test, add an endpoint") improved triggering.
+- **Input token cost at L2 (243K) exceeds L3 (216K)** — the agent still explores before finding the right recipe. L3 skips exploration because the prompt names the skill directly.
+
+**Implication for the blog post:** jig's value proposition (deterministic, assertion-verifiable output) holds across all levels. The remaining gap is a skill-discovery UX problem — how quickly the agent maps a natural-language task to the right recipe. Better skill descriptions and CLAUDE.md framing close most of it; the last ~5% requires explicit prompting.
+
 ## Methodology
 
 1. **Smoke tests first**: Single scenario, single agent, 1 rep to verify harness
