@@ -36,6 +36,13 @@ export async function createSandbox(
     if (fs.existsSync(sharedClaudeMd) && !fs.existsSync(existingClaudeMd)) {
       fs.copyFileSync(sharedClaudeMd, existingClaudeMd);
     }
+    // Copy shared skills into .claude/skills/ (e.g., discover skill)
+    const sharedSkillsDir = path.join(sharedDir, "skills");
+    if (fs.existsSync(sharedSkillsDir)) {
+      const targetSkillsDir = path.join(tmpDir, ".claude", "skills");
+      fs.mkdirSync(targetSkillsDir, { recursive: true });
+      copyDirRecursive(sharedSkillsDir, targetSkillsDir);
+    }
   } else if (claudeMd === "empty") {
     // Write an empty CLAUDE.md (overwrite if codebase had one)
     fs.writeFileSync(existingClaudeMd, "# CLAUDE.md\n");
