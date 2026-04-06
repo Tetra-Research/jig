@@ -37,18 +37,94 @@ Each entry in `experiments.jsonl` captures:
 |----|------|-------------|--------|------------|------|
 | (entries added as experiments run) |
 
-## Findings
+## Blog Reference: Current Takeaways (as of 2026-04-06)
 
-### Discovery tax is a prompting problem, not a utility problem (2026-04-06)
+This section is the canonical summary to quote in external writing.
 
-The L2→L3 gap (0.890 vs 0.935) is almost entirely explained by whether the agent connects its task to jig, not by whether jig is useful once invoked. Evidence:
+Data used for this snapshot:
 
-- **When agents find jig, they use it correctly.** L2 jig usage is 67% and rising. When jig is used, scores match L3.
-- **scaffold-test is the clearest signal.** L0: 0.00, L1: 0.25, L2: 0.50, L3: 1.00. The `create-test` recipe works perfectly — the variable is whether the agent thinks to look for it given a natural prompt like "create a test file."
-- **Strengthening the CLAUDE.md nudge moved L2 from 0.844 → 0.890** without changing any recipes or agent behavior. The discover skill description listing concrete tasks ("scaffold a test, add an endpoint") improved triggering.
-- **Input token cost at L2 (243K) exceeds L3 (216K)** — the agent still explores before finding the right recipe. L3 skips exploration because the prompt names the skill directly.
+- `eval/experiments/experiments.jsonl` (`exp-001` to `exp-004`)
+- `eval/results/results-core.jsonl` (50 trials; `2026-04-06T16:44:24.645Z` to `2026-04-06T17:06:52.019Z`)
+- `eval/results/archive/results-smoke-tests.jsonl` (3 trials)
 
-**Implication for the blog post:** jig's value proposition (deterministic, assertion-verifiable output) holds across all levels. The remaining gap is a skill-discovery UX problem — how quickly the agent maps a natural-language task to the right recipe. Better skill descriptions and CLAUDE.md framing close most of it; the last ~5% requires explicit prompting.
+### Headline
+
+jig performs best when the model can map a request to a specific skill quickly. When that mapping is explicit (directed prompt), we see higher scores, more consistent jig usage, and lower output/cost in several scenarios. The largest remaining gap is discovery under vague prompts.
+
+### Where jig is doing well
+
+From `results-core.jsonl`:
+
+- Directed prompts: `n=13`, mean score `0.923`, jig usage `92.3%` (`12/13` perfect runs).
+- Natural prompts: `n=37`, mean score `0.725`, jig usage `21.6%`.
+- Directed + jig used: `n=12`, mean score `1.000`.
+
+Scenario breakdown (latest core set):
+
+| Scenario | Directed Mean | Natural Mean | Interpretation |
+|---|---:|---:|---|
+| `add-endpoint` | 1.000 | 0.852 | Strong fit for explicit skill + short workflow. |
+| `add-field` | 1.000 | 0.933 | Quality is high in both modes; directed is more reliable. |
+| `add-view` | 0.750 | 0.875 | One directed outlier (`0.0`) pulled mean down; other directed reps passed. |
+| `scaffold-test` | 1.000 | 0.222 | Biggest discovery gap: explicit skill works, vague prompt often misses. |
+
+### Discovery is still the bottleneck
+
+From `results-core.jsonl` natural trials:
+
+- When jig was discovered: `n=8`, mean score `1.000`.
+- When jig was not discovered: `n=29`, mean score `0.649`.
+
+This supports a clear thesis: once the model chooses jig, task execution is usually strong; the failure mode is finding the right skill under vague prompts.
+
+Gradient-style levels in the same core set:
+
+| Level | Setup | Trials | Mean Score | Jig Used | Mean Tokens | Mean Cost | Mean Duration |
+|---|---|---:|---:|---:|---:|---:|---:|
+| L2 | skills + shared `CLAUDE.md` + natural prompt | 12 | 0.800 | 66.7% | 272,939 | $0.735 | 69.7s |
+| L3 | skills + shared `CLAUDE.md` + directed prompt | 13 | 0.923 | 92.3% | 212,840 | $0.580 | 51.0s |
+
+L3 vs L2 deltas:
+
+- Score: `+0.123`
+- Jig usage: `+25.6` percentage points
+- Total tokens: `-22.0%`
+- Output tokens: `-36.2%`
+- Cost: `-21.2%`
+- Duration: `-26.9%`
+
+### Where we already see token/cost savings
+
+Smoke comparison (`add-view`, natural prompt, shared `CLAUDE.md`):
+
+- Baseline: `317,608` tokens, `$0.83`, `84.0s`, score `1.0`
+- Jig: `241,702` tokens, `$0.65`, `66.2s`, score `1.0`
+
+Savings in this smoke case:
+
+- Tokens: `23.9%` lower
+- Cost: `21.4%` lower
+- Duration: `21.3%` faster
+
+Important caveat:
+
+- In a no-nudge control (`--mode baseline --claude-md none`) on the same easy scenario, the agent did not use jig and was faster/cheaper (`162,530` tokens, `$0.47`, `50.0s`). This is expected for single easy edits. The value signal for jig appears on consistency and correctness over harder/multi-file workflows, not on every trivial case.
+- The full baseline control experiment (`exp-004`) scored `0.730` across 7 trials with `0%` jig usage, and failed `scaffold-test` plus `inject-import`. That is the quality floor we are trying to raise with better discovery and directed skill use.
+
+### Use cases to extrapolate for blog framing
+
+- Brownfield multi-file extensions with known templates (`add-endpoint`, `add-field`) are already strong when skill selection is explicit.
+- Greenfield scaffolding (`scaffold-test`) is high upside for jig, but today it is discovery-sensitive under natural language prompts.
+- The biggest performance unlock is reducing discovery overhead (prompting + skill descriptions + `CLAUDE.md` nudges), not changing jig's core file mutation mechanics.
+
+### How the eval harness works (what these numbers actually measure)
+
+- Each scenario packages a fixture codebase, expected file outputs, weighted assertions, and negative assertions.
+- Per trial, the harness creates an isolated temp sandbox, copies the scenario codebase, optionally strips skills (`--strip-skills`), and configures `CLAUDE.md` mode (`shared|empty|none`).
+- `jig` mode leaves prompt references intact; `baseline` mode strips jig-specific prompt text and adds a "do not use jig" baseline context.
+- Agents are invoked via CLI config in `agents.yaml`; no internal instrumentation hooks are used.
+- Scoring combines weighted assertion pass rate and negative assertions (`total = assertion_score * negative_score`), plus secondary file similarity, jig usage/correctness, tool-call and token/cost efficiency metrics.
+- Results are appended as JSONL rows; strict/compat schema modes protect analysis quality when reading mixed historical archives.
 
 ## Methodology
 
