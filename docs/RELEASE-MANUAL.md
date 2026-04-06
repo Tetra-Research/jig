@@ -31,7 +31,7 @@ Record completion in release notes or an internal checklist before publishing.
 
 ## Key Setup and Custody
 
-Current repo state includes a bootstrap public key. Rotate it before the first public release you announce externally.
+If this repo is ever initialized with a bootstrap key, rotate it before the first public release you announce externally.
 
 1. Generate signing keypair (one-time, maintainer machine):
 
