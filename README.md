@@ -118,14 +118,30 @@ This keeps automation close to the workflow context instead of forcing one centr
 
 Eval harness lives in `eval/` and writes JSONL results.
 
-Current snapshot (from `eval/experiments/README.md`, dated 2026-04-06):
+Scoring mechanism (primary metric):
 
-- Directed prompts: mean score `0.923`, jig usage `92.3%` (`n=13`).
-- Natural prompts: mean score `0.725`, jig usage `21.6%` (`n=37`).
-- In natural prompts, discovered-jig trials score `1.000` vs `0.649` when jig was not discovered.
-- Smoke comparison (`add-view`, natural): jig run used `23.9%` fewer tokens, `21.4%` lower cost, and `21.3%` lower duration at equal score (`1.0`).
+- `assertion_score = passed_weight / total_weight`
+- `negative_score = 1.0` if all negative assertions pass, else `0.0`
+- `total = assertion_score * negative_score`
 
-Interpretation: execution quality is strong after skill selection; discovery under vague prompts is the current bottleneck.
+Secondary diagnostics:
+
+- `file_score` (structural similarity), `jig_used`, and `jig_correct` are tracked per trial.
+
+Efficiency accounting:
+
+- `tokens_used = input_tokens + output_tokens + cache_creation_input_tokens + cache_read_input_tokens`
+- `cost_usd` and `duration_ms` are recorded per trial.
+
+Control-group snapshot (from `eval/experiments/README.md`, dated 2026-04-06):
+
+- Matched control comparison (`add-view`, natural, shared `CLAUDE.md`, `n=1` per arm):
+  - Baseline control: score `1.0`, tokens `317,608`, cost `$0.8279`, duration `84.0s`
+  - Jig treatment: score `1.0`, tokens `241,702`, cost `$0.6505`, duration `66.2s`
+  - Delta vs control: tokens `-23.9%`, cost `-21.4%`, duration `-21.3%`
+- Strict no-jig control (`add-view`, natural, `--mode baseline --claude-md none`, `n=1`): score `1.0`, jig usage `0%`, tokens `162,530`, cost `$0.4746`, duration `50.0s`.
+- Full control sweep (`exp-004`, baseline-only, 7 scenarios, `n=7`): mean score `0.730`, jig usage `0%`, mean duration `37.4s`, mean cost `$0.36`.
+- Note: current control archive rows are legacy shape and expose total tokens (not split input/output/cache token fields).
 
 Readiness/CI-safe mode (default strict schema checks):
 
@@ -153,7 +169,7 @@ npx tsx experiments/split-results-by-schema.ts \
 ```
 
 More detail: [`eval/experiments/README.md`](eval/experiments/README.md).
-Blog-post reference synthesis: [`eval/experiments/README.md#blog-reference-current-takeaways-as-of-2026-04-06`](eval/experiments/README.md#blog-reference-current-takeaways-as-of-2026-04-06).
+Control-group reference synthesis: [`eval/experiments/README.md#control-group-reference-current-takeaways-as-of-2026-04-06`](eval/experiments/README.md#control-group-reference-current-takeaways-as-of-2026-04-06).
 
 ## Docs Map
 

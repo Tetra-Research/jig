@@ -37,94 +37,88 @@ Each entry in `experiments.jsonl` captures:
 |----|------|-------------|--------|------------|------|
 | (entries added as experiments run) |
 
-## Blog Reference: Current Takeaways (as of 2026-04-06)
+## Scoring Mechanism (Exact)
 
-This section is the canonical summary to quote in external writing.
+The harness computes trial scores with explicit formulas from `eval/harness/score.ts`:
+
+- `assertion_score = sum(weights of passed assertions) / sum(all assertion weights)`
+- `negative_score = 1.0` if all negative assertions pass, else `0.0`
+- `total = assertion_score * negative_score` (primary metric)
+
+Secondary diagnostics are recorded but not multiplied into `total`:
+
+- `file_score` (structural similarity signal)
+- `jig_used` (at least one `jig` invocation found)
+- `jig_correct` (valid JSON `--vars` when present, and invocation count within `max_jig_commands`)
+
+Efficiency accounting is explicit and parseable:
+
+- `tokens_used = input_tokens + output_tokens + cache_creation_input_tokens + cache_read_input_tokens`
+- `cost_usd` is recorded per trial from agent output
+- Efficiency means are only computed on rows with full coverage (no zero-filling)
+
+## Control-Group Reference: Current Takeaways (as of 2026-04-06)
+
+This section intentionally reports only metrics anchored to a baseline control group.
 
 Data used for this snapshot:
 
 - `eval/experiments/experiments.jsonl` (`exp-001` to `exp-004`)
-- `eval/results/results-core.jsonl` (50 trials; `2026-04-06T16:44:24.645Z` to `2026-04-06T17:06:52.019Z`)
-- `eval/results/archive/results-smoke-tests.jsonl` (3 trials)
+- `eval/results/archive/results-smoke-tests.jsonl` (3 control/treatment smoke rows)
 
-### Headline
+### Matched Control Comparison (Same Scenario / Prompt)
 
-jig performs best when the model can map a request to a specific skill quickly. When that mapping is explicit (directed prompt), we see higher scores, more consistent jig usage, and lower output/cost in several scenarios. The largest remaining gap is discovery under vague prompts.
+`add-view`, natural prompt, shared `CLAUDE.md`, 1 trial per arm:
 
-### Where jig is doing well
+| Arm | Mean Score | Tokens | Cost | Duration |
+|---|---:|---:|---:|---:|
+| Baseline control (`--mode baseline`) | 1.000 | 317,608 | $0.8279 | 84.0s |
+| Jig treatment (`--mode jig`) | 1.000 | 241,702 | $0.6505 | 66.2s |
 
-From `results-core.jsonl`:
+Treatment delta vs control:
 
-- Directed prompts: `n=13`, mean score `0.923`, jig usage `92.3%` (`12/13` perfect runs).
-- Natural prompts: `n=37`, mean score `0.725`, jig usage `21.6%`.
-- Directed + jig used: `n=12`, mean score `1.000`.
+- Tokens: `-23.9%`
+- Cost: `-21.4%`
+- Duration: `-21.3%`
 
-Scenario breakdown (latest core set):
+### Strict No-Jig Control
 
-| Scenario | Directed Mean | Natural Mean | Interpretation |
-|---|---:|---:|---|
-| `add-endpoint` | 1.000 | 0.852 | Strong fit for explicit skill + short workflow. |
-| `add-field` | 1.000 | 0.933 | Quality is high in both modes; directed is more reliable. |
-| `add-view` | 0.750 | 0.875 | One directed outlier (`0.0`) pulled mean down; other directed reps passed. |
-| `scaffold-test` | 1.000 | 0.222 | Biggest discovery gap: explicit skill works, vague prompt often misses. |
+`add-view`, natural prompt, `--mode baseline --claude-md none`, 1 trial:
 
-### Discovery is still the bottleneck
+- Score: `1.000`
+- Jig usage: `0%`
+- Tokens: `162,530`
+- Cost: `$0.4746`
+- Duration: `50.0s`
 
-From `results-core.jsonl` natural trials:
+This is the clean "agent hand-edits without jig nudges" control.
 
-- When jig was discovered: `n=8`, mean score `1.000`.
-- When jig was not discovered: `n=29`, mean score `0.649`.
+### Full Baseline Control Sweep
 
-This supports a clear thesis: once the model chooses jig, task execution is usually strong; the failure mode is finding the right skill under vague prompts.
+`exp-004` (`--mode baseline --claude-md none`, all 7 scenarios, 1 rep each):
 
-Gradient-style levels in the same core set:
+- Trials: `7`
+- Mean score: `0.730`
+- Jig usage: `0%`
+- Mean duration: `37.4s`
+- Mean cost: `$0.36`
+- Total cost: `$2.51`
 
-| Level | Setup | Trials | Mean Score | Jig Used | Mean Tokens | Mean Cost | Mean Duration |
-|---|---|---:|---:|---:|---:|---:|---:|
-| L2 | skills + shared `CLAUDE.md` + natural prompt | 12 | 0.800 | 66.7% | 272,939 | $0.735 | 69.7s |
-| L3 | skills + shared `CLAUDE.md` + directed prompt | 13 | 0.923 | 92.3% | 212,840 | $0.580 | 51.0s |
+### Control-Only Interpretation
 
-L3 vs L2 deltas:
+- We can claim concrete token/cost/duration savings from the matched smoke control above.
+- We can claim a baseline quality floor (`0.730`) from the 7-scenario no-jig control sweep.
+- We should not quote broad input/output-token savings against control until we run a matched full-matrix baseline archive with current (`v2`) token fields.
 
-- Score: `+0.123`
-- Jig usage: `+25.6` percentage points
-- Total tokens: `-22.0%`
-- Output tokens: `-36.2%`
-- Cost: `-21.2%`
-- Duration: `-26.9%`
+### How Control Deltas Are Computed
 
-### Where we already see token/cost savings
+For any metric `m` where lower is better (tokens, cost, duration):
 
-Smoke comparison (`add-view`, natural prompt, shared `CLAUDE.md`):
+- `delta_pct = (1 - treatment_m / control_m) * 100`
 
-- Baseline: `317,608` tokens, `$0.83`, `84.0s`, score `1.0`
-- Jig: `241,702` tokens, `$0.65`, `66.2s`, score `1.0`
+Scores are still computed with the primary harness metric:
 
-Savings in this smoke case:
-
-- Tokens: `23.9%` lower
-- Cost: `21.4%` lower
-- Duration: `21.3%` faster
-
-Important caveat:
-
-- In a no-nudge control (`--mode baseline --claude-md none`) on the same easy scenario, the agent did not use jig and was faster/cheaper (`162,530` tokens, `$0.47`, `50.0s`). This is expected for single easy edits. The value signal for jig appears on consistency and correctness over harder/multi-file workflows, not on every trivial case.
-- The full baseline control experiment (`exp-004`) scored `0.730` across 7 trials with `0%` jig usage, and failed `scaffold-test` plus `inject-import`. That is the quality floor we are trying to raise with better discovery and directed skill use.
-
-### Use cases to extrapolate for blog framing
-
-- Brownfield multi-file extensions with known templates (`add-endpoint`, `add-field`) are already strong when skill selection is explicit.
-- Greenfield scaffolding (`scaffold-test`) is high upside for jig, but today it is discovery-sensitive under natural language prompts.
-- The biggest performance unlock is reducing discovery overhead (prompting + skill descriptions + `CLAUDE.md` nudges), not changing jig's core file mutation mechanics.
-
-### How the eval harness works (what these numbers actually measure)
-
-- Each scenario packages a fixture codebase, expected file outputs, weighted assertions, and negative assertions.
-- Per trial, the harness creates an isolated temp sandbox, copies the scenario codebase, optionally strips skills (`--strip-skills`), and configures `CLAUDE.md` mode (`shared|empty|none`).
-- `jig` mode leaves prompt references intact; `baseline` mode strips jig-specific prompt text and adds a "do not use jig" baseline context.
-- Agents are invoked via CLI config in `agents.yaml`; no internal instrumentation hooks are used.
-- Scoring combines weighted assertion pass rate and negative assertions (`total = assertion_score * negative_score`), plus secondary file similarity, jig usage/correctness, tool-call and token/cost efficiency metrics.
-- Results are appended as JSONL rows; strict/compat schema modes protect analysis quality when reading mixed historical archives.
+- `total = assertion_score * negative_score`
 
 ## Methodology
 
