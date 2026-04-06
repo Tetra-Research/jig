@@ -1,4 +1,4 @@
-import type { TrialResult, AggregateScores } from "./types.ts";
+import type { TrialResult, AggregateScores, EfficiencyCoverage } from "./types.ts";
 
 export function aggregate(results: TrialResult[]): AggregateScores {
   if (results.length === 0) {
@@ -10,6 +10,9 @@ export function aggregate(results: TrialResult[]): AggregateScores {
       by_prompt_tier: {},
       by_category: {},
       weakest_scenarios: [],
+      efficiency_coverage_all: { covered: 0, total: 0 },
+      efficiency_coverage_jig: { covered: 0, total: 0 },
+      efficiency_coverage_baseline: { covered: 0, total: 0 },
     };
   }
 
@@ -60,15 +63,38 @@ export function aggregate(results: TrialResult[]): AggregateScores {
   const mean_duration_jig = jigTrials.length > 0 ? mean(jigTrials.map((r) => r.duration_ms)) : undefined;
   const mean_duration_baseline = baselineTrials.length > 0 ? mean(baselineTrials.map((r) => r.duration_ms)) : undefined;
 
-  // Token/cost stats
-  const mean_tokens_jig = jigTrials.length > 0 ? mean(jigTrials.map((r) => r.tokens_used ?? 0)) : undefined;
-  const mean_tokens_baseline = baselineTrials.length > 0 ? mean(baselineTrials.map((r) => r.tokens_used ?? 0)) : undefined;
-  const mean_input_tokens_jig = jigTrials.length > 0 ? mean(jigTrials.map((r) => r.input_tokens ?? 0)) : undefined;
-  const mean_input_tokens_baseline = baselineTrials.length > 0 ? mean(baselineTrials.map((r) => r.input_tokens ?? 0)) : undefined;
-  const mean_output_tokens_jig = jigTrials.length > 0 ? mean(jigTrials.map((r) => r.output_tokens ?? 0)) : undefined;
-  const mean_output_tokens_baseline = baselineTrials.length > 0 ? mean(baselineTrials.map((r) => r.output_tokens ?? 0)) : undefined;
-  const mean_cost_jig = jigTrials.length > 0 ? mean(jigTrials.map((r) => r.cost_usd ?? 0)) : undefined;
-  const mean_cost_baseline = baselineTrials.length > 0 ? mean(baselineTrials.map((r) => r.cost_usd ?? 0)) : undefined;
+  // Efficiency stats are computed only for rows with full token/cost coverage.
+  const fullEfficiencyTrials = results.filter(hasCompleteEfficiencyMetrics);
+  const jigEfficiencyTrials = jigTrials.filter(hasCompleteEfficiencyMetrics);
+  const baselineEfficiencyTrials = baselineTrials.filter(hasCompleteEfficiencyMetrics);
+
+  const efficiency_coverage_all: EfficiencyCoverage = { covered: fullEfficiencyTrials.length, total: results.length };
+  const efficiency_coverage_jig: EfficiencyCoverage = { covered: jigEfficiencyTrials.length, total: jigTrials.length };
+  const efficiency_coverage_baseline: EfficiencyCoverage = {
+    covered: baselineEfficiencyTrials.length,
+    total: baselineTrials.length,
+  };
+
+  const mean_tokens_jig = jigEfficiencyTrials.length > 0 ? mean(jigEfficiencyTrials.map((r) => r.tokens_used!)) : undefined;
+  const mean_tokens_baseline = baselineEfficiencyTrials.length > 0
+    ? mean(baselineEfficiencyTrials.map((r) => r.tokens_used!))
+    : undefined;
+  const mean_input_tokens_jig = jigEfficiencyTrials.length > 0
+    ? mean(jigEfficiencyTrials.map((r) => r.input_tokens!))
+    : undefined;
+  const mean_input_tokens_baseline = baselineEfficiencyTrials.length > 0
+    ? mean(baselineEfficiencyTrials.map((r) => r.input_tokens!))
+    : undefined;
+  const mean_output_tokens_jig = jigEfficiencyTrials.length > 0
+    ? mean(jigEfficiencyTrials.map((r) => r.output_tokens!))
+    : undefined;
+  const mean_output_tokens_baseline = baselineEfficiencyTrials.length > 0
+    ? mean(baselineEfficiencyTrials.map((r) => r.output_tokens!))
+    : undefined;
+  const mean_cost_jig = jigEfficiencyTrials.length > 0 ? mean(jigEfficiencyTrials.map((r) => r.cost_usd!)) : undefined;
+  const mean_cost_baseline = baselineEfficiencyTrials.length > 0
+    ? mean(baselineEfficiencyTrials.map((r) => r.cost_usd!))
+    : undefined;
 
   // Baseline delta
   let baseline_delta: number | undefined;
@@ -87,6 +113,9 @@ export function aggregate(results: TrialResult[]): AggregateScores {
     by_prompt_tier,
     by_category,
     weakest_scenarios,
+    efficiency_coverage_all,
+    efficiency_coverage_jig,
+    efficiency_coverage_baseline,
     mean_duration_jig,
     mean_duration_baseline,
     mean_tokens_jig,
@@ -150,19 +179,42 @@ export function generateReport(results: TrialResult[]): string {
     }
   }
 
-  if (agg.mean_duration_jig != null || agg.mean_tokens_jig != null) {
+  if (results.length > 0) {
     lines.push("");
     lines.push("--- Efficiency ---");
+    lines.push(`  Coverage (all): ${formatCoverage(agg.efficiency_coverage_all)}`);
+    lines.push(`  Coverage (jig): ${formatCoverage(agg.efficiency_coverage_jig)}`);
+    if (agg.efficiency_coverage_baseline.total > 0) {
+      lines.push(`  Coverage (baseline): ${formatCoverage(agg.efficiency_coverage_baseline)}`);
+    }
+    if (agg.efficiency_coverage_all.covered < agg.efficiency_coverage_all.total) {
+      lines.push("  Note: token/cost means use covered rows only (no zero-fill).");
+    }
+
     if (agg.mean_duration_jig != null) lines.push(`  Duration (jig): ${(agg.mean_duration_jig / 1000).toFixed(1)}s`);
     if (agg.mean_duration_baseline != null) lines.push(`  Duration (baseline): ${(agg.mean_duration_baseline / 1000).toFixed(1)}s`);
-    if (agg.mean_tokens_jig != null) lines.push(`  Tokens (jig): ${Math.round(agg.mean_tokens_jig).toLocaleString()}`);
-    if (agg.mean_tokens_baseline != null) lines.push(`  Tokens (baseline): ${Math.round(agg.mean_tokens_baseline).toLocaleString()}`);
-    if (agg.mean_input_tokens_jig != null) lines.push(`  Input tokens (jig): ${Math.round(agg.mean_input_tokens_jig).toLocaleString()}`);
-    if (agg.mean_input_tokens_baseline != null) lines.push(`  Input tokens (baseline): ${Math.round(agg.mean_input_tokens_baseline).toLocaleString()}`);
-    if (agg.mean_output_tokens_jig != null) lines.push(`  Output tokens (jig): ${Math.round(agg.mean_output_tokens_jig).toLocaleString()}`);
-    if (agg.mean_output_tokens_baseline != null) lines.push(`  Output tokens (baseline): ${Math.round(agg.mean_output_tokens_baseline).toLocaleString()}`);
-    if (agg.mean_cost_jig != null) lines.push(`  Cost (jig): $${agg.mean_cost_jig.toFixed(4)}`);
-    if (agg.mean_cost_baseline != null) lines.push(`  Cost (baseline): $${agg.mean_cost_baseline.toFixed(4)}`);
+
+    lines.push(`  Tokens (jig): ${formatIntMetric(agg.mean_tokens_jig, agg.efficiency_coverage_jig)}`);
+    if (agg.efficiency_coverage_baseline.total > 0) {
+      lines.push(`  Tokens (baseline): ${formatIntMetric(agg.mean_tokens_baseline, agg.efficiency_coverage_baseline)}`);
+    }
+    lines.push(`  Input tokens (jig): ${formatIntMetric(agg.mean_input_tokens_jig, agg.efficiency_coverage_jig)}`);
+    if (agg.efficiency_coverage_baseline.total > 0) {
+      lines.push(
+        `  Input tokens (baseline): ${formatIntMetric(agg.mean_input_tokens_baseline, agg.efficiency_coverage_baseline)}`
+      );
+    }
+    lines.push(`  Output tokens (jig): ${formatIntMetric(agg.mean_output_tokens_jig, agg.efficiency_coverage_jig)}`);
+    if (agg.efficiency_coverage_baseline.total > 0) {
+      lines.push(
+        `  Output tokens (baseline): ${formatIntMetric(agg.mean_output_tokens_baseline, agg.efficiency_coverage_baseline)}`
+      );
+    }
+    lines.push(`  Cost (jig): ${formatCostMetric(agg.mean_cost_jig, agg.efficiency_coverage_jig)}`);
+    if (agg.efficiency_coverage_baseline.total > 0) {
+      lines.push(`  Cost (baseline): ${formatCostMetric(agg.mean_cost_baseline, agg.efficiency_coverage_baseline)}`);
+    }
+
     if (agg.mean_tokens_jig != null && agg.mean_tokens_baseline != null && agg.mean_tokens_baseline > 0) {
       const saved = ((1 - agg.mean_tokens_jig / agg.mean_tokens_baseline) * 100).toFixed(1);
       lines.push(`  Token savings: ${saved}%`);
@@ -218,12 +270,54 @@ export function generateMetricsOnly(results: TrialResult[]): string {
     lines.push(`METRIC prompt_tier.${name}=${score.toFixed(3)}`);
   }
 
+  lines.push(`METRIC efficiency_covered_all=${agg.efficiency_coverage_all.covered}`);
+  lines.push(`METRIC efficiency_total_all=${agg.efficiency_coverage_all.total}`);
+  lines.push(`METRIC efficiency_covered_jig=${agg.efficiency_coverage_jig.covered}`);
+  lines.push(`METRIC efficiency_total_jig=${agg.efficiency_coverage_jig.total}`);
+  lines.push(`METRIC efficiency_covered_baseline=${agg.efficiency_coverage_baseline.covered}`);
+  lines.push(`METRIC efficiency_total_baseline=${agg.efficiency_coverage_baseline.total}`);
+
+  if (agg.mean_input_tokens_jig != null) lines.push(`METRIC mean_input_tokens_jig=${Math.round(agg.mean_input_tokens_jig)}`);
+  if (agg.mean_input_tokens_baseline != null) lines.push(`METRIC mean_input_tokens_baseline=${Math.round(agg.mean_input_tokens_baseline)}`);
+  if (agg.mean_output_tokens_jig != null) lines.push(`METRIC mean_output_tokens_jig=${Math.round(agg.mean_output_tokens_jig)}`);
+  if (agg.mean_output_tokens_baseline != null) {
+    lines.push(`METRIC mean_output_tokens_baseline=${Math.round(agg.mean_output_tokens_baseline)}`);
+  }
   if (agg.mean_tokens_jig != null) lines.push(`METRIC mean_tokens_jig=${Math.round(agg.mean_tokens_jig)}`);
   if (agg.mean_tokens_baseline != null) lines.push(`METRIC mean_tokens_baseline=${Math.round(agg.mean_tokens_baseline)}`);
   if (agg.mean_cost_jig != null) lines.push(`METRIC mean_cost_jig=${agg.mean_cost_jig.toFixed(4)}`);
   if (agg.mean_cost_baseline != null) lines.push(`METRIC mean_cost_baseline=${agg.mean_cost_baseline.toFixed(4)}`);
 
   return lines.join("\n");
+}
+
+function hasCompleteEfficiencyMetrics(result: TrialResult): boolean {
+  return typeof result.input_tokens === "number" &&
+    typeof result.output_tokens === "number" &&
+    typeof result.cache_creation_input_tokens === "number" &&
+    typeof result.cache_read_input_tokens === "number" &&
+    typeof result.tokens_used === "number" &&
+    typeof result.cost_usd === "number";
+}
+
+function formatCoverage(coverage: EfficiencyCoverage): string {
+  return `${coverage.covered}/${coverage.total}`;
+}
+
+function formatIntMetric(value: number | undefined, coverage: EfficiencyCoverage): string {
+  if (value == null) return `N/A (coverage ${formatCoverage(coverage)})`;
+  if (coverage.covered < coverage.total) {
+    return `${Math.round(value).toLocaleString()} (coverage ${formatCoverage(coverage)})`;
+  }
+  return Math.round(value).toLocaleString();
+}
+
+function formatCostMetric(value: number | undefined, coverage: EfficiencyCoverage): string {
+  if (value == null) return `N/A (coverage ${formatCoverage(coverage)})`;
+  if (coverage.covered < coverage.total) {
+    return `$${value.toFixed(4)} (coverage ${formatCoverage(coverage)})`;
+  }
+  return `$${value.toFixed(4)}`;
 }
 
 function mean(values: number[]): number {
