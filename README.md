@@ -78,14 +78,18 @@ When a patch can't find its anchor, jig fails — but it fails with the rendered
 ```json
 {
   "action": "error",
-  "error": "scope_parse_failed",
+  "path": "hotels/models/reservation.py",
+  "what": "anchor pattern not found",
+  "where": "hotels/models/reservation.py",
+  "why": "pattern '^class Reservation\\(' did not match any line",
+  "hint": "check the anchor pattern against the file contents",
   "rendered_content": "    loyalty_tier = models.CharField(max_length=50, null=True)"
 }
 ```
 
-The deterministic part is never wasted by a placement failure. The agent reads the error, falls back to its native Edit tool, and places the content manually. jig did the mechanical work. The agent handles the judgment call.
+Every error includes `what`, `where`, `why`, and `hint` — enough structure for an agent to diagnose and self-correct without parsing prose. And the rendered content is always there. The deterministic part is never wasted by a placement failure.
 
-This boundary is deliberate. Template rendering is deterministic and should be. Code placement sometimes requires understanding context that only an LLM has.
+The agent reads the error, falls back to its native Edit tool, and places the content manually. jig did the mechanical work. The agent handles the judgment call. This boundary is deliberate. Template rendering is deterministic and should be. Code placement sometimes requires understanding context that only an LLM has.
 
 ## Design Principles
 
@@ -95,10 +99,14 @@ This boundary is deliberate. Template rendering is deterministic and should be. 
 
 **Idempotent.** Every operation can be run twice safely. An agent retrying a failed run never duplicates content.
 
-**Transparent failures.** Every error says what, where, and why. Exit codes are semantic. Agents branch on exit codes without parsing error messages.
+**Transparent failures.** Every error includes `what`, `where`, `why`, and `hint` as structured JSON. Exit codes are semantic: 1 means bad recipe, 2 means template error, 3 means file operation failed, 4 means bad variables. An agent seeing exit code 3 knows the content rendered fine but placement failed — it can grab `rendered_content` from the error and place it manually. No error message parsing required.
+
+**Machine-readable output.** JSON goes to stdout. Human-readable progress goes to stderr. When stdout is piped (not a TTY), jig switches to JSON automatically — no `--json` flag needed. An agent's stdout parser never accidentally ingests a progress message.
 
 **Composable with LLM tools.** jig handles what templates handle well: boilerplate, structure, repetition. It doesn't try to handle what LLMs handle well: understanding semantics, adapting to unexpected structures, choosing the right insertion point in novel code. The boundary between jig's work and the agent's work is the design.
 
+**Universal interface.** jig is a CLI that takes JSON and returns JSON. It works with any agent that can invoke a shell command — Claude Code, Cursor, Windsurf, GitHub Copilot, Aider, Cline, Continue, Codex, Zed AI, OpenCode, Amp. No plugins, no integrations, no framework coupling.
+
 ## Status
 
-Pre-release. The [full specification](jig.md) is complete. Implementation is underway in Rust — single binary, installable via cargo.
+v0.4. All four file operations (create, inject, replace, patch), multi-recipe workflows with conditional steps and error handling, and library management are implemented and tested. 400+ tests passing. Single Rust binary, zero runtime dependencies.
