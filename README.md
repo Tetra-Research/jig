@@ -1,8 +1,10 @@
 # jig
 
-Deterministic file generation for LLM-assisted coding workflows.
+Deterministic file generation for LLM-native coding workflows.
 
-`jig` takes a YAML recipe plus JSON variables and applies reproducible file operations (`create`, `inject`, `replace`, `patch`) so agents stop re-deriving boilerplate and team conventions on every run.
+`jig` is built to sit inside an LLM's write/edit loop. The model reads code, extracts variables, and decides intent; `jig` applies reproducible file operations (`create`, `inject`, `replace`, `patch`) so the mechanical edits are deterministic.
+
+Unlike templating tools that centralize recipes in one global store, `jig` is designed for skill-local ownership: put recipes and workflows directly in the skill that uses them. A single skill can own multiple recipes plus a multi-step workflow.
 
 ## Install (Manual Release Channel)
 
@@ -53,12 +55,32 @@ jig run recipe.yaml --vars '{"module":"hotels.services.booking","class_name":"Bo
 
 Same recipe + same variables + same file state yields the same output.
 
+## Skill-Local by Design
+
+You can colocate `jig` assets with the skill that calls them:
+
+```text
+my-plugin/
+  skills/
+    add-field/
+      SKILL.md
+      templates/
+        model/recipe.yaml
+        service/recipe.yaml
+        schema/recipe.yaml
+        workflow.yaml
+```
+
+This keeps automation close to the workflow context instead of forcing one central recipe registry.
+
 ## Why Use It With Agents
 
+- LLM-native boundary: the model handles reasoning and variable extraction; `jig` handles deterministic file mutations.
+- Skill-native packaging: recipes/workflows live in the skill directory, so automation ships with the skill itself.
 - Deterministic outputs: removes formatting/style drift for repeatable tasks.
 - Idempotent operations: retries don’t duplicate edits when `skip_if`/`skip_if_exists` is used.
 - Structured failures: errors include machine-readable `what`, `where`, `why`, and `hint` fields.
-- Tool boundary clarity: LLM handles intent and variable extraction; `jig` handles mechanical file edits.
+- Multi-step execution: one workflow can chain many recipe steps, each doing create/inject/replace/patch operations.
 
 ## Release Trust Model
 
