@@ -338,9 +338,14 @@ await test("writeTrialResult + readResults: roundtrip preserves data", () => {
       jig_invocations: [{ command: "jig run recipe.yaml" }],
       agent_exit_code: 0,
       agent_tool_calls: 5,
+      input_tokens: 8000,
+      output_tokens: 2000,
+      cache_creation_input_tokens: 0,
+      cache_read_input_tokens: 0,
       tokens_used: 10000,
       cost_usd: 0.05,
       timeout: false,
+      skills_available: true,
       tags: ["test"],
     };
     writeTrialResult(result, tmpFile);
@@ -349,6 +354,7 @@ await test("writeTrialResult + readResults: roundtrip preserves data", () => {
     assert.strictEqual(read[0].scenario, "test");
     assert.strictEqual(read[0].scores.assertion_score, 0.75);
     assert.deepStrictEqual(read[0].tags, ["test"]);
+    assert.strictEqual(read[0].skills_available, true);
   } finally {
     try { fs.unlinkSync(tmpFile); } catch {}
   }
@@ -362,7 +368,7 @@ await test("writeTrialResult: appends without overwriting", () => {
       timestamp: new Date().toISOString(), duration_ms: 100, jig_version: "0.1.0",
       scores: { assertion_score: 1, file_score: 1, negative_score: 1, jig_used: true, jig_correct: true, total: 1 },
       assertions: [], negative_assertions: [], jig_invocations: [],
-      agent_exit_code: 0, agent_tool_calls: 0, tokens_used: 0, cost_usd: 0, timeout: false, tags: [],
+      agent_exit_code: 0, agent_tool_calls: 0, input_tokens: 0, output_tokens: 0, cache_creation_input_tokens: 0, cache_read_input_tokens: 0, tokens_used: 0, cost_usd: 0, timeout: false, skills_available: true, tags: [],
     };
     writeTrialResult({ ...base, scenario: "first" }, tmpFile);
     writeTrialResult({ ...base, scenario: "second" }, tmpFile);
@@ -469,6 +475,30 @@ await test("createSandbox: claude-md=none removes CLAUDE.md", async () => {
   try {
     const claudeMdPath = path.join(sandbox.workDir, "CLAUDE.md");
     assert.ok(!fs.existsSync(claudeMdPath), "CLAUDE.md should NOT exist");
+  } finally {
+    await sandbox.cleanup();
+  }
+});
+
+await test("createSandbox: strip-skills removes .claude/skills/", async () => {
+  const scenario = loadScenario(path.join(FIXTURES, "valid-scenario"));
+  const sandbox = await createSandbox(scenario, "shared", true);
+  try {
+    const skillsDir = path.join(sandbox.workDir, ".claude", "skills");
+    assert.ok(!fs.existsSync(skillsDir), ".claude/skills/ should be removed");
+    assert.strictEqual(sandbox.skillsAvailable, false);
+  } finally {
+    await sandbox.cleanup();
+  }
+});
+
+await test("createSandbox: strip-skills=false preserves .claude/skills/", async () => {
+  const scenario = loadScenario(path.join(FIXTURES, "valid-scenario"));
+  const sandbox = await createSandbox(scenario, "shared", false);
+  try {
+    const skillsDir = path.join(sandbox.workDir, ".claude", "skills");
+    assert.ok(fs.existsSync(skillsDir), ".claude/skills/ should exist");
+    assert.strictEqual(sandbox.skillsAvailable, true);
   } finally {
     await sandbox.cleanup();
   }
@@ -586,9 +616,14 @@ function makeResult(overrides: Partial<TrialResult> = {}): TrialResult {
     jig_invocations: [{ command: "jig run recipe.yaml" }],
     agent_exit_code: 0,
     agent_tool_calls: 5,
+    input_tokens: 12000,
+    output_tokens: 3000,
+    cache_creation_input_tokens: 0,
+    cache_read_input_tokens: 0,
     tokens_used: 15000,
     cost_usd: 0.06,
     timeout: false,
+    skills_available: true,
     tags: ["easy"],
     ...overrides,
   };

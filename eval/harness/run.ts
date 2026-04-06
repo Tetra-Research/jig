@@ -25,6 +25,7 @@ const { values: args } = parseArgs({
     "prompt-tier": { type: "string" },
     mode: { type: "string", default: "jig" },
     "claude-md": { type: "string", default: "shared" },
+    "strip-skills": { type: "boolean", default: false },
     "dry-run": { type: "boolean", default: false },
     "metrics-only": { type: "boolean", default: false },
   },
@@ -33,6 +34,7 @@ const { values: args } = parseArgs({
 
 const reps = parseInt(args.reps!, 10);
 const mode = args.mode as "jig" | "baseline";
+const stripSkills = args["strip-skills"] ?? false;
 const promptTierFilter = args["prompt-tier"] as PromptTier | undefined;
 const claudeMd = args["claude-md"] as ClaudeMdMode;
 const VALID_CLAUDE_MD: ClaudeMdMode[] = ["shared", "empty", "none"];
@@ -136,6 +138,7 @@ if (args["dry-run"]) {
   console.error("By prompt tier:", JSON.stringify(byPromptTier));
   console.error(`Mode: ${mode}`);
   console.error(`CLAUDE.md: ${claudeMd}`);
+  console.error(`Strip skills: ${stripSkills}`);
   if (promptTierFilter) console.error(`Prompt tier filter: ${promptTierFilter}`);
   console.error(`Jig version: ${jigVersion}`);
   console.error("Scenarios:");
@@ -186,7 +189,7 @@ for (const scenario of scenarios) {
         trialNum++;
         let sandbox;
         try {
-          sandbox = await createSandbox(scenario, claudeMd);
+          sandbox = await createSandbox(scenario, claudeMd, stripSkills);
         } catch (err) {
           console.error(`[${trialNum}/${totalTrials}] ${scenario.name} x ${agent.name} [${promptTier}] rep=${rep}  SANDBOX FAILED: ${err}`);
           continue;
@@ -218,7 +221,7 @@ for (const scenario of scenarios) {
             negativeResults = { passed: true, results: [] };
             fileSc = 0;
             jigUsage = { jig_used: false, jig_correct: false, call_count: 0, invocations: [] };
-            efficiency = { tool_calls: 0, tokens_used: 0, cost_usd: 0 };
+            efficiency = { tool_calls: 0, input_tokens: 0, output_tokens: 0, cache_creation_input_tokens: 0, cache_read_input_tokens: 0, tokens_used: 0, cost_usd: 0 };
             trialScore = { assertion_score: 0, file_score: 0, negative_score: 0, jig_used: false, jig_correct: false, total: 0 };
           } else {
             assertionResults = scoreAssertions(scenario, sandbox.workDir);
@@ -248,9 +251,14 @@ for (const scenario of scenarios) {
             jig_invocations: jigUsage.invocations,
             agent_exit_code: agentResult.exitCode,
             agent_tool_calls: efficiency.tool_calls,
+            input_tokens: efficiency.input_tokens,
+            output_tokens: efficiency.output_tokens,
+            cache_creation_input_tokens: efficiency.cache_creation_input_tokens,
+            cache_read_input_tokens: efficiency.cache_read_input_tokens,
             tokens_used: efficiency.tokens_used,
             cost_usd: efficiency.cost_usd,
             timeout: agentResult.timedOut,
+            skills_available: sandbox.skillsAvailable,
             tags: scenario.tags ?? [],
           };
 

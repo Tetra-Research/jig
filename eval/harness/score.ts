@@ -117,49 +117,57 @@ export function scoreJigUsage(
   return { jig_used, jig_correct, call_count, invocations };
 }
 
-export function scoreEfficiency(agentOutput: string): {
+export interface EfficiencyMetrics {
   tool_calls: number;
+  input_tokens: number;
+  output_tokens: number;
+  cache_creation_input_tokens: number;
+  cache_read_input_tokens: number;
   tokens_used: number;
   cost_usd: number;
-} {
+}
+
+function extractEfficiency(obj: Record<string, any>): EfficiencyMetrics {
   let tool_calls = 0;
-  let tokens_used = 0;
+  let input_tokens = 0;
+  let output_tokens = 0;
+  let cache_creation_input_tokens = 0;
+  let cache_read_input_tokens = 0;
   let cost_usd = 0;
 
+  if (obj.num_turns != null) tool_calls = obj.num_turns;
+  if (obj.usage) {
+    const u = obj.usage;
+    input_tokens = u.input_tokens ?? 0;
+    output_tokens = u.output_tokens ?? 0;
+    cache_creation_input_tokens = u.cache_creation_input_tokens ?? 0;
+    cache_read_input_tokens = u.cache_read_input_tokens ?? 0;
+  }
+  if (obj.total_cost_usd != null) cost_usd = obj.total_cost_usd;
+
+  const tokens_used = input_tokens + output_tokens + cache_creation_input_tokens + cache_read_input_tokens;
+  return { tool_calls, input_tokens, output_tokens, cache_creation_input_tokens, cache_read_input_tokens, tokens_used, cost_usd };
+}
+
+const ZERO_EFFICIENCY: EfficiencyMetrics = {
+  tool_calls: 0, input_tokens: 0, output_tokens: 0,
+  cache_creation_input_tokens: 0, cache_read_input_tokens: 0,
+  tokens_used: 0, cost_usd: 0,
+};
+
+export function scoreEfficiency(agentOutput: string): EfficiencyMetrics {
   // Try stream-json format first (newline-delimited JSON, last object has type=result)
   const resultObj = parseStreamJsonResult(agentOutput);
-  if (resultObj) {
-    if (resultObj.num_turns != null) tool_calls = resultObj.num_turns;
-    if (resultObj.usage) {
-      const u = resultObj.usage;
-      tokens_used =
-        (u.input_tokens ?? 0) +
-        (u.output_tokens ?? 0) +
-        (u.cache_creation_input_tokens ?? 0) +
-        (u.cache_read_input_tokens ?? 0);
-    }
-    if (resultObj.total_cost_usd != null) cost_usd = resultObj.total_cost_usd;
-    return { tool_calls, tokens_used, cost_usd };
-  }
+  if (resultObj) return extractEfficiency(resultObj);
 
   // Fallback: single JSON object (--output-format json)
   try {
-    const parsed = JSON.parse(agentOutput);
-    if (parsed.num_turns != null) tool_calls = parsed.num_turns;
-    if (parsed.usage) {
-      const u = parsed.usage;
-      tokens_used =
-        (u.input_tokens ?? 0) +
-        (u.output_tokens ?? 0) +
-        (u.cache_creation_input_tokens ?? 0) +
-        (u.cache_read_input_tokens ?? 0);
-    }
-    if (parsed.total_cost_usd != null) cost_usd = parsed.total_cost_usd;
+    return extractEfficiency(JSON.parse(agentOutput));
   } catch {
     // Not JSON — degrade gracefully
   }
 
-  return { tool_calls, tokens_used, cost_usd };
+  return { ...ZERO_EFFICIENCY };
 }
 
 /** Parse stream-json output and return the result object (last line with type=result) */
