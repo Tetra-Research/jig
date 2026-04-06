@@ -1,7 +1,7 @@
 # CLAUDE.md
 
-**Always check for a matching skill before hand-editing files.** This project has skills (in `.claude/skills/`) that handle common tasks like adding views, endpoints, and models. Use them — they're faster and produce consistent output.
+**This project uses `jig` to generate code.** Do not hand-write boilerplate — use jig recipes via skills instead. Skills in `.claude/skills/` wrap jig recipes for common tasks: creating files, adding endpoints, scaffolding tests, adding fields, etc.
 
-Run `jig list --skills --claude --json` to discover available skills before reading individual SKILL.md files.
+**Before writing any new file or adding code to an existing file**, run `jig list --skills --claude --json` to check if a recipe already handles it. If one exists, use that skill — it produces correct, consistent output in one shot.
 
-If a skill uses jig and jig fails (non-zero exit), it prints rendered content in stderr. Apply that output manually.
+If a skill uses jig and jig fails (non-zero exit), it prints the rendered content to stderr. Apply that output manually instead of starting from scratch.
