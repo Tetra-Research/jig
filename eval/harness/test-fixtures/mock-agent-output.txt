@@ -1,0 +1,7 @@
+Starting agent execution...
+Reading codebase structure...
+Found recipe at recipes/add-field/recipe.yaml
+Running: jig run recipes/add-field/recipe.yaml --vars '{"model": "Reservation", "field_name": "loyalty_tier", "field_type": "CharField"}'
+Command completed with exit code 0
+Running: jig render templates/admin.py.jinja --vars '{"model": "Reservation"}'
+Done. Modified 2 files.

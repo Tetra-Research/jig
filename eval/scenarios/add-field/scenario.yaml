@@ -1,0 +1,58 @@
+name: add-field
+description: Add a loyalty_tier field to the Reservation model and propagate to admin, serializer, and factory
+tier: medium
+category: brownfield-extension
+
+context: |
+  You are working on a Django application with models, admin, factories, and serializers.
+
+prompts:
+  directed: |
+    Use the add-field skill to add a field to the Reservation model.
+    model_name: Reservation
+    field_name: loyalty_tier
+    field_type: CharField
+    field_args: max_length=20, default="bronze"
+    factory_default: "bronze"
+  natural: |
+    Add a loyalty_tier field (CharField, max_length=20, default="bronze") to the Reservation model.
+    Propagate the field to admin.py (list_display), serializers.py (fields), and factories.py.
+  ambient: |
+    ## Data model review notes — 2026-04-03
+
+    We need a loyalty_tier field on Reservation so the receipt endpoint can
+    show tier-specific pricing. CharField, max_length=20, default "bronze".
+    Make sure it shows up in admin list_display, serializer fields, and the
+    factory for tests.
+
+    Please add this.
+
+expected_files_modified:
+  - models.py
+  - admin.py
+  - serializers.py
+  - factories.py
+
+assertions:
+  - file: models.py
+    contains: "loyalty_tier"
+    scope: "class Reservation"
+    weight: 2.0
+  - file: admin.py
+    contains: "loyalty_tier"
+    weight: 1.0
+  - file: serializers.py
+    contains: "loyalty_tier"
+    weight: 1.0
+  - file: factories.py
+    contains: "loyalty_tier"
+    weight: 1.0
+
+negative_assertions:
+  - any_file: true
+    not_contains: "SyntaxError"
+    description: "Output must be syntactically valid Python"
+
+tags: [medium, brownfield-extension, multi-file, patch]
+estimated_jig_commands: 1
+max_jig_commands: 4

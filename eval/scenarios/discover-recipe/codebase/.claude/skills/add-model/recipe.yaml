@@ -1,0 +1,22 @@
+name: add-model
+description: Create a new Django model in a given module
+
+variables:
+  module:
+    type: string
+    required: true
+    description: "Module path (e.g., auth)"
+  model_name:
+    type: string
+    required: true
+    description: "Name of the model class"
+  fields:
+    type: string
+    required: true
+    description: "Model fields as Python code lines"
+
+files:
+  - template: templates/model.py.j2
+    inject: "{{ module }}/models.py"
+    append: true
+    skip_if: "class {{ model_name }}"

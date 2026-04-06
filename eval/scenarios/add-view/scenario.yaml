@@ -1,0 +1,55 @@
+name: add-view
+description: Add a receipt view function to an existing views.py using the add-view recipe
+tier: easy
+category: brownfield-extension
+
+context: |
+  You are working on a Django REST framework application.
+
+prompts:
+  directed: |
+    Use the add-view skill to add a new view function.
+    view_name: reservation_receipt
+    model_name: Reservation
+  natural: |
+    Add a GET view called reservation_receipt that takes a pk and returns receipt
+    details for a Reservation.
+  ambient: |
+    Here's the updated API spec from the product team:
+
+    ## Reservations API
+
+    ### Existing endpoints
+    - GET /api/reservations/ — List all reservations
+    - GET /api/reservations/:id/ — Reservation detail
+
+    ### New endpoints needed
+    - GET /api/reservations/:id/receipt/ — Receipt details for a reservation.
+      Takes a pk parameter and returns receipt data for the given Reservation.
+
+    Please implement the new endpoint.
+
+expected_files_modified:
+  - views.py
+
+assertions:
+  - file: views.py
+    contains: "def reservation_receipt"
+    weight: 1.0
+  - file: views.py
+    contains: "@api_view"
+    scope: "def reservation_receipt"
+    weight: 0.5
+  - file: views.py
+    contains: "Reservation.objects.get"
+    scope: "def reservation_receipt"
+    weight: 0.5
+
+negative_assertions:
+  - any_file: true
+    not_contains: "SyntaxError"
+    description: "Output must be syntactically valid Python"
+
+tags: [easy, brownfield-extension, inject]
+estimated_jig_commands: 1
+max_jig_commands: 2

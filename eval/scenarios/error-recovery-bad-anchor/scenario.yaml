@@ -1,0 +1,43 @@
+name: error-recovery-bad-anchor
+description: Agent must recover when jig's anchor pattern fails to match the actual code
+tier: error-recovery
+category: error-recovery
+
+context: |
+  You are working on a Python project with models.
+
+prompts:
+  directed: |
+    Use the add-field skill to add a field to the Contact model.
+    model_name: Contact
+    field_name: phone_number
+    field_type: CharField
+    field_args: max_length=20
+  natural: |
+    Add a phone_number field (CharField, max_length=20) to the Contact model.
+  ambient: |
+    The Contact model in models.py is missing a phone number field.
+    Our customer support team needs to store phone numbers for contacts.
+    Add a phone_number CharField (max_length=20) to the Contact class.
+
+expected_files_modified:
+  - models.py
+
+assertions:
+  - file: models.py
+    contains: "phone_number"
+    scope: "class Contact"
+    weight: 1.0
+  - file: models.py
+    contains: "phone_number:"
+    scope: "class Contact"
+    weight: 0.5
+
+negative_assertions:
+  - any_file: true
+    not_contains: "SyntaxError"
+    description: "Output must be syntactically valid Python"
+
+tags: [error-recovery, brownfield-extension, patch]
+estimated_jig_commands: 1
+max_jig_commands: 3

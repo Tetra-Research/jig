@@ -1,0 +1,55 @@
+name: discover-recipe
+description: Agent must discover the correct skill from multiple options and add a Permission model
+tier: discovery
+category: discovery
+
+context: |
+  You are working on a Django-style Python project.
+
+prompts:
+  directed: |
+    Use the add-model skill to add a new model.
+    module: auth
+    model_name: Permission
+    fields: |
+      name = models.CharField(max_length=100)
+          codename = models.CharField(max_length=100)
+  natural: |
+    Add a new Permission model to the auth module.
+    The model should have fields: name (CharField, max_length=100) and codename (CharField, max_length=100).
+  ambient: |
+    ## Feature spec: RBAC for the auth module
+
+    The auth module currently has User and Group models. We need a Permission
+    model to support role-based access control.
+
+    ### Permission model
+    - name: CharField, max_length=100 (human-readable permission name)
+    - codename: CharField, max_length=100 (machine-readable identifier)
+
+    Add the Permission model to auth/models.py.
+
+expected_files_modified:
+  - auth/models.py
+
+assertions:
+  - file: auth/models.py
+    contains: "class Permission"
+    weight: 1.0
+  - file: auth/models.py
+    contains: "name"
+    scope: "class Permission"
+    weight: 0.8
+  - file: auth/models.py
+    contains: "codename"
+    scope: "class Permission"
+    weight: 0.8
+
+negative_assertions:
+  - any_file: true
+    not_contains: "SyntaxError"
+    description: "Output must be syntactically valid Python"
+
+tags: [discovery, greenfield, create]
+estimated_jig_commands: 2
+max_jig_commands: 5
