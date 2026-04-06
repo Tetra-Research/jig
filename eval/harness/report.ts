@@ -63,6 +63,10 @@ export function aggregate(results: TrialResult[]): AggregateScores {
   // Token/cost stats
   const mean_tokens_jig = jigTrials.length > 0 ? mean(jigTrials.map((r) => r.tokens_used ?? 0)) : undefined;
   const mean_tokens_baseline = baselineTrials.length > 0 ? mean(baselineTrials.map((r) => r.tokens_used ?? 0)) : undefined;
+  const mean_input_tokens_jig = jigTrials.length > 0 ? mean(jigTrials.map((r) => r.input_tokens ?? 0)) : undefined;
+  const mean_input_tokens_baseline = baselineTrials.length > 0 ? mean(baselineTrials.map((r) => r.input_tokens ?? 0)) : undefined;
+  const mean_output_tokens_jig = jigTrials.length > 0 ? mean(jigTrials.map((r) => r.output_tokens ?? 0)) : undefined;
+  const mean_output_tokens_baseline = baselineTrials.length > 0 ? mean(baselineTrials.map((r) => r.output_tokens ?? 0)) : undefined;
   const mean_cost_jig = jigTrials.length > 0 ? mean(jigTrials.map((r) => r.cost_usd ?? 0)) : undefined;
   const mean_cost_baseline = baselineTrials.length > 0 ? mean(baselineTrials.map((r) => r.cost_usd ?? 0)) : undefined;
 
@@ -87,6 +91,10 @@ export function aggregate(results: TrialResult[]): AggregateScores {
     mean_duration_baseline,
     mean_tokens_jig,
     mean_tokens_baseline,
+    mean_input_tokens_jig,
+    mean_input_tokens_baseline,
+    mean_output_tokens_jig,
+    mean_output_tokens_baseline,
     mean_cost_jig,
     mean_cost_baseline,
   };
@@ -149,11 +157,19 @@ export function generateReport(results: TrialResult[]): string {
     if (agg.mean_duration_baseline != null) lines.push(`  Duration (baseline): ${(agg.mean_duration_baseline / 1000).toFixed(1)}s`);
     if (agg.mean_tokens_jig != null) lines.push(`  Tokens (jig): ${Math.round(agg.mean_tokens_jig).toLocaleString()}`);
     if (agg.mean_tokens_baseline != null) lines.push(`  Tokens (baseline): ${Math.round(agg.mean_tokens_baseline).toLocaleString()}`);
+    if (agg.mean_input_tokens_jig != null) lines.push(`  Input tokens (jig): ${Math.round(agg.mean_input_tokens_jig).toLocaleString()}`);
+    if (agg.mean_input_tokens_baseline != null) lines.push(`  Input tokens (baseline): ${Math.round(agg.mean_input_tokens_baseline).toLocaleString()}`);
+    if (agg.mean_output_tokens_jig != null) lines.push(`  Output tokens (jig): ${Math.round(agg.mean_output_tokens_jig).toLocaleString()}`);
+    if (agg.mean_output_tokens_baseline != null) lines.push(`  Output tokens (baseline): ${Math.round(agg.mean_output_tokens_baseline).toLocaleString()}`);
     if (agg.mean_cost_jig != null) lines.push(`  Cost (jig): $${agg.mean_cost_jig.toFixed(4)}`);
     if (agg.mean_cost_baseline != null) lines.push(`  Cost (baseline): $${agg.mean_cost_baseline.toFixed(4)}`);
     if (agg.mean_tokens_jig != null && agg.mean_tokens_baseline != null && agg.mean_tokens_baseline > 0) {
       const saved = ((1 - agg.mean_tokens_jig / agg.mean_tokens_baseline) * 100).toFixed(1);
       lines.push(`  Token savings: ${saved}%`);
+    }
+    if (agg.mean_output_tokens_jig != null && agg.mean_output_tokens_baseline != null && agg.mean_output_tokens_baseline > 0) {
+      const saved = ((1 - agg.mean_output_tokens_jig / agg.mean_output_tokens_baseline) * 100).toFixed(1);
+      lines.push(`  Output token savings: ${saved}%`);
     }
     if (agg.mean_cost_jig != null && agg.mean_cost_baseline != null && agg.mean_cost_baseline > 0) {
       const saved = ((1 - agg.mean_cost_jig / agg.mean_cost_baseline) * 100).toFixed(1);

@@ -58,6 +58,7 @@ export interface AgentResult {
 export interface Sandbox {
   workDir: string;
   jigVersion: string;
+  skillsAvailable: boolean;
   cleanup: () => Promise<void>;
 }
 
@@ -114,9 +115,14 @@ export interface TrialResult {
   jig_invocations: JigInvocation[];
   agent_exit_code: number;
   agent_tool_calls: number;
+  input_tokens: number;
+  output_tokens: number;
+  cache_creation_input_tokens: number;
+  cache_read_input_tokens: number;
   tokens_used: number;
   cost_usd: number;
   timeout: boolean;
+  skills_available: boolean;
   tags: string[];
 }
 
@@ -135,6 +141,10 @@ export interface AggregateScores {
   mean_duration_baseline?: number;
   mean_tokens_jig?: number;
   mean_tokens_baseline?: number;
+  mean_input_tokens_jig?: number;
+  mean_input_tokens_baseline?: number;
+  mean_output_tokens_jig?: number;
+  mean_output_tokens_baseline?: number;
   mean_cost_jig?: number;
   mean_cost_baseline?: number;
 }
