@@ -118,30 +118,34 @@ This keeps automation close to the workflow context instead of forcing one centr
 
 Eval harness lives in `eval/` and writes JSONL results.
 
-Scoring mechanism (primary metric):
+Scoring and efficiency model:
 
-- `assertion_score = passed_weight / total_weight`
-- `negative_score = 1.0` if all negative assertions pass, else `0.0`
-- `total = assertion_score * negative_score`
+| Item | Definition |
+|---|---|
+| Primary score | `total = assertion_score * negative_score` |
+| Assertion score | `assertion_score = passed_weight / total_weight` |
+| Negative score | `1.0` if all negative assertions pass, else `0.0` |
+| Secondary diagnostics | `file_score`, `jig_used`, `jig_correct` (tracked, not multiplied into `total`) |
+| Total token accounting | `tokens_used = input_tokens + output_tokens + cache_creation_input_tokens + cache_read_input_tokens` |
+| Efficiency fields | `tokens_used`, `cost_usd`, `duration_ms` per trial |
 
-Secondary diagnostics:
+Control-group snapshot (2026-04-06):
 
-- `file_score` (structural similarity), `jig_used`, and `jig_correct` are tracked per trial.
+| Comparison | Baseline Control | Jig Treatment | Delta vs Control |
+|---|---:|---:|---:|
+| `add-view` natural + shared `CLAUDE.md` (`n=1` per arm) score | `1.000` | `1.000` | `0.0%` |
+| Tokens | `317,608` | `241,702` | `-23.9%` |
+| Cost | `$0.8279` | `$0.6505` | `-21.4%` |
+| Duration | `84.0s` | `66.2s` | `-21.3%` |
 
-Efficiency accounting:
+Additional controls:
 
-- `tokens_used = input_tokens + output_tokens + cache_creation_input_tokens + cache_read_input_tokens`
-- `cost_usd` and `duration_ms` are recorded per trial.
+| Control | Trials | Mean Score | Jig Usage | Tokens | Mean Cost | Mean Duration |
+|---|---:|---:|---:|---:|---:|---:|
+| Strict no-jig control (`add-view`, natural, `--mode baseline --claude-md none`) | 1 | `1.000` | `0%` | `162,530` | `$0.4746` | `50.0s` |
+| Full baseline sweep (`exp-004`, 7 scenarios, `--mode baseline --claude-md none`) | 7 | `0.730` | `0%` | legacy total-only | `$0.36` | `37.4s` |
 
-Control-group snapshot (from `eval/experiments/README.md`, dated 2026-04-06):
-
-- Matched control comparison (`add-view`, natural, shared `CLAUDE.md`, `n=1` per arm):
-  - Baseline control: score `1.0`, tokens `317,608`, cost `$0.8279`, duration `84.0s`
-  - Jig treatment: score `1.0`, tokens `241,702`, cost `$0.6505`, duration `66.2s`
-  - Delta vs control: tokens `-23.9%`, cost `-21.4%`, duration `-21.3%`
-- Strict no-jig control (`add-view`, natural, `--mode baseline --claude-md none`, `n=1`): score `1.0`, jig usage `0%`, tokens `162,530`, cost `$0.4746`, duration `50.0s`.
-- Full control sweep (`exp-004`, baseline-only, 7 scenarios, `n=7`): mean score `0.730`, jig usage `0%`, mean duration `37.4s`, mean cost `$0.36`.
-- Note: current control archive rows are legacy shape and expose total tokens (not split input/output/cache token fields).
+Note: current baseline control archives are legacy shape and expose total tokens only (not split input/output/cache token fields).
 
 Readiness/CI-safe mode (default strict schema checks):
 
