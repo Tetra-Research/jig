@@ -101,8 +101,8 @@ export interface TrialResult {
   scenario: string;
   agent: string;
   mode: "jig" | "baseline";
-  prompt_tier: PromptTier;
-  claude_md: ClaudeMdMode;
+  prompt_tier?: PromptTier;
+  claude_md?: ClaudeMdMode;
   rep: number;
   tier: string;
   category: string;
@@ -115,18 +115,23 @@ export interface TrialResult {
   jig_invocations: JigInvocation[];
   agent_exit_code: number;
   agent_tool_calls: number;
-  input_tokens: number;
-  output_tokens: number;
-  cache_creation_input_tokens: number;
-  cache_read_input_tokens: number;
-  tokens_used: number;
-  cost_usd: number;
+  input_tokens?: number;
+  output_tokens?: number;
+  cache_creation_input_tokens?: number;
+  cache_read_input_tokens?: number;
+  tokens_used?: number;
+  cost_usd?: number;
   timeout: boolean;
-  skills_available: boolean;
-  tags: string[];
+  skills_available?: boolean;
+  tags?: string[];
 }
 
 // ── Reporting ──
+
+export interface EfficiencyCoverage {
+  covered: number;
+  total: number;
+}
 
 export interface AggregateScores {
   overall_assertion: number;
@@ -137,6 +142,9 @@ export interface AggregateScores {
   by_prompt_tier: Record<string, number>;
   by_category: Record<string, number>;
   weakest_scenarios: Array<{ name: string; score: number }>;
+  efficiency_coverage_all: EfficiencyCoverage;
+  efficiency_coverage_jig: EfficiencyCoverage;
+  efficiency_coverage_baseline: EfficiencyCoverage;
   mean_duration_jig?: number;
   mean_duration_baseline?: number;
   mean_tokens_jig?: number;
@@ -155,4 +163,39 @@ export interface ValidationError {
   field: string;
   message: string;
   scenarioPath: string;
+}
+
+// ── Results ingestion ──
+
+export type ResultSchemaVersion = "v1_legacy" | "v2_current";
+export type SchemaPolicyMode = "strict" | "compat";
+
+export interface ResultReadWarning {
+  line: number;
+  kind: "malformed_json" | "invalid_schema";
+  message: string;
+  preview: string;
+}
+
+export interface ResultReadDiagnostics {
+  file_path: string;
+  total_lines: number;
+  valid_rows: number;
+  malformed_lines: number;
+  invalid_rows: number;
+  schema_counts: Record<ResultSchemaVersion, number>;
+  is_mixed_schema: boolean;
+  warnings: ResultReadWarning[];
+}
+
+export interface ResultReadEntry {
+  line: number;
+  schema: ResultSchemaVersion;
+  result: TrialResult;
+}
+
+export interface ReadResultsOutput {
+  results: TrialResult[];
+  entries: ResultReadEntry[];
+  diagnostics: ResultReadDiagnostics;
 }

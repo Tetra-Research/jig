@@ -7,7 +7,7 @@ import { loadScenario, loadAllScenarios, validateScenario } from "./scenarios.ts
 import { scoreAssertions, scoreNegativeAssertions, scoreJigUsage, computeTrialScore } from "./score.ts";
 import { normalizeFile } from "../lib/normalize.ts";
 import { fileScore, aggregateFileScore } from "../lib/diff.ts";
-import { writeTrialResult, readResults } from "./results.ts";
+import { writeTrialResult, readResults, ResultSchemaError } from "./results.ts";
 import { createSandbox } from "../lib/sandbox.ts";
 import { loadAgentConfigs, getAgentByName, invokeAgent } from "./agents.ts";
 import { transformPromptForBaseline } from "./baseline.ts";
@@ -317,6 +317,38 @@ await test("computeTrialScore: negative failure zeros total", () => {
 
 console.log("\n--- results.ts ---");
 
+function makeRawResultRow(overrides: Record<string, unknown> = {}): Record<string, unknown> {
+  return {
+    scenario: "schema-test",
+    agent: "claude-code",
+    mode: "jig",
+    prompt_tier: "natural",
+    claude_md: "shared",
+    rep: 1,
+    tier: "easy",
+    category: "test",
+    timestamp: new Date().toISOString(),
+    duration_ms: 1000,
+    jig_version: "jig 0.1.0",
+    scores: { assertion_score: 1, file_score: 1, negative_score: 1, jig_used: true, jig_correct: true, total: 1 },
+    assertions: [],
+    negative_assertions: [],
+    jig_invocations: [],
+    agent_exit_code: 0,
+    agent_tool_calls: 1,
+    input_tokens: 100,
+    output_tokens: 50,
+    cache_creation_input_tokens: 0,
+    cache_read_input_tokens: 0,
+    tokens_used: 150,
+    cost_usd: 0.01,
+    timeout: false,
+    skills_available: true,
+    tags: [],
+    ...overrides,
+  };
+}
+
 await test("writeTrialResult + readResults: roundtrip preserves data", () => {
   const tmpFile = path.join(os.tmpdir(), `jig-test-results-${Date.now()}.jsonl`);
   try {
@@ -349,12 +381,12 @@ await test("writeTrialResult + readResults: roundtrip preserves data", () => {
       tags: ["test"],
     };
     writeTrialResult(result, tmpFile);
-    const read = readResults(tmpFile);
-    assert.strictEqual(read.length, 1);
-    assert.strictEqual(read[0].scenario, "test");
-    assert.strictEqual(read[0].scores.assertion_score, 0.75);
-    assert.deepStrictEqual(read[0].tags, ["test"]);
-    assert.strictEqual(read[0].skills_available, true);
+    const read = readResults(tmpFile, { schemaMode: "strict" });
+    assert.strictEqual(read.results.length, 1);
+    assert.strictEqual(read.results[0].scenario, "test");
+    assert.strictEqual(read.results[0].scores.assertion_score, 0.75);
+    assert.deepStrictEqual(read.results[0].tags, ["test"]);
+    assert.strictEqual(read.results[0].skills_available, true);
   } finally {
     try { fs.unlinkSync(tmpFile); } catch {}
   }
@@ -372,18 +404,74 @@ await test("writeTrialResult: appends without overwriting", () => {
     };
     writeTrialResult({ ...base, scenario: "first" }, tmpFile);
     writeTrialResult({ ...base, scenario: "second" }, tmpFile);
-    const read = readResults(tmpFile);
-    assert.strictEqual(read.length, 2);
-    assert.strictEqual(read[0].scenario, "first");
-    assert.strictEqual(read[1].scenario, "second");
+    const read = readResults(tmpFile, { schemaMode: "strict" });
+    assert.strictEqual(read.results.length, 2);
+    assert.strictEqual(read.results[0].scenario, "first");
+    assert.strictEqual(read.results[1].scenario, "second");
   } finally {
     try { fs.unlinkSync(tmpFile); } catch {}
   }
 });
 
 await test("readResults: returns empty array for nonexistent file", () => {
-  const read = readResults("/nonexistent/results.jsonl");
-  assert.deepStrictEqual(read, []);
+  const read = readResults("/nonexistent/results.jsonl", { schemaMode: "strict" });
+  assert.deepStrictEqual(read.results, []);
+});
+
+await test("readResults: strict mode fails on mixed schema JSONL", () => {
+  const tmpFile = path.join(os.tmpdir(), `jig-test-mixed-${Date.now()}.jsonl`);
+  try {
+    const current = makeRawResultRow();
+    const legacy = makeRawResultRow();
+    delete legacy.input_tokens;
+    delete legacy.output_tokens;
+    delete legacy.cache_creation_input_tokens;
+    delete legacy.cache_read_input_tokens;
+    fs.writeFileSync(tmpFile, `${JSON.stringify(legacy)}\n${JSON.stringify(current)}\n`);
+
+    assert.throws(
+      () => readResults(tmpFile, { schemaMode: "strict" }),
+      (err: Error) => err instanceof ResultSchemaError && err.message.includes("mixed schema")
+    );
+  } finally {
+    try { fs.unlinkSync(tmpFile); } catch {}
+  }
+});
+
+await test("readResults: compat mode allows mixed schema with diagnostics", () => {
+  const tmpFile = path.join(os.tmpdir(), `jig-test-compat-${Date.now()}.jsonl`);
+  try {
+    const current = makeRawResultRow();
+    const legacy = makeRawResultRow();
+    delete legacy.input_tokens;
+    delete legacy.output_tokens;
+    delete legacy.cache_creation_input_tokens;
+    delete legacy.cache_read_input_tokens;
+    fs.writeFileSync(tmpFile, `${JSON.stringify(legacy)}\n${JSON.stringify(current)}\n`);
+
+    const loaded = readResults(tmpFile, { schemaMode: "compat" });
+    assert.strictEqual(loaded.results.length, 2);
+    assert.strictEqual(loaded.diagnostics.schema_counts.v1_legacy, 1);
+    assert.strictEqual(loaded.diagnostics.schema_counts.v2_current, 1);
+    assert.strictEqual(loaded.diagnostics.is_mixed_schema, true);
+  } finally {
+    try { fs.unlinkSync(tmpFile); } catch {}
+  }
+});
+
+await test("readResults: strict mode fails on malformed JSONL line", () => {
+  const tmpFile = path.join(os.tmpdir(), `jig-test-malformed-${Date.now()}.jsonl`);
+  try {
+    const current = makeRawResultRow();
+    fs.writeFileSync(tmpFile, `${JSON.stringify(current)}\n{"bad-json": }\n`);
+
+    assert.throws(
+      () => readResults(tmpFile, { schemaMode: "strict" }),
+      (err: Error) => err instanceof ResultSchemaError && err.message.includes("malformed")
+    );
+  } finally {
+    try { fs.unlinkSync(tmpFile); } catch {}
+  }
 });
 
 // ── Sandbox tests ──
@@ -674,6 +762,34 @@ await test("aggregate: by_agent breakdown", () => {
   assert.ok(Math.abs(agg.by_agent["claude-code-sonnet"] - 0.7) < 0.001);
 });
 
+await test("aggregate: efficiency means use covered rows only", () => {
+  const results = [
+    makeResult({
+      input_tokens: undefined,
+      output_tokens: undefined,
+      cache_creation_input_tokens: undefined,
+      cache_read_input_tokens: undefined,
+      tokens_used: 999999,
+      cost_usd: 9.99,
+    }),
+    makeResult({
+      input_tokens: 100,
+      output_tokens: 20,
+      cache_creation_input_tokens: 10,
+      cache_read_input_tokens: 30,
+      tokens_used: 160,
+      cost_usd: 0.02,
+    }),
+  ];
+  const agg = aggregate(results);
+  assert.strictEqual(agg.efficiency_coverage_all.covered, 1);
+  assert.strictEqual(agg.efficiency_coverage_all.total, 2);
+  assert.strictEqual(agg.mean_input_tokens_jig, 100);
+  assert.strictEqual(agg.mean_output_tokens_jig, 20);
+  assert.strictEqual(agg.mean_tokens_jig, 160);
+  assert.strictEqual(agg.mean_cost_jig, 0.02);
+});
+
 await test("generateReport: includes all sections", () => {
   const results = [makeResult(), makeResult({ mode: "baseline", scores: { ...makeResult().scores, total: 0.6 } })];
   const report = generateReport(results);
@@ -683,6 +799,7 @@ await test("generateReport: includes all sections", () => {
   assert.ok(report.includes("By Tier"));
   assert.ok(report.includes("Weakest Scenarios"));
   assert.ok(report.includes("Baseline delta"));
+  assert.ok(report.includes("Coverage (all):"), "Should include efficiency coverage");
 });
 
 await test("generateReport: shows stddev for multi-rep runs", () => {
@@ -717,10 +834,17 @@ await test("aggregate: handles empty results", () => {
 });
 
 await test("generateReport: degrades gracefully with missing token data", () => {
-  const results = [makeResult({ agent_tool_calls: 0 })];
+  const results = [makeResult({
+    agent_tool_calls: 0,
+    input_tokens: undefined,
+    output_tokens: undefined,
+    cache_creation_input_tokens: undefined,
+    cache_read_input_tokens: undefined,
+  })];
   // Should not throw
   const report = generateReport(results);
   assert.ok(report.includes("Eval Report"));
+  assert.ok(report.includes("N/A"), "Should mark unavailable efficiency metrics explicitly");
 });
 
 // ── Prompt tier tests ──
@@ -779,13 +903,20 @@ await test("generateMetricsOnly: includes prompt tier metrics", () => {
   assert.ok(metrics.includes("prompt_tier.natural="), "Should include prompt tier metric");
 });
 
+await test("generateMetricsOnly: includes efficiency coverage metrics", () => {
+  const results = [makeResult({ input_tokens: undefined, output_tokens: undefined })];
+  const metrics = generateMetricsOnly(results);
+  assert.ok(metrics.includes("efficiency_covered_all="), "Should include coverage count");
+  assert.ok(metrics.includes("efficiency_total_all="), "Should include total count");
+});
+
 await test("writeTrialResult + readResults: preserves prompt_tier", () => {
   const tmpFile = path.join(os.tmpdir(), `jig-test-pt-${Date.now()}.jsonl`);
   try {
     const result = makeResult({ prompt_tier: "ambient" });
     writeTrialResult(result, tmpFile);
-    const read = readResults(tmpFile);
-    assert.strictEqual(read[0].prompt_tier, "ambient");
+    const read = readResults(tmpFile, { schemaMode: "strict" });
+    assert.strictEqual(read.results[0].prompt_tier, "ambient");
   } finally {
     try { fs.unlinkSync(tmpFile); } catch {}
   }
