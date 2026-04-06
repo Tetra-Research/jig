@@ -4,13 +4,13 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Status
 
-**v0.4 libraries complete.** All four file operations (create, inject, replace, patch) plus multi-recipe workflows with conditional steps, variable mapping, and error handling. Library management and execution fully wired — `jig run django/model/add-field` works end-to-end. Convention injection, template overrides, project extensions, and git install all operational. 402 tests passing. See `docs/workstreams/libraries/SHARED-CONTEXT.md` for details.
+**v0.5 manual distribution path active.** Core operations, workflows, and library execution are wired end-to-end, manual release + installer flow is live, and strict validation (`cargo test`, `cargo fmt --check`, `cargo clippy -D warnings`) is currently passing. Historical autopilot/workstream artifacts are archived off `main` at `archive/workstreams-artifacts-2026-04-06` (see `docs/workstreams/README.md`).
 
 ## What jig Is
 
 jig is a template rendering CLI purpose-built for LLM code generation workflows. It takes a recipe (YAML) + variables (JSON) and produces deterministic file operations (create, inject, patch, replace). It is designed to be called by LLMs, not humans at a terminal.
 
-The full specification lives in `jig.md`. Read it before making architectural decisions.
+The full specification lives in `PRD.md`. Read it before making architectural decisions.
 
 ## Language and Build
 
@@ -125,4 +125,4 @@ jig library add|remove|update|list  # Manage recipe libraries
 
 ## Roadmap Reference
 
-The spec defines a phased roadmap (v0.1 through v1.0+). When implementing, follow the milestone order in `jig.md` — MVP core engine first, then patches, workflows, libraries, distribution, and advanced features (scan, infer, check).
+The spec defines a phased roadmap (v0.1 through v1.0+). When implementing, follow the milestone order in `PRD.md` — MVP core engine first, then patches, workflows, libraries, distribution, and advanced features (scan, infer, check).
