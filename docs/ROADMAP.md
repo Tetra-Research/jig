@@ -73,7 +73,7 @@ Multi-recipe orchestration. Chain recipes into a single `jig workflow` invocatio
 
 ### v0.4 — Libraries (PARTIAL)
 
-**Workstream docs:** SHARED-CONTEXT, NARRATIVE (in `docs/workstreams/libraries/`)
+**Workstream docs:** Archived on branch `archive/workstreams-artifacts-2026-04-06` (draft PR #8)
 **Depends on:** v0.3 (workflows reference library recipes)
 **jig.md reference:** lines 1059–1376, roadmap line 1929
 
