@@ -252,22 +252,23 @@ struct RawFileOp {
 impl Recipe {
     /// Load and validate a recipe from a YAML file.
     pub fn load(path: &Path) -> Result<Self, JigError> {
-        let path = path
-            .canonicalize()
-            .map_err(|_| recipe_err(
+        let path = path.canonicalize().map_err(|_| {
+            recipe_err(
                 "recipe file not found",
                 &path.display().to_string(),
                 "the file does not exist at the specified path",
                 "check the file path and try again",
-            ))?;
+            )
+        })?;
 
-        let content = std::fs::read_to_string(&path)
-            .map_err(|e| recipe_err(
+        let content = std::fs::read_to_string(&path).map_err(|e| {
+            recipe_err(
                 "cannot read recipe file",
                 &path.display().to_string(),
                 &e.to_string(),
                 "check file permissions",
-            ))?;
+            )
+        })?;
 
         let recipe_dir = path.parent().unwrap_or(Path::new(".")).to_path_buf();
         Self::parse(&content, recipe_dir, &path)
@@ -275,13 +276,14 @@ impl Recipe {
 
     /// Parse recipe YAML content with a known recipe directory and source path.
     pub fn parse(yaml: &str, recipe_dir: PathBuf, source_path: &Path) -> Result<Self, JigError> {
-        let raw: RawRecipe = serde_yaml::from_str(yaml)
-            .map_err(|e| recipe_err(
+        let raw: RawRecipe = serde_yaml::from_str(yaml).map_err(|e| {
+            recipe_err(
                 "malformed recipe YAML",
                 &source_path.display().to_string(),
                 &e.to_string(),
                 "check YAML syntax — ensure proper indentation and field names",
-            ))?;
+            )
+        })?;
 
         let mut files = Vec::with_capacity(raw.files.len());
         for (i, raw_op) in raw.files.into_iter().enumerate() {
@@ -331,18 +333,27 @@ fn convert_file_op(raw: RawFileOp, index: usize, source: &Path) -> Result<FileOp
     let loc = format!("files[{index}] in {}", source.display());
 
     // Template is required for all operations.
-    let template = raw.template.ok_or_else(|| recipe_err(
-        "missing required field 'template'",
-        &loc,
-        "every file operation must specify a template",
-        "add a 'template' field pointing to the Jinja2 template file",
-    ))?;
+    let template = raw.template.ok_or_else(|| {
+        recipe_err(
+            "missing required field 'template'",
+            &loc,
+            "every file operation must specify a template",
+            "add a 'template' field pointing to the Jinja2 template file",
+        )
+    })?;
 
     // Reject unknown fields with a helpful message.
     if !raw.extra.is_empty() {
         let unknown: Vec<&String> = raw.extra.keys().collect();
         return Err(recipe_err(
-            &format!("unknown field(s): {}", unknown.iter().map(|k| format!("'{k}'")).collect::<Vec<_>>().join(", ")),
+            &format!(
+                "unknown field(s): {}",
+                unknown
+                    .iter()
+                    .map(|k| format!("'{k}'"))
+                    .collect::<Vec<_>>()
+                    .join(", ")
+            ),
             &loc,
             "these fields are not recognized in a file operation",
             "remove the unknown fields — valid fields are: template, to, inject, replace, patch, skip_if_exists, after, before, prepend, append, at, skip_if, between, pattern, fallback, anchor",
@@ -369,12 +380,23 @@ fn convert_file_op(raw: RawFileOp, index: usize, source: &Path) -> Result<FileOp
     }
     if type_count > 1 {
         let mut present = Vec::new();
-        if has_to { present.push("to"); }
-        if has_inject { present.push("inject"); }
-        if has_replace { present.push("replace"); }
-        if has_patch { present.push("patch"); }
+        if has_to {
+            present.push("to");
+        }
+        if has_inject {
+            present.push("inject");
+        }
+        if has_replace {
+            present.push("replace");
+        }
+        if has_patch {
+            present.push("patch");
+        }
         return Err(recipe_err(
-            &format!("ambiguous operation type: found multiple of {}", present.join(", ")),
+            &format!(
+                "ambiguous operation type: found multiple of {}",
+                present.join(", ")
+            ),
             &loc,
             "a file operation must specify exactly one operation type",
             "remove extra fields so only one of 'to', 'inject', 'replace', or 'patch' remains",
@@ -389,7 +411,15 @@ fn convert_file_op(raw: RawFileOp, index: usize, source: &Path) -> Result<FileOp
         })
     } else if has_inject {
         let inject_target = raw.inject.unwrap();
-        let mode = parse_inject_mode(&raw.after, &raw.before, raw.prepend, raw.append, &raw.at, index, source)?;
+        let mode = parse_inject_mode(
+            &raw.after,
+            &raw.before,
+            raw.prepend,
+            raw.append,
+            &raw.at,
+            index,
+            source,
+        )?;
         Ok(FileOp::Inject {
             template,
             inject: inject_target,
@@ -420,18 +450,22 @@ fn convert_file_op(raw: RawFileOp, index: usize, source: &Path) -> Result<FileOp
 
         let spec = if has_between {
             let between = raw.between.unwrap();
-            let start = between.start.ok_or_else(|| recipe_err(
-                "replace 'between' missing required field 'start'",
-                &loc,
-                "between requires both 'start' and 'end' regex patterns",
-                "add a 'start' field to the 'between' block",
-            ))?;
-            let end = between.end.ok_or_else(|| recipe_err(
-                "replace 'between' missing required field 'end'",
-                &loc,
-                "between requires both 'start' and 'end' regex patterns",
-                "add an 'end' field to the 'between' block",
-            ))?;
+            let start = between.start.ok_or_else(|| {
+                recipe_err(
+                    "replace 'between' missing required field 'start'",
+                    &loc,
+                    "between requires both 'start' and 'end' regex patterns",
+                    "add a 'start' field to the 'between' block",
+                )
+            })?;
+            let end = between.end.ok_or_else(|| {
+                recipe_err(
+                    "replace 'between' missing required field 'end'",
+                    &loc,
+                    "between requires both 'start' and 'end' regex patterns",
+                    "add an 'end' field to the 'between' block",
+                )
+            })?;
             validate_regex(&start, "between.start", index, source)?;
             validate_regex(&end, "between.end", index, source)?;
             ReplaceSpec::Between { start, end }
@@ -452,12 +486,14 @@ fn convert_file_op(raw: RawFileOp, index: usize, source: &Path) -> Result<FileOp
     } else {
         // has_patch
         let patch_target = raw.patch.unwrap();
-        let raw_anchor = raw.anchor.ok_or_else(|| recipe_err(
-            "patch operation missing required 'anchor' field",
-            &loc,
-            "a patch operation must specify an 'anchor' block with at least a 'pattern' field",
-            "add an 'anchor' block with a 'pattern' regex",
-        ))?;
+        let raw_anchor = raw.anchor.ok_or_else(|| {
+            recipe_err(
+                "patch operation missing required 'anchor' field",
+                &loc,
+                "a patch operation must specify an 'anchor' block with at least a 'pattern' field",
+                "add an 'anchor' block with a 'pattern' regex",
+            )
+        })?;
         let anchor_pattern = raw_anchor.pattern.ok_or_else(|| recipe_err(
             "patch 'anchor' missing required field 'pattern'",
             &loc,
@@ -519,11 +555,17 @@ fn parse_inject_mode(
     if let Some(pattern) = after {
         let pos = parse_match_position(at, index, source)?;
         validate_regex(pattern, "after", index, source)?;
-        Ok(InjectMode::After { pattern: pattern.clone(), at: pos })
+        Ok(InjectMode::After {
+            pattern: pattern.clone(),
+            at: pos,
+        })
     } else if let Some(pattern) = before {
         let pos = parse_match_position(at, index, source)?;
         validate_regex(pattern, "before", index, source)?;
-        Ok(InjectMode::Before { pattern: pattern.clone(), at: pos })
+        Ok(InjectMode::Before {
+            pattern: pattern.clone(),
+            at: pos,
+        })
     } else if prepend {
         Ok(InjectMode::Prepend)
     } else {
@@ -557,12 +599,14 @@ fn validate_regex(pattern: &str, field: &str, index: usize, source: &Path) -> Re
             "provide a non-empty regex pattern",
         ));
     }
-    regex::Regex::new(pattern).map_err(|e| recipe_err(
-        &format!("invalid regex in '{field}' field"),
-        &format!("files[{index}] in {}", source.display()),
-        &format!("pattern '{pattern}' failed to compile: {e}"),
-        "check regex syntax — remember to escape special characters",
-    ))?;
+    regex::Regex::new(pattern).map_err(|e| {
+        recipe_err(
+            &format!("invalid regex in '{field}' field"),
+            &format!("files[{index}] in {}", source.display()),
+            &format!("pattern '{pattern}' failed to compile: {e}"),
+            "check regex syntax — remember to escape special characters",
+        )
+    })?;
     Ok(())
 }
 
@@ -581,7 +625,11 @@ fn parse_fallback(value: Option<&str>, index: usize, source: &Path) -> Result<Fa
     }
 }
 
-fn parse_scope_type(value: Option<&str>, index: usize, source: &Path) -> Result<ScopeType, JigError> {
+fn parse_scope_type(
+    value: Option<&str>,
+    index: usize,
+    source: &Path,
+) -> Result<ScopeType, JigError> {
     match value {
         None | Some("line") => Ok(ScopeType::Line),
         Some("block") => Ok(ScopeType::Block),
@@ -719,7 +767,11 @@ files:
         let (_dir, path) = setup_recipe(yaml, &["tmpl.j2"]);
         let recipe = Recipe::load(&path).unwrap();
         match &recipe.files[0] {
-            FileOp::Create { template, to, skip_if_exists } => {
+            FileOp::Create {
+                template,
+                to,
+                skip_if_exists,
+            } => {
                 assert_eq!(template, "tmpl.j2");
                 assert_eq!(to, "out/file.rs");
                 assert!(*skip_if_exists);
@@ -748,15 +800,23 @@ files:
     inject: "src/main.rs"
     append: true
 "#;
-        let (_dir, path) = setup_recipe(yaml, &["fixture.j2", "import.j2", "header.j2", "footer.j2"]);
+        let (_dir, path) =
+            setup_recipe(yaml, &["fixture.j2", "import.j2", "header.j2", "footer.j2"]);
         let recipe = Recipe::load(&path).unwrap();
         assert_eq!(recipe.files.len(), 4);
 
         // after mode
         match &recipe.files[0] {
-            FileOp::Inject { inject, mode, skip_if, .. } => {
+            FileOp::Inject {
+                inject,
+                mode,
+                skip_if,
+                ..
+            } => {
                 assert_eq!(inject, "tests/conftest.py");
-                assert!(matches!(mode, InjectMode::After { pattern, at } if pattern == "^# fixtures" && *at == MatchPosition::First));
+                assert!(
+                    matches!(mode, InjectMode::After { pattern, at } if pattern == "^# fixtures" && *at == MatchPosition::First)
+                );
                 assert_eq!(skip_if.as_deref(), Some("BookingService"));
             }
             _ => panic!("expected Inject"),
@@ -765,16 +825,30 @@ files:
         // before with at:last
         match &recipe.files[1] {
             FileOp::Inject { mode, .. } => {
-                assert!(matches!(mode, InjectMode::Before { pattern, at } if pattern == "^class " && *at == MatchPosition::Last));
+                assert!(
+                    matches!(mode, InjectMode::Before { pattern, at } if pattern == "^class " && *at == MatchPosition::Last)
+                );
             }
             _ => panic!("expected Inject"),
         }
 
         // prepend
-        assert!(matches!(&recipe.files[2], FileOp::Inject { mode: InjectMode::Prepend, .. }));
+        assert!(matches!(
+            &recipe.files[2],
+            FileOp::Inject {
+                mode: InjectMode::Prepend,
+                ..
+            }
+        ));
 
         // append
-        assert!(matches!(&recipe.files[3], FileOp::Inject { mode: InjectMode::Append, .. }));
+        assert!(matches!(
+            &recipe.files[3],
+            FileOp::Inject {
+                mode: InjectMode::Append,
+                ..
+            }
+        ));
     }
 
     /// AC-1.5: Malformed YAML exits with code 1.
@@ -862,9 +936,16 @@ files:
         let (_dir, path) = setup_recipe(yaml, &["tmpl.j2"]);
         let recipe = Recipe::load(&path).unwrap();
         match &recipe.files[0] {
-            FileOp::Replace { replace, spec, fallback, .. } => {
+            FileOp::Replace {
+                replace,
+                spec,
+                fallback,
+                ..
+            } => {
                 assert_eq!(replace, "target.txt");
-                assert!(matches!(spec, ReplaceSpec::Between { start, end } if start == "^# START" && end == "^# END"));
+                assert!(
+                    matches!(spec, ReplaceSpec::Between { start, end } if start == "^# START" && end == "^# END")
+                );
                 assert_eq!(*fallback, Fallback::Error);
             }
             _ => panic!("expected Replace op"),
@@ -940,7 +1021,12 @@ files:
         let (_dir, path) = setup_recipe(yaml, &["tmpl.j2"]);
         let recipe = Recipe::load(&path).unwrap();
         match &recipe.files[0] {
-            FileOp::Patch { patch, anchor, skip_if, .. } => {
+            FileOp::Patch {
+                patch,
+                anchor,
+                skip_if,
+                ..
+            } => {
                 assert_eq!(patch, "target.py");
                 assert_eq!(anchor.pattern, "^class User:");
                 assert_eq!(anchor.scope, ScopeType::ClassBody);
@@ -1000,7 +1086,9 @@ files:
             let (_dir, path) = setup_recipe(&yaml, &["tmpl.j2"]);
             let recipe = Recipe::load(&path).unwrap();
             match &recipe.files[0] {
-                FileOp::Patch { anchor, .. } => assert_eq!(&anchor.scope, expected, "failed for scope: {name}"),
+                FileOp::Patch { anchor, .. } => {
+                    assert_eq!(&anchor.scope, expected, "failed for scope: {name}")
+                }
                 _ => panic!("expected Patch for scope: {name}"),
             }
         }
@@ -1025,7 +1113,9 @@ files:
             let (_dir, path) = setup_recipe(&yaml, &["tmpl.j2"]);
             let recipe = Recipe::load(&path).unwrap();
             match &recipe.files[0] {
-                FileOp::Patch { anchor, .. } => assert_eq!(&anchor.position, expected, "failed for position: {name}"),
+                FileOp::Patch { anchor, .. } => {
+                    assert_eq!(&anchor.position, expected, "failed for position: {name}")
+                }
                 _ => panic!("expected Patch for position: {name}"),
             }
         }
@@ -1101,7 +1191,8 @@ files:
 
     #[test]
     fn reject_replace_invalid_regex_pattern() {
-        let yaml = "files:\n  - template: tmpl.j2\n    replace: \"t.txt\"\n    pattern: \"(unclosed\"\n";
+        let yaml =
+            "files:\n  - template: tmpl.j2\n    replace: \"t.txt\"\n    pattern: \"(unclosed\"\n";
         let (_dir, path) = setup_recipe(yaml, &["tmpl.j2"]);
         let err = Recipe::load(&path).unwrap_err();
         assert_eq!(err.exit_code(), 1);
@@ -1208,7 +1299,11 @@ files:
     fn ac_1_13_recipe_file_not_found() {
         let err = Recipe::load(Path::new("/tmp/nonexistent_jig_test_recipe.yaml")).unwrap_err();
         assert_eq!(err.exit_code(), 1);
-        assert!(err.structured_error().what.contains("recipe file not found"));
+        assert!(
+            err.structured_error()
+                .what
+                .contains("recipe file not found")
+        );
     }
 
     /// AC-1.14: Multiple operation types present.
@@ -1237,7 +1332,11 @@ files:
         let (_dir, path) = setup_recipe(yaml, &["tmpl.j2"]);
         let err = Recipe::load(&path).unwrap_err();
         assert_eq!(err.exit_code(), 1);
-        assert!(err.structured_error().what.contains("missing operation type"));
+        assert!(
+            err.structured_error()
+                .what
+                .contains("missing operation type")
+        );
     }
 
     /// AC-5.14 (partial — recipe validation side): Invalid regex rejected at parse time.
@@ -1292,19 +1391,25 @@ files:
         let yaml1 = "files:\n  - template: tmpl.j2\n    inject: \"target.py\"\n    prepend: true\n    at: first\n";
         let (_dir1, path1) = setup_recipe(yaml1, &["tmpl.j2"]);
         let r1 = Recipe::load(&path1).unwrap();
-        assert!(matches!(r1.files[0], FileOp::Inject { ref mode, .. } if matches!(mode, InjectMode::Prepend)));
+        assert!(
+            matches!(r1.files[0], FileOp::Inject { ref mode, .. } if matches!(mode, InjectMode::Prepend))
+        );
 
         // append with at: last — should parse fine
         let yaml2 = "files:\n  - template: tmpl.j2\n    inject: \"target.py\"\n    append: true\n    at: last\n";
         let (_dir2, path2) = setup_recipe(yaml2, &["tmpl.j2"]);
         let r2 = Recipe::load(&path2).unwrap();
-        assert!(matches!(r2.files[0], FileOp::Inject { ref mode, .. } if matches!(mode, InjectMode::Append)));
+        assert!(
+            matches!(r2.files[0], FileOp::Inject { ref mode, .. } if matches!(mode, InjectMode::Append))
+        );
 
         // prepend with at: banana — invalid at value, but should be ignored for prepend
         let yaml3 = "files:\n  - template: tmpl.j2\n    inject: \"target.py\"\n    prepend: true\n    at: banana\n";
         let (_dir3, path3) = setup_recipe(yaml3, &["tmpl.j2"]);
         let r3 = Recipe::load(&path3).unwrap();
-        assert!(matches!(r3.files[0], FileOp::Inject { ref mode, .. } if matches!(mode, InjectMode::Prepend)));
+        assert!(
+            matches!(r3.files[0], FileOp::Inject { ref mode, .. } if matches!(mode, InjectMode::Prepend))
+        );
     }
 
     /// Error structures always have what/where/why/hint (AC-N4.1).

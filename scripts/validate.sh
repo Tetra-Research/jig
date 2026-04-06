@@ -9,6 +9,7 @@ ws_name="${1:-}"
 task_name="${2:-}"
 
 repo_root="$(get_repo_root)"
+cd "$repo_root"
 
 # --- Run tests ---
 
@@ -24,6 +25,22 @@ elif [[ -f "$repo_root/package.json" ]]; then
     npm test 2>&1 || test_result=$?
 else
     log_warn "No test runner detected"
+fi
+
+# --- Run strict Rust quality checks (if applicable) ---
+
+fmt_result=0
+clippy_result=0
+has_rust_project=0
+
+if [[ -f "$repo_root/Cargo.toml" ]]; then
+    has_rust_project=1
+
+    log_info "Running: cargo fmt --all -- --check"
+    cargo fmt --all -- --check 2>&1 || fmt_result=$?
+
+    log_info "Running: cargo clippy --all-targets -- -D warnings"
+    cargo clippy --all-targets -- -D warnings 2>&1 || clippy_result=$?
 fi
 
 # --- Check VALIDATION.md coverage ---
@@ -56,6 +73,10 @@ fi
 echo ""
 echo "=== Validation Report ==="
 echo "Tests: $(if [[ $test_result -eq 0 ]]; then echo "PASS"; else echo "FAIL (exit code $test_result)"; fi)"
+if [[ $has_rust_project -eq 1 ]]; then
+    echo "Rust fmt: $(if [[ $fmt_result -eq 0 ]]; then echo "PASS"; else echo "FAIL (exit code $fmt_result)"; fi)"
+    echo "Rust clippy: $(if [[ $clippy_result -eq 0 ]]; then echo "PASS"; else echo "FAIL (exit code $clippy_result)"; fi)"
+fi
 
 if [[ -n "$validation_file" && -f "$validation_file" ]]; then
     echo "VALIDATION.md:"
@@ -68,12 +89,14 @@ fi
 echo ""
 
 # Determine readiness
-if [[ $test_result -eq 0 && $fail_count -eq 0 && $missing_count -eq 0 && $pending_count -eq 0 ]]; then
+if [[ $test_result -eq 0 && $fmt_result -eq 0 && $clippy_result -eq 0 && $fail_count -eq 0 && $missing_count -eq 0 && $pending_count -eq 0 ]]; then
     echo "Recommendation: READY"
     exit 0
 else
     echo "Recommendation: NOT READY"
     [[ $test_result -ne 0 ]] && echo "  - Tests failed"
+    [[ $fmt_result -ne 0 ]] && echo "  - cargo fmt check failed"
+    [[ $clippy_result -ne 0 ]] && echo "  - cargo clippy strict check failed"
     [[ $fail_count -gt 0 ]] && echo "  - $fail_count FAIL entries in VALIDATION.md"
     [[ $pending_count -gt 0 ]] && echo "  - $pending_count PENDING entries in VALIDATION.md"
     [[ $missing_count -gt 0 ]] && echo "  - $missing_count MISSING entries in VALIDATION.md"

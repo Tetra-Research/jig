@@ -49,14 +49,12 @@ pub fn detect_scope(
     scope_type: &ScopeType,
 ) -> Result<ScopeResult, StructuredError> {
     match scope_type {
-        ScopeType::Line => {
-            Ok(ScopeResult {
-                start_line: anchor_line,
-                end_line: anchor_line,
-                closing_line: None,
-                is_empty: false,
-            })
-        }
+        ScopeType::Line => Ok(ScopeResult {
+            start_line: anchor_line,
+            end_line: anchor_line,
+            closing_line: None,
+            is_empty: false,
+        }),
         ScopeType::Block | ScopeType::ClassBody | ScopeType::FunctionBody => {
             indent::detect_indent_scope(lines, anchor_line, scope_type)
         }
@@ -86,10 +84,16 @@ pub fn find_within_scope(
 
     Err(StructuredError {
         what: format!("find string '{}' not found within scope", find_str),
-        where_: format!("scope lines {}-{}", scope.start_line + 1, scope.end_line + 1),
+        where_: format!(
+            "scope lines {}-{}",
+            scope.start_line + 1,
+            scope.end_line + 1
+        ),
         why: format!(
             "searched lines {}-{} but '{}' was not found",
-            scope.start_line + 1, scope.end_line + 1, find_str,
+            scope.start_line + 1,
+            scope.end_line + 1,
+            find_str,
         ),
         hint: "check the find string against the scope contents".into(),
     })
@@ -139,7 +143,12 @@ mod tests {
     #[test]
     fn find_within_scope_basic() {
         let lines: Vec<&str> = vec!["class Foo:", "    name = 'x'", "    age = 10", ""];
-        let scope = ScopeResult { start_line: 1, end_line: 2, closing_line: None, is_empty: false };
+        let scope = ScopeResult {
+            start_line: 1,
+            end_line: 2,
+            closing_line: None,
+            is_empty: false,
+        };
         let result = find_within_scope(&lines, &scope, "age").unwrap();
         assert_eq!(result.found_line, 2);
     }
@@ -153,7 +162,12 @@ mod tests {
             "    ]",
             "",
         ];
-        let scope = ScopeResult { start_line: 1, end_line: 3, closing_line: None, is_empty: false };
+        let scope = ScopeResult {
+            start_line: 1,
+            end_line: 3,
+            closing_line: None,
+            is_empty: false,
+        };
         let result = find_within_scope(&lines, &scope, "list_display").unwrap();
         assert_eq!(result.found_line, 1);
         assert!(result.sub_scope.is_some());
@@ -170,7 +184,12 @@ mod tests {
             "    };",
             "}",
         ];
-        let scope = ScopeResult { start_line: 1, end_line: 3, closing_line: Some(4), is_empty: false };
+        let scope = ScopeResult {
+            start_line: 1,
+            end_line: 3,
+            closing_line: Some(4),
+            is_empty: false,
+        };
         let result = find_within_scope(&lines, &scope, "config").unwrap();
         assert_eq!(result.found_line, 1);
         assert!(result.sub_scope.is_some());
@@ -179,7 +198,12 @@ mod tests {
     #[test]
     fn find_not_found() {
         let lines: Vec<&str> = vec!["line0", "line1", "line2"];
-        let scope = ScopeResult { start_line: 0, end_line: 2, closing_line: None, is_empty: false };
+        let scope = ScopeResult {
+            start_line: 0,
+            end_line: 2,
+            closing_line: None,
+            is_empty: false,
+        };
         let err = find_within_scope(&lines, &scope, "nonexistent").unwrap_err();
         assert!(err.what.contains("not found within scope"));
     }
@@ -194,7 +218,12 @@ mod tests {
             "    }",
             "}",
         ];
-        let scope = ScopeResult { start_line: 1, end_line: 4, closing_line: Some(5), is_empty: false };
+        let scope = ScopeResult {
+            start_line: 1,
+            end_line: 4,
+            closing_line: Some(5),
+            is_empty: false,
+        };
         let result = find_within_scope(&lines, &scope, "mapping").unwrap();
         assert_eq!(result.found_line, 2);
         assert!(result.sub_scope.is_some());

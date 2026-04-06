@@ -40,7 +40,8 @@ pub fn detect_delimiter_scope(
                     where_: format!("line {} col {}", open_line + 1, open_col + 1),
                     why: format!(
                         "opening '{}' at line {} was never closed",
-                        open, open_line + 1,
+                        open,
+                        open_line + 1,
                     ),
                     hint: "check for mismatched delimiters, or use a simpler scope type".into(),
                 });
@@ -90,16 +91,29 @@ pub fn detect_delimiter_scope(
                             // Multi-line: check if lines between are empty/whitespace.
                             let inner_start = open_line + 1;
                             let inner_end = close_line;
-                            inner_start >= inner_end || (inner_start..inner_end).all(|i| lines[i].trim().is_empty())
+                            inner_start >= inner_end
+                                || (inner_start..inner_end).all(|i| lines[i].trim().is_empty())
                         };
 
                         // The scope body is between the delimiters (exclusive).
                         let body_start = open_line + 1;
-                        let body_end = if close_line > 0 { close_line - 1 } else { open_line };
+                        let body_end = if close_line > 0 {
+                            close_line - 1
+                        } else {
+                            open_line
+                        };
 
                         return Ok(ScopeResult {
-                            start_line: if is_empty { content_start_line } else { body_start },
-                            end_line: if is_empty { content_end_line } else { body_end.max(body_start) },
+                            start_line: if is_empty {
+                                content_start_line
+                            } else {
+                                body_start
+                            },
+                            end_line: if is_empty {
+                                content_end_line
+                            } else {
+                                body_end.max(body_start)
+                            },
                             closing_line: Some(close_line),
                             is_empty,
                         });
@@ -125,7 +139,8 @@ fn find_opening(scanner: &mut CharScanner, open: char) -> Result<(usize, usize),
         what: format!("opening delimiter '{}' not found", open),
         where_: format!("starting from line {}", scanner.line + 1),
         why: format!("scanned from anchor line but '{}' was not found", open),
-        hint: "check that the anchor line or a subsequent line contains the opening delimiter".into(),
+        hint: "check that the anchor line or a subsequent line contains the opening delimiter"
+            .into(),
     })
 }
 
@@ -297,12 +312,7 @@ mod tests {
 
     #[test]
     fn python_list_brackets() {
-        let lines: Vec<&str> = vec![
-            "items = [",
-            "    'a',",
-            "    'b',",
-            "]",
-        ];
+        let lines: Vec<&str> = vec!["items = [", "    'a',", "    'b',", "]"];
         let scope = detect_delimiter_scope(&lines, 0, '[', ']').unwrap();
         assert_eq!(scope.start_line, 1);
         assert_eq!(scope.end_line, 2);
@@ -311,12 +321,7 @@ mod tests {
 
     #[test]
     fn function_signature_parens() {
-        let lines: Vec<&str> = vec![
-            "def process(",
-            "    arg1: str,",
-            "    arg2: int,",
-            "):",
-        ];
+        let lines: Vec<&str> = vec!["def process(", "    arg1: str,", "    arg2: int,", "):"];
         let scope = detect_delimiter_scope(&lines, 0, '(', ')').unwrap();
         assert_eq!(scope.start_line, 1);
         assert_eq!(scope.end_line, 2);
@@ -341,11 +346,7 @@ mod tests {
 
     #[test]
     fn delimiters_in_double_quotes() {
-        let lines: Vec<&str> = vec![
-            "let x = {",
-            "    msg: \"{not a brace}\",",
-            "};",
-        ];
+        let lines: Vec<&str> = vec!["let x = {", "    msg: \"{not a brace}\",", "};"];
         let scope = detect_delimiter_scope(&lines, 0, '{', '}').unwrap();
         assert_eq!(scope.start_line, 1);
         assert_eq!(scope.end_line, 1);
@@ -354,96 +355,63 @@ mod tests {
 
     #[test]
     fn delimiters_in_single_quotes() {
-        let lines: Vec<&str> = vec![
-            "let x = {",
-            "    msg: '{not}',",
-            "};",
-        ];
+        let lines: Vec<&str> = vec!["let x = {", "    msg: '{not}',", "};"];
         let scope = detect_delimiter_scope(&lines, 0, '{', '}').unwrap();
         assert_eq!(scope.closing_line, Some(2));
     }
 
     #[test]
     fn delimiters_in_backticks() {
-        let lines: Vec<&str> = vec![
-            "const x = {",
-            "    msg: `{not}`,",
-            "};",
-        ];
+        let lines: Vec<&str> = vec!["const x = {", "    msg: `{not}`,", "};"];
         let scope = detect_delimiter_scope(&lines, 0, '{', '}').unwrap();
         assert_eq!(scope.closing_line, Some(2));
     }
 
     #[test]
     fn delimiters_in_line_comments() {
-        let lines: Vec<&str> = vec![
-            "fn f() {",
-            "    // this { won't count",
-            "    x();",
-            "}",
-        ];
+        let lines: Vec<&str> = vec!["fn f() {", "    // this { won't count", "    x();", "}"];
         let scope = detect_delimiter_scope(&lines, 0, '{', '}').unwrap();
         assert_eq!(scope.closing_line, Some(3));
     }
 
     #[test]
     fn delimiters_in_block_comments() {
-        let lines: Vec<&str> = vec![
-            "fn f() {",
-            "    /* { { { */",
-            "    x();",
-            "}",
-        ];
+        let lines: Vec<&str> = vec!["fn f() {", "    /* { { { */", "    x();", "}"];
         let scope = detect_delimiter_scope(&lines, 0, '{', '}').unwrap();
         assert_eq!(scope.closing_line, Some(3));
     }
 
     #[test]
     fn escaped_delimiters() {
-        let lines: Vec<&str> = vec![
-            "let re = {",
-            "    pattern: \"\\{escaped\\}\",",
-            "};",
-        ];
+        let lines: Vec<&str> = vec!["let re = {", "    pattern: \"\\{escaped\\}\",", "};"];
         let scope = detect_delimiter_scope(&lines, 0, '{', '}').unwrap();
         assert_eq!(scope.closing_line, Some(2));
     }
 
     #[test]
     fn missing_opening_delimiter() {
-        let lines: Vec<&str> = vec![
-            "no delimiters here",
-        ];
+        let lines: Vec<&str> = vec!["no delimiters here"];
         let err = detect_delimiter_scope(&lines, 0, '{', '}').unwrap_err();
         assert!(err.what.contains("opening delimiter"));
     }
 
     #[test]
     fn unbalanced_delimiter() {
-        let lines: Vec<&str> = vec![
-            "fn f() {",
-            "    never closed",
-        ];
+        let lines: Vec<&str> = vec!["fn f() {", "    never closed"];
         let err = detect_delimiter_scope(&lines, 0, '{', '}').unwrap_err();
         assert!(err.what.contains("unbalanced"));
     }
 
     #[test]
     fn empty_braces() {
-        let lines: Vec<&str> = vec![
-            "struct Empty {}",
-        ];
+        let lines: Vec<&str> = vec!["struct Empty {}"];
         let scope = detect_delimiter_scope(&lines, 0, '{', '}').unwrap();
         assert!(scope.is_empty);
     }
 
     #[test]
     fn opener_on_anchor_line() {
-        let lines: Vec<&str> = vec![
-            "struct Foo {",
-            "    x: i32,",
-            "}",
-        ];
+        let lines: Vec<&str> = vec!["struct Foo {", "    x: i32,", "}"];
         // Anchor on line 0, opener is on anchor line.
         let scope = detect_delimiter_scope(&lines, 0, '{', '}').unwrap();
         assert_eq!(scope.closing_line, Some(2));
@@ -453,12 +421,7 @@ mod tests {
     #[test]
     fn non_ascii_content() {
         // C1: byte/char index mismatch must not panic on multi-byte UTF-8.
-        let lines: Vec<&str> = vec![
-            "struct Café {",
-            "    naïve: String,",
-            "    über: i32,",
-            "}",
-        ];
+        let lines: Vec<&str> = vec!["struct Café {", "    naïve: String,", "    über: i32,", "}"];
         let scope = detect_delimiter_scope(&lines, 0, '{', '}').unwrap();
         assert_eq!(scope.start_line, 1);
         assert_eq!(scope.end_line, 2);
@@ -480,13 +443,7 @@ mod tests {
     #[test]
     fn blank_lines_between_content() {
         // M4: peek_next should work across blank lines.
-        let lines: Vec<&str> = vec![
-            "fn f() {",
-            "    // comment",
-            "",
-            "    x();",
-            "}",
-        ];
+        let lines: Vec<&str> = vec!["fn f() {", "    // comment", "", "    x();", "}"];
         let scope = detect_delimiter_scope(&lines, 0, '{', '}').unwrap();
         assert_eq!(scope.closing_line, Some(4));
     }

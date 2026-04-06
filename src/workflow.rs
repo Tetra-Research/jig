@@ -253,7 +253,10 @@ pub fn load_workflow(path: &Path) -> Result<Workflow, JigError> {
                     return Err(JigError::RecipeValidation(StructuredError {
                         what: format!("duplicate vars_map target '{}'", target),
                         where_: format!("steps[{}].vars_map", i),
-                        why: format!("multiple source variables map to the same target '{}'", target),
+                        why: format!(
+                            "multiple source variables map to the same target '{}'",
+                            target
+                        ),
                         hint: "each vars_map target must be unique".into(),
                     }));
                 }
@@ -280,12 +283,16 @@ pub fn load_workflow(path: &Path) -> Result<Workflow, JigError> {
                 Ok(_) => {}
                 Err(e) => {
                     let se = e.structured_error().clone();
-                    validation_errors.push((i, raw_step.recipe.clone(), StructuredError {
-                        what: format!("invalid recipe in step {}: {}", i + 1, se.what),
-                        where_: format!("steps[{}].recipe ({})", i, raw_step.recipe),
-                        why: se.why,
-                        hint: se.hint,
-                    }));
+                    validation_errors.push((
+                        i,
+                        raw_step.recipe.clone(),
+                        StructuredError {
+                            what: format!("invalid recipe in step {}: {}", i + 1, se.what),
+                            where_: format!("steps[{}].recipe ({})", i, raw_step.recipe),
+                            why: se.why,
+                            hint: se.hint,
+                        },
+                    ));
                 }
             }
         }
@@ -563,8 +570,8 @@ pub fn run_recipe(
     // Render ALL templates and paths upfront.
     let mut prepared_ops = Vec::with_capacity(recipe.files.len());
     for (i, file_op) in recipe.files.iter().enumerate() {
-        let rendered_content = renderer::render_template(&env, file_op.template(), vars)
-            .map_err(|e| (e, vec![]))?;
+        let rendered_content =
+            renderer::render_template(&env, file_op.template(), vars).map_err(|e| (e, vec![]))?;
 
         let rendered_path = match file_op {
             FileOp::Create { to, .. } => {
@@ -573,9 +580,12 @@ pub fn run_recipe(
             FileOp::Inject { inject, .. } => {
                 renderer::render_path_template(&env, inject, vars, &format!("files[{}].inject", i))
             }
-            FileOp::Replace { replace, .. } => {
-                renderer::render_path_template(&env, replace, vars, &format!("files[{}].replace", i))
-            }
+            FileOp::Replace { replace, .. } => renderer::render_path_template(
+                &env,
+                replace,
+                vars,
+                &format!("files[{}].replace", i),
+            ),
             FileOp::Patch { patch, .. } => {
                 renderer::render_path_template(&env, patch, vars, &format!("files[{}].patch", i))
             }
@@ -583,13 +593,17 @@ pub fn run_recipe(
         .map_err(|e| (e, vec![]))?;
 
         let rendered_skip_if = match file_op {
-            FileOp::Inject { skip_if: Some(expr), .. }
-            | FileOp::Patch { skip_if: Some(expr), .. } => {
-                Some(
-                    renderer::render_path_template(&env, expr, vars, &format!("files[{}].skip_if", i))
-                        .map_err(|e| (e, vec![]))?,
-                )
+            FileOp::Inject {
+                skip_if: Some(expr),
+                ..
             }
+            | FileOp::Patch {
+                skip_if: Some(expr),
+                ..
+            } => Some(
+                renderer::render_path_template(&env, expr, vars, &format!("files[{}].skip_if", i))
+                    .map_err(|e| (e, vec![]))?,
+            ),
             _ => None,
         };
 
@@ -620,9 +634,7 @@ pub fn run_recipe(
 
 fn extract_rendered_from_error(err: &JigError) -> Option<String> {
     match err {
-        JigError::TemplateRendering(se) | JigError::FileOperation(se) => {
-            Some(se.what.clone())
-        }
+        JigError::TemplateRendering(se) | JigError::FileOperation(se) => Some(se.what.clone()),
         _ => None,
     }
 }
@@ -642,10 +654,7 @@ mod tests {
         fs::create_dir_all(&recipe_dir).unwrap();
         fs::write(
             recipe_dir.join("recipe.yaml"),
-            format!(
-                "files:\n  - template: t.j2\n    to: {}/output.txt\n",
-                name
-            ),
+            format!("files:\n  - template: t.j2\n    to: {}/output.txt\n", name),
         )
         .unwrap();
         fs::write(recipe_dir.join("t.j2"), template_content).unwrap();
@@ -693,7 +702,11 @@ mod tests {
         fs::write(&path, "name: something\n").unwrap();
         let err = detect_file_type(&path).unwrap_err();
         assert_eq!(err.exit_code(), 1);
-        assert!(err.structured_error().what.contains("missing structural key"));
+        assert!(
+            err.structured_error()
+                .what
+                .contains("missing structural key")
+        );
     }
 
     // ── Workflow parsing ──
@@ -702,10 +715,7 @@ mod tests {
     fn parse_minimal_workflow() {
         let dir = TempDir::new().unwrap();
         create_recipe_dir(dir.path(), "step1", "hello");
-        let wf_path = create_workflow_yaml(
-            dir.path(),
-            "steps:\n  - recipe: step1/recipe.yaml\n",
-        );
+        let wf_path = create_workflow_yaml(dir.path(), "steps:\n  - recipe: step1/recipe.yaml\n");
         let wf = load_workflow(&wf_path).unwrap();
         assert!(wf.name.is_none());
         assert_eq!(wf.steps.len(), 1);
@@ -767,10 +777,8 @@ steps:
     #[test]
     fn parse_missing_recipe_error() {
         let dir = TempDir::new().unwrap();
-        let wf_path = create_workflow_yaml(
-            dir.path(),
-            "steps:\n  - recipe: nonexistent/recipe.yaml\n",
-        );
+        let wf_path =
+            create_workflow_yaml(dir.path(), "steps:\n  - recipe: nonexistent/recipe.yaml\n");
         let err = load_workflow(&wf_path).unwrap_err();
         assert_eq!(err.exit_code(), 1);
         assert!(err.structured_error().what.contains("not found"));
@@ -779,10 +787,7 @@ steps:
     #[test]
     fn parse_ambiguous_yaml_error() {
         let dir = TempDir::new().unwrap();
-        let wf_path = create_workflow_yaml(
-            dir.path(),
-            "steps: []\nfiles: []\n",
-        );
+        let wf_path = create_workflow_yaml(dir.path(), "steps: []\nfiles: []\n");
         let err = load_workflow(&wf_path).unwrap_err();
         assert_eq!(err.exit_code(), 1);
         assert!(err.structured_error().what.contains("ambiguous"));
@@ -791,10 +796,7 @@ steps:
     #[test]
     fn parse_bad_on_error_value() {
         let dir = TempDir::new().unwrap();
-        let wf_path = create_workflow_yaml(
-            dir.path(),
-            "steps: []\non_error: crash\n",
-        );
+        let wf_path = create_workflow_yaml(dir.path(), "steps: []\non_error: crash\n");
         let err = load_workflow(&wf_path).unwrap_err();
         assert_eq!(err.exit_code(), 1);
     }
@@ -809,7 +811,11 @@ steps:
         );
         let err = load_workflow(&wf_path).unwrap_err();
         assert_eq!(err.exit_code(), 1);
-        assert!(err.structured_error().what.contains("duplicate vars_map target"));
+        assert!(
+            err.structured_error()
+                .what
+                .contains("duplicate vars_map target")
+        );
     }
 
     // ── Variable resolution ──
@@ -981,16 +987,10 @@ steps:
     #[test]
     fn when_with_jinja2_control_flow() {
         let vars = json!({"methods": ["get", "post"]});
-        assert!(evaluate_when(
-            "{% if methods | length > 0 %}yes{% endif %}",
-            &vars,
-        ).unwrap());
+        assert!(evaluate_when("{% if methods | length > 0 %}yes{% endif %}", &vars,).unwrap());
 
         let vars = json!({"methods": []});
-        assert!(!evaluate_when(
-            "{% if methods | length > 0 %}yes{% endif %}",
-            &vars,
-        ).unwrap());
+        assert!(!evaluate_when("{% if methods | length > 0 %}yes{% endif %}", &vars,).unwrap());
     }
 
     #[test]
@@ -1031,10 +1031,7 @@ steps:
     fn execute_single_step_success() {
         let dir = TempDir::new().unwrap();
         create_recipe_dir(dir.path(), "s1", "hello world");
-        let wf_path = create_workflow_yaml(
-            dir.path(),
-            "steps:\n  - recipe: s1/recipe.yaml\n",
-        );
+        let wf_path = create_workflow_yaml(dir.path(), "steps:\n  - recipe: s1/recipe.yaml\n");
         let wf = load_workflow(&wf_path).unwrap();
         let mut ctx = ExecutionContext::new(dir.path().to_path_buf(), false, false);
         let result = execute_workflow(&wf, json!({}), &mut ctx, false);
@@ -1169,7 +1166,10 @@ steps:
         assert!(matches!(&result.steps[0], StepResult::Success { .. }));
         assert!(matches!(&result.steps[1], StepResult::Success { .. }));
         // Verify virtual_files has the combined content.
-        let vf = ctx.virtual_files.get(&dir.path().join("shared.txt")).unwrap();
+        let vf = ctx
+            .virtual_files
+            .get(&dir.path().join("shared.txt"))
+            .unwrap();
         assert!(vf.contains("line one"));
         assert!(vf.contains("line two"));
     }
@@ -1215,10 +1215,7 @@ steps:
     fn determinism_same_output() {
         let dir = TempDir::new().unwrap();
         create_recipe_dir(dir.path(), "s1", "deterministic output");
-        let wf_path = create_workflow_yaml(
-            dir.path(),
-            "steps:\n  - recipe: s1/recipe.yaml\n",
-        );
+        let wf_path = create_workflow_yaml(dir.path(), "steps:\n  - recipe: s1/recipe.yaml\n");
 
         let mut results = vec![];
         for _ in 0..3 {

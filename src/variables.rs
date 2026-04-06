@@ -59,10 +59,7 @@ pub fn parse_vars_file(path: &Path) -> Result<Value, JigError> {
                 "the file does not exist at the specified path".to_string(),
             )
         } else {
-            (
-                "cannot read vars file".to_string(),
-                e.to_string(),
-            )
+            ("cannot read vars file".to_string(), e.to_string())
         };
         JigError::VariableValidation(vec![StructuredError {
             what,
@@ -169,7 +166,9 @@ pub fn validate_variables(
                 errors.push(StructuredError {
                     what: format!("missing required variable '{name}'"),
                     where_: format!("variable '{name}'"),
-                    why: format!("variable '{name}' is declared as required but no value was provided"),
+                    why: format!(
+                        "variable '{name}' is declared as required but no value was provided"
+                    ),
                     hint: format!("add '{name}' to --vars, e.g. --vars '{{\"{}\":...}}'", name),
                 });
             }
@@ -230,7 +229,8 @@ fn check_type(name: &str, decl: &VariableDecl, val: &Value, errors: &mut Vec<Str
                 errors.push(type_mismatch_error(name, "object", actual_type, val));
             }
         }
-        VarType::Enum => {
+        VarType::Enum =>
+        {
             #[allow(clippy::collapsible_if)]
             if let Some(s) = val.as_str() {
                 if let Some(ref allowed) = decl.values {
@@ -357,30 +357,39 @@ mod tests {
     #[test]
     fn vars_json_includes_all_fields() {
         let mut variables = IndexMap::new();
-        variables.insert("name".into(), VariableDecl {
-            var_type: VarType::String,
-            required: true,
-            default: Some(Value::String("default_val".into())),
-            description: Some("A name".into()),
-            values: None,
-            items: None,
-        });
-        variables.insert("status".into(), VariableDecl {
-            var_type: VarType::Enum,
-            required: false,
-            default: None,
-            description: None,
-            values: Some(vec!["active".into(), "inactive".into()]),
-            items: None,
-        });
-        variables.insert("tags".into(), VariableDecl {
-            var_type: VarType::Array,
-            required: false,
-            default: None,
-            description: None,
-            values: None,
-            items: Some(VarType::String),
-        });
+        variables.insert(
+            "name".into(),
+            VariableDecl {
+                var_type: VarType::String,
+                required: true,
+                default: Some(Value::String("default_val".into())),
+                description: Some("A name".into()),
+                values: None,
+                items: None,
+            },
+        );
+        variables.insert(
+            "status".into(),
+            VariableDecl {
+                var_type: VarType::Enum,
+                required: false,
+                default: None,
+                description: None,
+                values: Some(vec!["active".into(), "inactive".into()]),
+                items: None,
+            },
+        );
+        variables.insert(
+            "tags".into(),
+            VariableDecl {
+                var_type: VarType::Array,
+                required: false,
+                default: None,
+                description: None,
+                values: None,
+                items: Some(VarType::String),
+            },
+        );
 
         let json = vars_json(&variables);
         let obj = json.as_object().unwrap();
@@ -396,7 +405,13 @@ mod tests {
         assert_eq!(status["required"], false);
         assert!(status.get("default").is_none());
         let vals = status["values"].as_array().unwrap();
-        assert_eq!(vals, &[Value::String("active".into()), Value::String("inactive".into())]);
+        assert_eq!(
+            vals,
+            &[
+                Value::String("active".into()),
+                Value::String("inactive".into())
+            ]
+        );
 
         let tags = obj["tags"].as_object().unwrap();
         assert_eq!(tags["type"], "array");
@@ -441,7 +456,14 @@ mod tests {
     #[test]
     fn ac_2_4_merge_precedence() {
         let mut decls: IndexMap<String, VariableDecl> = IndexMap::new();
-        decls.insert("x".into(), decl(VarType::String, false, Some(Value::String("default".into()))));
+        decls.insert(
+            "x".into(),
+            decl(
+                VarType::String,
+                false,
+                Some(Value::String("default".into())),
+            ),
+        );
 
         // defaults < file < stdin < inline
         // We can test this through validate_variables by providing overlapping values.
@@ -457,7 +479,8 @@ mod tests {
         assert_eq!(merged["y"], "file_only");
 
         // inline overrides file
-        let merged = collect_vars(Some(r#"{"x": "from_inline"}"#), Some(&file_path), false).unwrap();
+        let merged =
+            collect_vars(Some(r#"{"x": "from_inline"}"#), Some(&file_path), false).unwrap();
         assert_eq!(merged["x"], "from_inline");
         assert_eq!(merged["y"], "file_only");
     }
@@ -465,7 +488,14 @@ mod tests {
     #[test]
     fn ac_2_4_defaults_lowest_precedence() {
         let mut decls: IndexMap<String, VariableDecl> = IndexMap::new();
-        decls.insert("x".into(), decl(VarType::String, false, Some(Value::String("default".into()))));
+        decls.insert(
+            "x".into(),
+            decl(
+                VarType::String,
+                false,
+                Some(Value::String("default".into())),
+            ),
+        );
 
         // No provided value → default used
         let result = validate_variables(&decls, &Value::Object(serde_json::Map::new())).unwrap();
@@ -497,7 +527,10 @@ mod tests {
     #[test]
     fn ac_2_6_default_fallback() {
         let mut decls: IndexMap<String, VariableDecl> = IndexMap::new();
-        decls.insert("color".into(), decl(VarType::String, false, Some(Value::String("blue".into()))));
+        decls.insert(
+            "color".into(),
+            decl(VarType::String, false, Some(Value::String("blue".into()))),
+        );
 
         let result = validate_variables(&decls, &Value::Object(serde_json::Map::new())).unwrap();
         assert_eq!(result["color"], "blue");
@@ -607,6 +640,7 @@ mod tests {
 
     #[test]
     fn ac_2_10_all_six_types() {
+        let pi = std::f64::consts::PI;
         let mut decls: IndexMap<String, VariableDecl> = IndexMap::new();
         decls.insert("s".into(), decl(VarType::String, true, None));
         decls.insert("n".into(), decl(VarType::Number, true, None));
@@ -617,7 +651,7 @@ mod tests {
 
         let provided = serde_json::json!({
             "s": "hello",
-            "n": 3.14,
+            "n": pi,
             "b": true,
             "a": [1, 2],
             "o": {"key": "val"},
@@ -626,7 +660,7 @@ mod tests {
 
         let result = validate_variables(&decls, &provided).unwrap();
         assert_eq!(result["s"], "hello");
-        assert_eq!(result["n"], 3.14);
+        assert_eq!(result["n"], pi);
         assert_eq!(result["b"], true);
     }
 
@@ -645,7 +679,11 @@ mod tests {
         assert_eq!(err.exit_code(), 4);
 
         let errors = err.structured_errors();
-        assert!(errors.len() >= 2, "expected at least 2 errors, got {}", errors.len());
+        assert!(
+            errors.len() >= 2,
+            "expected at least 2 errors, got {}",
+            errors.len()
+        );
 
         let whats: Vec<&str> = errors.iter().map(|e| e.what.as_str()).collect();
         assert!(whats.iter().any(|w| w.contains("missing required")));
@@ -703,7 +741,10 @@ mod tests {
     #[test]
     fn ac_2_16_no_sources_uses_defaults() {
         let mut decls: IndexMap<String, VariableDecl> = IndexMap::new();
-        decls.insert("color".into(), decl(VarType::String, false, Some(Value::String("red".into()))));
+        decls.insert(
+            "color".into(),
+            decl(VarType::String, false, Some(Value::String("red".into()))),
+        );
         decls.insert("label".into(), decl(VarType::String, false, None));
 
         let provided = collect_vars(None, None, false).unwrap();

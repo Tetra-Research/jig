@@ -70,7 +70,8 @@ pub fn execute(
             }
         }
         InjectMode::Before { pattern, at } => {
-            match inject_after_before(&file_content, rendered_content, pattern, at, false, &target) {
+            match inject_after_before(&file_content, rendered_content, pattern, at, false, &target)
+            {
                 Ok(v) => v,
                 Err(op_result) => return op_result,
             }
@@ -171,7 +172,10 @@ fn inject_after_before(
         MatchPosition::Last => "last",
     };
     // Line numbers are 1-based for human display.
-    let location = format!("{direction}:{pattern} ({at_str} match, line {})", match_idx + 1);
+    let location = format!(
+        "{direction}:{pattern} ({at_str} match, line {})",
+        match_idx + 1
+    );
 
     let mut result = String::new();
     let has_trailing_newline = file_content.ends_with('\n');
@@ -237,7 +241,13 @@ mod tests {
         };
         let result = execute("target.py", "fixture_c = 3\n", None, &mode, &mut ctx, false);
 
-        assert!(matches!(&result, OpResult::Success { action: "inject", .. }));
+        assert!(matches!(
+            &result,
+            OpResult::Success {
+                action: "inject",
+                ..
+            }
+        ));
         let content = fs::read_to_string(&target).unwrap();
         let lines: Vec<&str> = content.lines().collect();
         assert_eq!(lines[0], "# fixtures");
@@ -260,7 +270,13 @@ mod tests {
         };
         let result = execute("target.py", "import json\n", None, &mode, &mut ctx, false);
 
-        assert!(matches!(&result, OpResult::Success { action: "inject", .. }));
+        assert!(matches!(
+            &result,
+            OpResult::Success {
+                action: "inject",
+                ..
+            }
+        ));
         let content = fs::read_to_string(&target).unwrap();
         let lines: Vec<&str> = content.lines().collect();
         assert_eq!(lines[2], "import json");
@@ -276,9 +292,22 @@ mod tests {
         fs::write(&target, "fn main() {}\n").unwrap();
 
         let mut ctx = make_ctx(dir.path(), false, false);
-        let result = execute("target.rs", "// header\n", None, &InjectMode::Prepend, &mut ctx, false);
+        let result = execute(
+            "target.rs",
+            "// header\n",
+            None,
+            &InjectMode::Prepend,
+            &mut ctx,
+            false,
+        );
 
-        assert!(matches!(&result, OpResult::Success { action: "inject", .. }));
+        assert!(matches!(
+            &result,
+            OpResult::Success {
+                action: "inject",
+                ..
+            }
+        ));
         let content = fs::read_to_string(&target).unwrap();
         assert!(content.starts_with("// header\n"));
         assert!(content.contains("fn main() {}"));
@@ -293,9 +322,22 @@ mod tests {
         fs::write(&target, "fn main() {}\n").unwrap();
 
         let mut ctx = make_ctx(dir.path(), false, false);
-        let result = execute("target.rs", "// footer\n", None, &InjectMode::Append, &mut ctx, false);
+        let result = execute(
+            "target.rs",
+            "// footer\n",
+            None,
+            &InjectMode::Append,
+            &mut ctx,
+            false,
+        );
 
-        assert!(matches!(&result, OpResult::Success { action: "inject", .. }));
+        assert!(matches!(
+            &result,
+            OpResult::Success {
+                action: "inject",
+                ..
+            }
+        ));
         let content = fs::read_to_string(&target).unwrap();
         assert!(content.ends_with("// footer\n"));
     }
@@ -315,7 +357,13 @@ mod tests {
         };
         let result = execute("target.py", "baz\n", None, &mode, &mut ctx, false);
 
-        assert!(matches!(&result, OpResult::Success { action: "inject", .. }));
+        assert!(matches!(
+            &result,
+            OpResult::Success {
+                action: "inject",
+                ..
+            }
+        ));
         let content = fs::read_to_string(&target).unwrap();
         let lines: Vec<&str> = content.lines().collect();
         // Second "# section" is at index 2, so "baz" should be at index 3.
@@ -339,7 +387,13 @@ mod tests {
         };
         let result = execute("target.py", "baz\n", None, &mode, &mut ctx, false);
 
-        assert!(matches!(&result, OpResult::Success { action: "inject", .. }));
+        assert!(matches!(
+            &result,
+            OpResult::Success {
+                action: "inject",
+                ..
+            }
+        ));
         let content = fs::read_to_string(&target).unwrap();
         let lines: Vec<&str> = content.lines().collect();
         assert_eq!(lines[0], "# section");
@@ -357,7 +411,14 @@ mod tests {
 
         let mut ctx = make_ctx(dir.path(), false, false);
         let mode = InjectMode::Append;
-        let result = execute("target.py", "new line\n", Some("BookingService"), &mode, &mut ctx, false);
+        let result = execute(
+            "target.py",
+            "new line\n",
+            Some("BookingService"),
+            &mode,
+            &mut ctx,
+            false,
+        );
 
         match &result {
             OpResult::Skip { reason, .. } => {
@@ -380,9 +441,22 @@ mod tests {
 
         let mut ctx = make_ctx(dir.path(), false, false);
         let mode = InjectMode::Append;
-        let result = execute("target.py", "import json\n", Some("BookingService"), &mode, &mut ctx, false);
+        let result = execute(
+            "target.py",
+            "import json\n",
+            Some("BookingService"),
+            &mode,
+            &mut ctx,
+            false,
+        );
 
-        assert!(matches!(&result, OpResult::Success { action: "inject", .. }));
+        assert!(matches!(
+            &result,
+            OpResult::Success {
+                action: "inject",
+                ..
+            }
+        ));
     }
 
     // ── AC-5.8: Regex no-match exits 3 with pattern, path, hint ──
@@ -401,7 +475,12 @@ mod tests {
         let result = execute("target.py", "new line\n", None, &mode, &mut ctx, false);
 
         assert!(result.is_error());
-        if let OpResult::Error { error, rendered_content, .. } = &result {
+        if let OpResult::Error {
+            error,
+            rendered_content,
+            ..
+        } = &result
+        {
             assert!(error.what.contains("matched no lines"));
             assert!(error.why.contains("NonExistent"));
             assert!(!error.hint.is_empty());
@@ -419,7 +498,12 @@ mod tests {
         let result = execute("nonexistent.py", "content\n", None, &mode, &mut ctx, false);
 
         assert!(result.is_error());
-        if let OpResult::Error { error, rendered_content, .. } = &result {
+        if let OpResult::Error {
+            error,
+            rendered_content,
+            ..
+        } = &result
+        {
             assert!(error.what.contains("target file not found"));
             assert_eq!(rendered_content, "content\n");
         }
@@ -441,12 +525,20 @@ mod tests {
         let result = execute("target.py", "line1\nline2\n", None, &mode, &mut ctx, false);
 
         match &result {
-            OpResult::Success { action, lines, location, .. } => {
+            OpResult::Success {
+                action,
+                lines,
+                location,
+                ..
+            } => {
                 assert_eq!(*action, "inject");
                 assert_eq!(*lines, 2);
                 assert!(location.is_some());
                 let loc = location.as_ref().unwrap();
-                assert!(loc.contains("after"), "location should contain 'after': {loc}");
+                assert!(
+                    loc.contains("after"),
+                    "location should contain 'after': {loc}"
+                );
             }
             _ => panic!("expected Success, got {:?}", result),
         }
@@ -464,9 +556,22 @@ mod tests {
 
         let mut ctx = make_ctx(dir.path(), false, false);
         let mode = InjectMode::Append;
-        let result = execute("tests/test_booking.py", "test_case\n", None, &mode, &mut ctx, false);
+        let result = execute(
+            "tests/test_booking.py",
+            "test_case\n",
+            None,
+            &mode,
+            &mut ctx,
+            false,
+        );
 
-        assert!(matches!(&result, OpResult::Success { action: "inject", .. }));
+        assert!(matches!(
+            &result,
+            OpResult::Success {
+                action: "inject",
+                ..
+            }
+        ));
         let content = fs::read_to_string(&target).unwrap();
         assert!(content.contains("test_case"));
     }
@@ -481,8 +586,21 @@ mod tests {
 
         // Prepend mode — at field doesn't exist in the enum variant, so it's inherently ignored.
         let mut ctx = make_ctx(dir.path(), false, false);
-        let result = execute("target.txt", "prepended\n", None, &InjectMode::Prepend, &mut ctx, false);
-        assert!(matches!(&result, OpResult::Success { action: "inject", .. }));
+        let result = execute(
+            "target.txt",
+            "prepended\n",
+            None,
+            &InjectMode::Prepend,
+            &mut ctx,
+            false,
+        );
+        assert!(matches!(
+            &result,
+            OpResult::Success {
+                action: "inject",
+                ..
+            }
+        ));
         let content = fs::read_to_string(&target).unwrap();
         assert!(content.starts_with("prepended\n"));
     }
@@ -499,7 +617,13 @@ mod tests {
         let mut ctx = make_ctx(dir.path(), false, true);
         let mode = InjectMode::Append;
         let result = execute("target.py", "appended\n", None, &mode, &mut ctx, false);
-        assert!(matches!(&result, OpResult::Success { action: "inject", .. }));
+        assert!(matches!(
+            &result,
+            OpResult::Success {
+                action: "inject",
+                ..
+            }
+        ));
         let content = fs::read_to_string(&target).unwrap();
         assert!(content.contains("appended"));
     }
@@ -516,11 +640,31 @@ mod tests {
         let mode = InjectMode::Append;
 
         // First inject.
-        let r1 = execute("target.py", "new_line\n", Some("new_line"), &mode, &mut ctx, false);
-        assert!(matches!(&r1, OpResult::Success { action: "inject", .. }));
+        let r1 = execute(
+            "target.py",
+            "new_line\n",
+            Some("new_line"),
+            &mode,
+            &mut ctx,
+            false,
+        );
+        assert!(matches!(
+            &r1,
+            OpResult::Success {
+                action: "inject",
+                ..
+            }
+        ));
 
         // Second inject — should skip because skip_if matches.
-        let r2 = execute("target.py", "new_line\n", Some("new_line"), &mode, &mut ctx, false);
+        let r2 = execute(
+            "target.py",
+            "new_line\n",
+            Some("new_line"),
+            &mode,
+            &mut ctx,
+            false,
+        );
         assert!(matches!(&r2, OpResult::Skip { .. }));
 
         // Verify no duplicate.
@@ -535,9 +679,21 @@ mod tests {
         let dir = TempDir::new().unwrap();
         let mut ctx = make_ctx(dir.path(), false, false);
         let mode = InjectMode::Append;
-        let result = execute("nonexistent.py", "my rendered content", None, &mode, &mut ctx, false);
+        let result = execute(
+            "nonexistent.py",
+            "my rendered content",
+            None,
+            &mode,
+            &mut ctx,
+            false,
+        );
 
-        if let OpResult::Error { rendered_content, error, .. } = &result {
+        if let OpResult::Error {
+            rendered_content,
+            error,
+            ..
+        } = &result
+        {
             assert_eq!(rendered_content, "my rendered content");
             assert!(!error.what.is_empty());
             assert!(!error.where_.is_empty());
@@ -557,12 +713,19 @@ mod tests {
 
         // Simulate a prior create operation by populating virtual_files.
         let target = dir.path().join("new_file.py");
-        ctx.virtual_files.insert(target.clone(), "# created\ncode\n".into());
+        ctx.virtual_files
+            .insert(target.clone(), "# created\ncode\n".into());
 
         let mode = InjectMode::Append;
         let result = execute("new_file.py", "injected\n", None, &mode, &mut ctx, false);
 
-        assert!(matches!(&result, OpResult::Success { action: "inject", .. }));
+        assert!(matches!(
+            &result,
+            OpResult::Success {
+                action: "inject",
+                ..
+            }
+        ));
         // Virtual files should have the updated content.
         let virtual_content = ctx.virtual_files.get(&target).unwrap();
         assert!(virtual_content.contains("# created"));
@@ -580,10 +743,18 @@ mod tests {
 
         // Virtual file already has the content.
         let target = dir.path().join("file.py");
-        ctx.virtual_files.insert(target.clone(), "BookingService\n".into());
+        ctx.virtual_files
+            .insert(target.clone(), "BookingService\n".into());
 
         let mode = InjectMode::Append;
-        let result = execute("file.py", "new stuff\n", Some("BookingService"), &mode, &mut ctx, false);
+        let result = execute(
+            "file.py",
+            "new stuff\n",
+            Some("BookingService"),
+            &mode,
+            &mut ctx,
+            false,
+        );
 
         assert!(matches!(&result, OpResult::Skip { .. }));
     }
@@ -619,10 +790,19 @@ mod tests {
         fs::write(&target, "existing\n").unwrap();
 
         let mut ctx = make_ctx(dir.path(), false, false);
-        let result = execute("target.txt", "injected", None, &InjectMode::Append, &mut ctx, true);
+        let result = execute(
+            "target.txt",
+            "injected",
+            None,
+            &InjectMode::Append,
+            &mut ctx,
+            true,
+        );
 
         match result {
-            OpResult::Success { rendered_content, .. } => {
+            OpResult::Success {
+                rendered_content, ..
+            } => {
                 assert_eq!(rendered_content.as_deref(), Some("injected"));
             }
             _ => panic!("expected Success"),
@@ -642,9 +822,22 @@ mod tests {
             pattern: "^class ".into(),
             at: MatchPosition::Last,
         };
-        let result = execute("target.py", "# before last class\n", None, &mode, &mut ctx, false);
+        let result = execute(
+            "target.py",
+            "# before last class\n",
+            None,
+            &mode,
+            &mut ctx,
+            false,
+        );
 
-        assert!(matches!(&result, OpResult::Success { action: "inject", .. }));
+        assert!(matches!(
+            &result,
+            OpResult::Success {
+                action: "inject",
+                ..
+            }
+        ));
         let content = fs::read_to_string(&target).unwrap();
         let lines: Vec<&str> = content.lines().collect();
         assert_eq!(lines[2], "# before last class");
@@ -664,7 +857,14 @@ mod tests {
             pattern: r"^use std::fs;".into(),
             at: MatchPosition::First,
         };
-        let result = execute("target.rs", "use std::path::Path;\n", None, &mode, &mut ctx, false);
+        let result = execute(
+            "target.rs",
+            "use std::path::Path;\n",
+            None,
+            &mode,
+            &mut ctx,
+            false,
+        );
 
         assert!(matches!(&result, OpResult::Success { .. }));
         let content = fs::read_to_string(&target).unwrap();
@@ -682,7 +882,14 @@ mod tests {
         fs::write(&target, "original\n").unwrap();
 
         let mut ctx = make_ctx(dir.path(), false, false);
-        let result = execute("file.txt", "added\n", None, &InjectMode::Append, &mut ctx, false);
+        let result = execute(
+            "file.txt",
+            "added\n",
+            None,
+            &InjectMode::Append,
+            &mut ctx,
+            false,
+        );
         assert!(matches!(&result, OpResult::Success { .. }));
 
         // virtual_files should be updated.

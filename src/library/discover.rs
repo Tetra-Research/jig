@@ -89,7 +89,9 @@ fn scan_extension_recipes(
     library_paths: &std::collections::HashSet<&str>,
     entries: &mut Vec<RecipeEntry>,
 ) {
-    let Ok(read_dir) = std::fs::read_dir(dir) else { return };
+    let Ok(read_dir) = std::fs::read_dir(dir) else {
+        return;
+    };
     for entry in read_dir.flatten() {
         let path = entry.path();
         if path.is_dir() {
@@ -136,22 +138,16 @@ pub fn recipe_info(
         .get(recipe_path)
         .ok_or_else(|| {
             JigError::RecipeValidation(StructuredError {
-                what: format!(
-                    "recipe '{recipe_path}' not found in library '{library_name}'"
-                ),
+                what: format!("recipe '{recipe_path}' not found in library '{library_name}'"),
                 where_: library_name.to_string(),
                 why: format!("the library does not declare a recipe at '{recipe_path}'"),
-                hint: format!(
-                    "use 'jig library recipes {library_name}' to see available recipes"
-                ),
+                hint: format!("use 'jig library recipes {library_name}' to see available recipes"),
             })
         })?
         .clone();
 
     // Try to load the actual recipe.yaml for detailed info.
-    let recipe_yaml_path = manifest
-        .resolve_recipe_path(recipe_path)
-        .unwrap();
+    let recipe_yaml_path = manifest.resolve_recipe_path(recipe_path).unwrap();
 
     let (variables, operations) = if recipe_yaml_path.exists() {
         match Recipe::load(&recipe_yaml_path) {
@@ -189,10 +185,7 @@ pub fn recipe_info(
 }
 
 /// List all workflows in an installed library.
-pub fn list_workflows(
-    library_name: &str,
-    base_dir: &Path,
-) -> Result<Vec<WorkflowInfo>, JigError> {
+pub fn list_workflows(library_name: &str, base_dir: &Path) -> Result<Vec<WorkflowInfo>, JigError> {
     let manifest = install::load_installed_manifest(library_name, base_dir)?;
 
     Ok(manifest
@@ -242,15 +235,10 @@ pub fn resolve_library_recipe(
         let hint = if available.is_empty() {
             format!("library '{library_name}' has no recipes")
         } else {
-            format!(
-                "available recipes: {}",
-                available.join(", ")
-            )
+            format!("available recipes: {}", available.join(", "))
         };
         JigError::RecipeValidation(StructuredError {
-            what: format!(
-                "recipe '{recipe_path}' not found in library '{library_name}'"
-            ),
+            what: format!("recipe '{recipe_path}' not found in library '{library_name}'"),
             where_: qualified_path.to_string(),
             why: format!("the library does not declare recipe '{recipe_path}'"),
             hint,
@@ -289,9 +277,7 @@ pub fn resolve_library_workflow(
             format!("available workflows: {}", available.join(", "))
         };
         return Err(JigError::RecipeValidation(StructuredError {
-            what: format!(
-                "workflow '{workflow_name}' not found in library '{library_name}'"
-            ),
+            what: format!("workflow '{workflow_name}' not found in library '{library_name}'"),
             where_: qualified_name.to_string(),
             why: format!("the library does not declare workflow '{workflow_name}'"),
             hint,

@@ -106,7 +106,11 @@ fn library_add_from_local_path() {
     assert_eq!(json["location"], "project");
 
     // Verify library is installed.
-    assert!(project.join(".jig/libraries/mylib/jig-library.yaml").exists());
+    assert!(
+        project
+            .join(".jig/libraries/mylib/jig-library.yaml")
+            .exists()
+    );
 }
 
 #[test]
@@ -290,7 +294,12 @@ fn library_update() {
 
     // Update.
     let output = Command::new(jig_bin())
-        .args(["library", "update", "mylib", &source_v2.display().to_string()])
+        .args([
+            "library",
+            "update",
+            "mylib",
+            &source_v2.display().to_string(),
+        ])
         .args(["--base-dir", &project.display().to_string()])
         .args(["--json"])
         .output()
@@ -442,10 +451,7 @@ fn library_workflows() {
     let workflows = json["workflows"].as_array().unwrap();
     assert_eq!(workflows.len(), 1);
     assert_eq!(workflows[0]["name"], "add-field");
-    assert_eq!(
-        workflows[0]["description"],
-        "Add a field across the stack"
-    );
+    assert_eq!(workflows[0]["description"], "Add a field across the stack");
 
     let steps = workflows[0]["steps"].as_array().unwrap();
     assert_eq!(steps.len(), 2);
@@ -525,7 +531,11 @@ fn library_run_recipe_end_to_end() {
         .args(["--base-dir", &project.display().to_string()])
         .output()
         .unwrap();
-    assert!(out.status.success(), "install failed: {}", String::from_utf8_lossy(&out.stderr));
+    assert!(
+        out.status.success(),
+        "install failed: {}",
+        String::from_utf8_lossy(&out.stderr)
+    );
 
     // Run a library recipe.
     let out = Command::new(jig_bin())
@@ -543,7 +553,11 @@ fn library_run_recipe_end_to_end() {
 
     // Verify file was created.
     let created = project.join("src/models/booking_service.rs");
-    assert!(created.exists(), "expected file not created: {}", created.display());
+    assert!(
+        created.exists(),
+        "expected file not created: {}",
+        created.display()
+    );
     let content = fs::read_to_string(&created).unwrap();
     assert!(content.contains("pub struct BookingService {}"));
 }
@@ -608,7 +622,10 @@ fn library_vars_recipe() {
     );
 
     let json: serde_json::Value = serde_json::from_slice(&out.stdout).unwrap();
-    assert!(json["model"].is_object(), "expected 'model' variable in output");
+    assert!(
+        json["model"].is_object(),
+        "expected 'model' variable in output"
+    );
 }
 
 #[test]
@@ -931,7 +948,11 @@ files:
 
     let created = project.join("hello.txt");
     assert!(created.exists(), "extension recipe did not create file");
-    assert!(fs::read_to_string(&created).unwrap().contains("Hi from extension!"));
+    assert!(
+        fs::read_to_string(&created)
+            .unwrap()
+            .contains("Hi from extension!")
+    );
 }
 
 #[test]
@@ -1030,7 +1051,10 @@ files:
         !content.contains("EXTENSION"),
         "extension shadowed library recipe!"
     );
-    assert!(content.contains("pub struct Item"), "library recipe should have been used");
+    assert!(
+        content.contains("pub struct Item"),
+        "library recipe should have been used"
+    );
 }
 
 // ── Phase 5: Metadata ───────────────────────────────────────

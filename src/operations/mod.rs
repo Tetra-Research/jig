@@ -43,7 +43,9 @@ impl ExecutionContext {
         let mut normalized = PathBuf::new();
         for component in joined.components() {
             match component {
-                std::path::Component::ParentDir => { normalized.pop(); }
+                std::path::Component::ParentDir => {
+                    normalized.pop();
+                }
                 std::path::Component::CurDir => {}
                 c => normalized.push(c),
             }
@@ -51,7 +53,9 @@ impl ExecutionContext {
         // If the normalized path escapes base_dir, clamp to base_dir.
         if !normalized.starts_with(&self.base_dir) {
             return self.base_dir.join(
-                std::path::Path::new(relative).file_name().unwrap_or_default()
+                std::path::Path::new(relative)
+                    .file_name()
+                    .unwrap_or_default(),
             );
         }
         normalized
@@ -106,10 +110,6 @@ impl OpResult {
     pub fn is_error(&self) -> bool {
         matches!(self, OpResult::Error { .. })
     }
-
-    pub fn is_write(&self) -> bool {
-        matches!(self, OpResult::Success { .. })
-    }
 }
 
 // ── Dispatch ──────────────────────────────────────────────────────
@@ -130,45 +130,37 @@ pub fn execute_operation(
     verbose: bool,
 ) -> OpResult {
     match &prepared.file_op {
-        FileOp::Create { skip_if_exists, .. } => {
-            create::execute(
-                &prepared.rendered_path,
-                &prepared.rendered_content,
-                *skip_if_exists,
-                ctx,
-                verbose,
-            )
-        }
-        FileOp::Inject { mode, .. } => {
-            inject::execute(
-                &prepared.rendered_path,
-                &prepared.rendered_content,
-                prepared.rendered_skip_if.as_deref(),
-                mode,
-                ctx,
-                verbose,
-            )
-        }
-        FileOp::Replace { spec, fallback, .. } => {
-            replace::execute(
-                &prepared.rendered_path,
-                &prepared.rendered_content,
-                spec,
-                fallback,
-                ctx,
-                verbose,
-            )
-        }
-        FileOp::Patch { anchor, .. } => {
-            patch::execute(
-                &prepared.rendered_path,
-                &prepared.rendered_content,
-                prepared.rendered_skip_if.as_deref(),
-                anchor,
-                ctx,
-                verbose,
-            )
-        }
+        FileOp::Create { skip_if_exists, .. } => create::execute(
+            &prepared.rendered_path,
+            &prepared.rendered_content,
+            *skip_if_exists,
+            ctx,
+            verbose,
+        ),
+        FileOp::Inject { mode, .. } => inject::execute(
+            &prepared.rendered_path,
+            &prepared.rendered_content,
+            prepared.rendered_skip_if.as_deref(),
+            mode,
+            ctx,
+            verbose,
+        ),
+        FileOp::Replace { spec, fallback, .. } => replace::execute(
+            &prepared.rendered_path,
+            &prepared.rendered_content,
+            spec,
+            fallback,
+            ctx,
+            verbose,
+        ),
+        FileOp::Patch { anchor, .. } => patch::execute(
+            &prepared.rendered_path,
+            &prepared.rendered_content,
+            prepared.rendered_skip_if.as_deref(),
+            anchor,
+            ctx,
+            verbose,
+        ),
     }
 }
 

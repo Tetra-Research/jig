@@ -18,7 +18,11 @@ use crate::error::JigError;
 use crate::recipe::Recipe;
 
 #[derive(Parser)]
-#[command(name = "jig", version, about = "Template rendering CLI for LLM code generation workflows")]
+#[command(
+    name = "jig",
+    version,
+    about = "Template rendering CLI for LLM code generation workflows"
+)]
 struct Cli {
     /// Inline variables as JSON string
     #[arg(long, global = true)]
@@ -166,7 +170,9 @@ fn main() {
 }
 
 fn run(cli: Cli) -> Result<i32, JigError> {
-    let base_dir = cli.base_dir.as_deref()
+    let base_dir = cli
+        .base_dir
+        .as_deref()
         .map(|p| p.to_path_buf())
         .unwrap_or_else(|| std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")));
 
@@ -179,9 +185,13 @@ fn run(cli: Cli) -> Result<i32, JigError> {
             let resolved = resolve_recipe_or_library(&recipe, &base_dir);
             cmd_vars(&resolved.path, &base_dir)
         }
-        Commands::Render { template, to } => {
-            cmd_render(&template, to.as_deref(), cli.vars.as_deref(), cli.vars_file.as_deref(), cli.vars_stdin)
-        }
+        Commands::Render { template, to } => cmd_render(
+            &template,
+            to.as_deref(),
+            cli.vars.as_deref(),
+            cli.vars_file.as_deref(),
+            cli.vars_stdin,
+        ),
         Commands::Run { recipe } => {
             let resolved = resolve_recipe_or_library(&recipe, &base_dir);
             cmd_run(
@@ -200,27 +210,25 @@ fn run(cli: Cli) -> Result<i32, JigError> {
                 resolved.recipe_path.as_deref(),
             )
         }
-        Commands::Workflow { path } => {
-            cmd_workflow(
-                &path,
-                cli.vars.as_deref(),
-                cli.vars_file.as_deref(),
-                cli.vars_stdin,
-                cli.dry_run,
-                cli.json,
-                cli.quiet,
-                cli.force,
-                cli.base_dir.as_deref(),
-                cli.verbose,
-                &base_dir,
-            )
-        }
-        Commands::List { skills, claude, codex } => {
-            cmd_list(skills, claude, codex, &base_dir, cli.json, cli.quiet)
-        }
-        Commands::Library { action } => {
-            cmd_library(action, &base_dir, cli.json, cli.quiet)
-        }
+        Commands::Workflow { path } => cmd_workflow(
+            &path,
+            cli.vars.as_deref(),
+            cli.vars_file.as_deref(),
+            cli.vars_stdin,
+            cli.dry_run,
+            cli.json,
+            cli.quiet,
+            cli.force,
+            cli.base_dir.as_deref(),
+            cli.verbose,
+            &base_dir,
+        ),
+        Commands::List {
+            skills,
+            claude,
+            codex,
+        } => cmd_list(skills, claude, codex, &base_dir, cli.json, cli.quiet),
+        Commands::Library { action } => cmd_library(action, &base_dir, cli.json, cli.quiet),
     }
 }
 
@@ -239,7 +247,11 @@ struct ResolvedRecipe {
 fn resolve_recipe_or_library(path: &std::path::Path, base_dir: &std::path::Path) -> ResolvedRecipe {
     // Filesystem paths take precedence (AC-N2.1).
     if path.exists() {
-        return ResolvedRecipe { path: path.to_path_buf(), library_name: None, recipe_path: None };
+        return ResolvedRecipe {
+            path: path.to_path_buf(),
+            library_name: None,
+            recipe_path: None,
+        };
     }
 
     let path_str = path.to_string_lossy();
@@ -249,8 +261,14 @@ fn resolve_recipe_or_library(path: &std::path::Path, base_dir: &std::path::Path)
         // Check if this matches an installed library.
         if library::install::find_installed_library(lib_name, base_dir).is_ok() {
             // Try to resolve as a library recipe first (library takes precedence: AC-8.3).
-            if let Ok((lib, rp, resolved)) = library::discover::resolve_library_recipe(&path_str, base_dir) {
-                return ResolvedRecipe { path: resolved, library_name: Some(lib), recipe_path: Some(rp) };
+            if let Ok((lib, rp, resolved)) =
+                library::discover::resolve_library_recipe(&path_str, base_dir)
+            {
+                return ResolvedRecipe {
+                    path: resolved,
+                    library_name: Some(lib),
+                    recipe_path: Some(rp),
+                };
             }
 
             // Fall back to extension recipe (AC-8.2).
@@ -270,7 +288,11 @@ fn resolve_recipe_or_library(path: &std::path::Path, base_dir: &std::path::Path)
     }
 
     // Return the original path (will fail naturally with normal error messages).
-    ResolvedRecipe { path: path.to_path_buf(), library_name: None, recipe_path: None }
+    ResolvedRecipe {
+        path: path.to_path_buf(),
+        library_name: None,
+        recipe_path: None,
+    }
 }
 
 /// Resolve conventions for a library recipe: load .jigrc.yaml, merge with manifest
@@ -350,7 +372,11 @@ fn cmd_validate(path: &std::path::Path, json: bool) -> Result<i32, JigError> {
                     conditional
                 );
                 for (i, step) in validation.steps.iter().enumerate() {
-                    let cond = if step.conditional { " (conditional)" } else { "" };
+                    let cond = if step.conditional {
+                        " (conditional)"
+                    } else {
+                        ""
+                    };
                     let status = if step.valid { "valid" } else { "INVALID" };
                     eprintln!("    {}. {} — {}{}", i + 1, step.recipe, status, cond);
                 }
@@ -399,11 +425,11 @@ fn build_library_workflow_vars(
 ) -> serde_json::Value {
     let mut all_vars = indexmap::IndexMap::new();
     for step in &wf_def.steps {
-        if let Some(recipe_path) = manifest.resolve_recipe_path(&step.recipe) {
-            if let Ok(recipe) = Recipe::load(&recipe_path) {
-                for (name, decl) in &recipe.variables {
-                    all_vars.entry(name.clone()).or_insert_with(|| decl.clone());
-                }
+        if let Some(recipe_path) = manifest.resolve_recipe_path(&step.recipe)
+            && let Ok(recipe) = Recipe::load(&recipe_path)
+        {
+            for (name, decl) in &recipe.variables {
+                all_vars.entry(name.clone()).or_insert_with(|| decl.clone());
             }
         }
     }
@@ -418,10 +444,16 @@ fn build_library_workflow(
 ) -> Result<workflow::Workflow, JigError> {
     let wf_def = manifest.workflows.get(workflow_name).ok_or_else(|| {
         JigError::RecipeValidation(crate::error::StructuredError {
-            what: format!("workflow '{workflow_name}' not found in library '{}'", manifest.name),
+            what: format!(
+                "workflow '{workflow_name}' not found in library '{}'",
+                manifest.name
+            ),
             where_: manifest.name.clone(),
             why: format!("the library does not declare workflow '{workflow_name}'"),
-            hint: format!("use 'jig library workflows {}' to see available workflows", manifest.name),
+            hint: format!(
+                "use 'jig library workflows {}' to see available workflows",
+                manifest.name
+            ),
         })
     })?;
 
@@ -438,10 +470,19 @@ fn build_library_workflow(
     for step in &wf_def.steps {
         let resolved = manifest.resolve_recipe_path(&step.recipe).ok_or_else(|| {
             JigError::RecipeValidation(crate::error::StructuredError {
-                what: format!("recipe '{}' not found in library '{}'", step.recipe, manifest.name),
+                what: format!(
+                    "recipe '{}' not found in library '{}'",
+                    step.recipe, manifest.name
+                ),
                 where_: format!("{}/{}", manifest.name, workflow_name),
-                why: format!("workflow step references recipe '{}' which is not declared", step.recipe),
-                hint: format!("use 'jig library recipes {}' to see available recipes", manifest.name),
+                why: format!(
+                    "workflow step references recipe '{}' which is not declared",
+                    step.recipe
+                ),
+                hint: format!(
+                    "use 'jig library recipes {}' to see available recipes",
+                    manifest.name
+                ),
             })
         })?;
 
@@ -647,19 +688,34 @@ fn cmd_run(
                 }
             }
             recipe::FileOp::Inject { inject, .. } => {
-                match renderer::render_path_template(&env, inject, &vars, &format!("files[{}].inject", i)) {
+                match renderer::render_path_template(
+                    &env,
+                    inject,
+                    &vars,
+                    &format!("files[{}].inject", i),
+                ) {
                     Ok(p) => p,
                     Err(e) => return handle_early_error(e),
                 }
             }
             recipe::FileOp::Replace { replace, .. } => {
-                match renderer::render_path_template(&env, replace, &vars, &format!("files[{}].replace", i)) {
+                match renderer::render_path_template(
+                    &env,
+                    replace,
+                    &vars,
+                    &format!("files[{}].replace", i),
+                ) {
                     Ok(p) => p,
                     Err(e) => return handle_early_error(e),
                 }
             }
             recipe::FileOp::Patch { patch, .. } => {
-                match renderer::render_path_template(&env, patch, &vars, &format!("files[{}].patch", i)) {
+                match renderer::render_path_template(
+                    &env,
+                    patch,
+                    &vars,
+                    &format!("files[{}].patch", i),
+                ) {
                     Ok(p) => p,
                     Err(e) => return handle_early_error(e),
                 }
@@ -668,10 +724,19 @@ fn cmd_run(
 
         // Render skip_if for inject and patch operations.
         let rendered_skip_if = match file_op {
-            recipe::FileOp::Inject { skip_if: Some(skip_if_expr), .. }
-            | recipe::FileOp::Patch { skip_if: Some(skip_if_expr), .. } => {
+            recipe::FileOp::Inject {
+                skip_if: Some(skip_if_expr),
+                ..
+            }
+            | recipe::FileOp::Patch {
+                skip_if: Some(skip_if_expr),
+                ..
+            } => {
                 match renderer::render_path_template(
-                    &env, skip_if_expr, &vars, &format!("files[{}].skip_if", i),
+                    &env,
+                    skip_if_expr,
+                    &vars,
+                    &format!("files[{}].skip_if", i),
                 ) {
                     Ok(s) => Some(s),
                     Err(e) => return handle_early_error(e),
@@ -736,11 +801,11 @@ fn cmd_run(
     // 7. Return appropriate exit code.
     // Error details are already in the JSON/human output above, so return Ok
     // with the exit code to avoid duplicate stderr output from main().
-    if has_error {
-        if let Some(last) = results.last()
-            && let Some(jig_err) = operations::op_error_to_jig_error(last) {
-                return Ok(jig_err.exit_code());
-            }
+    if has_error
+        && let Some(last) = results.last()
+        && let Some(jig_err) = operations::op_error_to_jig_error(last)
+    {
+        return Ok(jig_err.exit_code());
     }
 
     Ok(0)
@@ -803,12 +868,10 @@ fn cmd_workflow(
     let wf = if !workflow_path.exists() {
         let path_str = workflow_path.to_string_lossy();
         match library::discover::resolve_library_workflow(&path_str, project_dir) {
-            Ok((_, wf_name, manifest)) => {
-                match build_library_workflow(&manifest, &wf_name) {
-                    Ok(w) => w,
-                    Err(e) => return handle_early_error(e),
-                }
-            }
+            Ok((_, wf_name, manifest)) => match build_library_workflow(&manifest, &wf_name) {
+                Ok(w) => w,
+                Err(e) => return handle_early_error(e),
+            },
             Err(e) => return handle_early_error(e),
         }
     } else {
@@ -886,10 +949,7 @@ fn cmd_workflow(
 
 /// Compute the exit code for a completed workflow based on step results
 /// and their effective on_error modes.
-fn compute_workflow_exit_code(
-    wf: &workflow::Workflow,
-    result: &workflow::WorkflowResult,
-) -> i32 {
+fn compute_workflow_exit_code(wf: &workflow::Workflow, result: &workflow::WorkflowResult) -> i32 {
     let mut has_report_error = false;
 
     for (i, step_result) in result.steps.iter().enumerate() {
@@ -915,11 +975,7 @@ fn compute_workflow_exit_code(
         }
     }
 
-    if has_report_error {
-        3
-    } else {
-        0
-    }
+    if has_report_error { 3 } else { 0 }
 }
 
 // ── jig list ──────────────────────────────────────────────────────
@@ -958,7 +1014,10 @@ fn parse_skill_frontmatter(content: &str) -> (Option<String>, Option<String>) {
         Some(o) => o,
         None => return (None, None),
     };
-    let name = obj.get("name").and_then(|v| v.as_str()).map(|s| s.to_string());
+    let name = obj
+        .get("name")
+        .and_then(|v| v.as_str())
+        .map(|s| s.to_string());
     // For descriptions, take only the first line (the summary).
     let description = obj
         .get("description")
@@ -969,10 +1028,7 @@ fn parse_skill_frontmatter(content: &str) -> (Option<String>, Option<String>) {
 }
 
 /// Scan a directory for skill subdirectories (each containing SKILL.md).
-fn scan_skills_dir(
-    skills_dir: &std::path::Path,
-    base_dir: &std::path::Path,
-) -> Vec<SkillEntry> {
+fn scan_skills_dir(skills_dir: &std::path::Path, base_dir: &std::path::Path) -> Vec<SkillEntry> {
     let Ok(entries) = std::fs::read_dir(skills_dir) else {
         return Vec::new();
     };
@@ -1008,16 +1064,11 @@ fn scan_skills_dir(
 /// Recursively find directories named "skills" under `root`.
 fn find_skills_dirs(root: &std::path::Path) -> Vec<std::path::PathBuf> {
     let mut found = Vec::new();
-    find_skills_dirs_rec(root, root, &mut found, 0);
+    find_skills_dirs_rec(root, &mut found, 0);
     found
 }
 
-fn find_skills_dirs_rec(
-    dir: &std::path::Path,
-    root: &std::path::Path,
-    found: &mut Vec<std::path::PathBuf>,
-    depth: usize,
-) {
+fn find_skills_dirs_rec(dir: &std::path::Path, found: &mut Vec<std::path::PathBuf>, depth: usize) {
     // Don't recurse too deep or into hidden dirs (except agent config dirs).
     if depth > 6 {
         return;
@@ -1049,7 +1100,7 @@ fn find_skills_dirs_rec(
         }
 
         // Recurse (including into dotfiles like .claude, .codex).
-        find_skills_dirs_rec(&path, root, found, depth + 1);
+        find_skills_dirs_rec(&path, found, depth + 1);
     }
 }
 
@@ -1091,7 +1142,11 @@ fn cmd_list(
                         })
                     })
                     .collect();
-                println!("{}", serde_json::to_string_pretty(&serde_json::json!({ "libraries": items })).unwrap());
+                println!(
+                    "{}",
+                    serde_json::to_string_pretty(&serde_json::json!({ "libraries": items }))
+                        .unwrap()
+                );
             }
             output::OutputMode::Human => {
                 if !quiet {
@@ -1100,11 +1155,17 @@ fn cmd_list(
                     } else {
                         eprintln!("Installed libraries:");
                         for lib in &libraries {
-                            let desc = lib.description.as_deref().map(|d| format!(" — {d}")).unwrap_or_default();
+                            let desc = lib
+                                .description
+                                .as_deref()
+                                .map(|d| format!(" — {d}"))
+                                .unwrap_or_default();
                             eprintln!("  {} v{}{desc}", lib.name, lib.version);
                         }
-                        eprintln!("");
-                        eprintln!("Use --skills to scan for agent skills, or `jig library recipes <name>` for recipe details.");
+                        eprintln!();
+                        eprintln!(
+                            "Use --skills to scan for agent skills, or `jig library recipes <name>` for recipe details."
+                        );
                     }
                 }
             }
@@ -1190,7 +1251,11 @@ fn cmd_library(
     let mode = output::detect_mode(force_json);
 
     match action {
-        LibraryAction::Add { source, global, force: force_install } => {
+        LibraryAction::Add {
+            source,
+            global,
+            force: force_install,
+        } => {
             let location = if global {
                 library::install::InstallLocation::Global
             } else {
@@ -1201,7 +1266,12 @@ fn cmd_library(
                 // Git install (AC-2.2).
                 let clone_dir = library::install::git_clone(&source)?;
                 let result = library::install::add_from_path_with_options(
-                    &clone_dir, location, base_dir, force_install, &source, "git",
+                    &clone_dir,
+                    location,
+                    base_dir,
+                    force_install,
+                    &source,
+                    "git",
                 );
                 let _ = std::fs::remove_dir_all(&clone_dir);
                 result?
@@ -1216,8 +1286,12 @@ fn cmd_library(
                     })
                 })?;
                 library::install::add_from_path_with_options(
-                    &resolved, location, base_dir, force_install,
-                    &resolved.display().to_string(), "local",
+                    &resolved,
+                    location,
+                    base_dir,
+                    force_install,
+                    &resolved.display().to_string(),
+                    "local",
                 )?
             };
             match mode {
@@ -1269,7 +1343,8 @@ fn cmd_library(
                 Some(src) => {
                     if library::install::is_git_url(&src) {
                         let clone_dir = library::install::git_clone(&src)?;
-                        let result = library::install::update_from_path(&name, &clone_dir, base_dir);
+                        let result =
+                            library::install::update_from_path(&name, &clone_dir, base_dir);
                         let _ = std::fs::remove_dir_all(&clone_dir);
                         let lib = result?;
                         // Re-write metadata with git source.
@@ -1521,25 +1596,32 @@ fn cmd_library(
 fn build_validate_json(recipe: &Recipe) -> serde_json::Value {
     let vars = variables::vars_json(&recipe.variables);
 
-    let ops: Vec<serde_json::Value> = recipe.files.iter().map(|op| {
-        let mut m = serde_json::Map::new();
-        m.insert("type".into(), serde_json::Value::String(op.op_type_str().into()));
-        match op {
-            recipe::FileOp::Create { to, .. } => {
-                m.insert("to".into(), serde_json::Value::String(to.clone()));
+    let ops: Vec<serde_json::Value> = recipe
+        .files
+        .iter()
+        .map(|op| {
+            let mut m = serde_json::Map::new();
+            m.insert(
+                "type".into(),
+                serde_json::Value::String(op.op_type_str().into()),
+            );
+            match op {
+                recipe::FileOp::Create { to, .. } => {
+                    m.insert("to".into(), serde_json::Value::String(to.clone()));
+                }
+                recipe::FileOp::Inject { inject, .. } => {
+                    m.insert("inject".into(), serde_json::Value::String(inject.clone()));
+                }
+                recipe::FileOp::Replace { replace, .. } => {
+                    m.insert("replace".into(), serde_json::Value::String(replace.clone()));
+                }
+                recipe::FileOp::Patch { patch, .. } => {
+                    m.insert("patch".into(), serde_json::Value::String(patch.clone()));
+                }
             }
-            recipe::FileOp::Inject { inject, .. } => {
-                m.insert("inject".into(), serde_json::Value::String(inject.clone()));
-            }
-            recipe::FileOp::Replace { replace, .. } => {
-                m.insert("replace".into(), serde_json::Value::String(replace.clone()));
-            }
-            recipe::FileOp::Patch { patch, .. } => {
-                m.insert("patch".into(), serde_json::Value::String(patch.clone()));
-            }
-        }
-        serde_json::Value::Object(m)
-    }).collect();
+            serde_json::Value::Object(m)
+        })
+        .collect();
 
     serde_json::json!({
         "valid": true,
@@ -1692,13 +1774,7 @@ mod tests {
         fs::write(&tmpl_path, "content").unwrap();
 
         let out_path = dir.path().join("sub/dir/output.txt");
-        let result = cmd_render(
-            &tmpl_path,
-            Some(&out_path),
-            Some("{}"),
-            None,
-            false,
-        );
+        let result = cmd_render(&tmpl_path, Some(&out_path), Some("{}"), None, false);
         assert_eq!(result.unwrap(), 0);
         assert!(out_path.exists());
     }
@@ -1763,13 +1839,7 @@ mod tests {
         fs::write(&vars_path, r#"{"name": "FileVars"}"#).unwrap();
 
         let out_path = dir.path().join("out.txt");
-        let result = cmd_render(
-            &tmpl_path,
-            Some(&out_path),
-            None,
-            Some(&vars_path),
-            false,
-        );
+        let result = cmd_render(&tmpl_path, Some(&out_path), None, Some(&vars_path), false);
         assert_eq!(result.unwrap(), 0);
         assert_eq!(fs::read_to_string(&out_path).unwrap(), "Hello FileVars!");
     }
@@ -1853,7 +1923,14 @@ files:
         let (dir, recipe_path) = setup_run_recipe(yaml, &[("greeting.j2", "Hello {{ name }}!")]);
         let out_dir = dir.path().join("output");
         fs::create_dir_all(&out_dir).unwrap();
-        let result = run_recipe(&recipe_path, r#"{"name": "BookingService"}"#, &out_dir, false, false, false);
+        let result = run_recipe(
+            &recipe_path,
+            r#"{"name": "BookingService"}"#,
+            &out_dir,
+            false,
+            false,
+            false,
+        );
         assert_eq!(result.unwrap(), 0);
         let content = fs::read_to_string(out_dir.join("greetings/booking_service.txt")).unwrap();
         assert_eq!(content, "Hello BookingService!");
@@ -1872,10 +1949,18 @@ files:
   - template: svc.j2
     to: "src/{{ class_name | snakecase }}.rs"
 "#;
-        let (dir, recipe_path) = setup_run_recipe(yaml, &[("svc.j2", "pub struct {{ class_name }};")]);
+        let (dir, recipe_path) =
+            setup_run_recipe(yaml, &[("svc.j2", "pub struct {{ class_name }};")]);
         let out = dir.path().join("out");
         fs::create_dir(&out).unwrap();
-        let result = run_recipe(&recipe_path, r#"{"class_name": "BookingService"}"#, &out, false, false, false);
+        let result = run_recipe(
+            &recipe_path,
+            r#"{"class_name": "BookingService"}"#,
+            &out,
+            false,
+            false,
+            false,
+        );
         assert_eq!(result.unwrap(), 0);
         let content = fs::read_to_string(out.join("src/booking_service.rs")).unwrap();
         assert_eq!(content, "pub struct BookingService;");
@@ -1915,7 +2000,10 @@ files:
         let result = run_recipe(&recipe_path, "{}", &out, false, false, false);
         assert_eq!(result.unwrap(), 0);
         // File unchanged.
-        assert_eq!(fs::read_to_string(out.join("existing.txt")).unwrap(), "old content");
+        assert_eq!(
+            fs::read_to_string(out.join("existing.txt")).unwrap(),
+            "old content"
+        );
     }
 
     // ── AC-4.5: File exists without force → exit 3 ──
@@ -1950,7 +2038,10 @@ files:
         fs::write(out.join("existing.txt"), "old").unwrap();
         let result = run_recipe(&recipe_path, "{}", &out, false, true, false);
         assert_eq!(result.unwrap(), 0);
-        assert_eq!(fs::read_to_string(out.join("existing.txt")).unwrap(), "new content");
+        assert_eq!(
+            fs::read_to_string(out.join("existing.txt")).unwrap(),
+            "new content"
+        );
     }
 
     // ── AC-4.7: --base-dir changes output root ──
@@ -1978,11 +2069,21 @@ files:
         let (dir, recipe_path) = setup_run_recipe(yaml, &[]);
         let nonexistent = dir.path().join("does_not_exist");
         let code = cmd_run(
-            &recipe_path, Some("{}"), None, false,
-            false, true, true, false,
-            Some(&nonexistent), false,
-            dir.path(), None, None,
-        ).unwrap();
+            &recipe_path,
+            Some("{}"),
+            None,
+            false,
+            false,
+            true,
+            true,
+            false,
+            Some(&nonexistent),
+            false,
+            dir.path(),
+            None,
+            None,
+        )
+        .unwrap();
         assert_eq!(code, 3);
     }
 
@@ -2037,9 +2138,8 @@ files:
   - template: c.j2
     to: "third.txt"
 "#;
-        let (dir, recipe_path) = setup_run_recipe(yaml, &[
-            ("a.j2", "aaa"), ("b.j2", "bbb"), ("c.j2", "ccc"),
-        ]);
+        let (dir, recipe_path) =
+            setup_run_recipe(yaml, &[("a.j2", "aaa"), ("b.j2", "bbb"), ("c.j2", "ccc")]);
         let out = dir.path().join("out");
         fs::create_dir(&out).unwrap();
         let result = run_recipe(&recipe_path, "{}", &out, false, false, false);
@@ -2072,7 +2172,10 @@ files:
         let r2 = run_recipe(&recipe_path, "{}", &out, false, false, false);
         assert_eq!(r2.unwrap(), 0);
         // File content unchanged.
-        assert_eq!(fs::read_to_string(out.join("output.txt")).unwrap(), "content");
+        assert_eq!(
+            fs::read_to_string(out.join("output.txt")).unwrap(),
+            "content"
+        );
     }
 
     // ── AC-1.11: Empty files array → exit 0, no operations ──
@@ -2173,16 +2276,32 @@ files:
   - template: b.j2
     to: "{{ name }}_b.txt"
 "#;
-        let (dir, recipe_path) = setup_run_recipe(yaml, &[
-            ("a.j2", "content A for {{ name }}"),
-            ("b.j2", "content B for {{ name }}"),
-        ]);
+        let (dir, recipe_path) = setup_run_recipe(
+            yaml,
+            &[
+                ("a.j2", "content A for {{ name }}"),
+                ("b.j2", "content B for {{ name }}"),
+            ],
+        );
         let out = dir.path().join("out");
         fs::create_dir(&out).unwrap();
-        let result = run_recipe(&recipe_path, r#"{"name": "test"}"#, &out, false, false, false);
+        let result = run_recipe(
+            &recipe_path,
+            r#"{"name": "test"}"#,
+            &out,
+            false,
+            false,
+            false,
+        );
         assert_eq!(result.unwrap(), 0);
-        assert_eq!(fs::read_to_string(out.join("test_a.txt")).unwrap(), "content A for test");
-        assert_eq!(fs::read_to_string(out.join("test_b.txt")).unwrap(), "content B for test");
+        assert_eq!(
+            fs::read_to_string(out.join("test_a.txt")).unwrap(),
+            "content A for test"
+        );
+        assert_eq!(
+            fs::read_to_string(out.join("test_b.txt")).unwrap(),
+            "content B for test"
+        );
     }
 
     // ── AC-N6.2: Create-then-inject in same recipe ──
@@ -2201,13 +2320,26 @@ files:
     inject: "src/{{ class_name | snakecase }}.py"
     after: "^# imports"
 "#;
-        let (dir, recipe_path) = setup_run_recipe(yaml, &[
-            ("service.j2", "# imports\n\nclass {{ class_name }}:\n    pass"),
-            ("import.j2", "import json"),
-        ]);
+        let (dir, recipe_path) = setup_run_recipe(
+            yaml,
+            &[
+                (
+                    "service.j2",
+                    "# imports\n\nclass {{ class_name }}:\n    pass",
+                ),
+                ("import.j2", "import json"),
+            ],
+        );
         let out = dir.path().join("out");
         fs::create_dir(&out).unwrap();
-        let result = run_recipe(&recipe_path, r#"{"class_name": "BookingService"}"#, &out, false, false, false);
+        let result = run_recipe(
+            &recipe_path,
+            r#"{"class_name": "BookingService"}"#,
+            &out,
+            false,
+            false,
+            false,
+        );
         assert_eq!(result.unwrap(), 0);
         let content = fs::read_to_string(out.join("src/booking_service.py")).unwrap();
         assert!(content.contains("# imports"));
@@ -2216,8 +2348,14 @@ files:
         // Verify order: import json comes after # imports.
         let lines: Vec<&str> = content.lines().collect();
         let imports_idx = lines.iter().position(|l| l.contains("# imports")).unwrap();
-        let json_idx = lines.iter().position(|l| l.contains("import json")).unwrap();
-        assert!(json_idx == imports_idx + 1, "import json should be right after # imports");
+        let json_idx = lines
+            .iter()
+            .position(|l| l.contains("import json"))
+            .unwrap();
+        assert!(
+            json_idx == imports_idx + 1,
+            "import json should be right after # imports"
+        );
     }
 
     // ── AC-N6.2: Create-then-inject in dry-run mode ──
@@ -2232,10 +2370,13 @@ files:
     inject: "output.txt"
     append: true
 "#;
-        let (dir, recipe_path) = setup_run_recipe(yaml, &[
-            ("base.j2", "base content"),
-            ("extra.j2", "appended content"),
-        ]);
+        let (dir, recipe_path) = setup_run_recipe(
+            yaml,
+            &[
+                ("base.j2", "base content"),
+                ("extra.j2", "appended content"),
+            ],
+        );
         let out = dir.path().join("out");
         fs::create_dir(&out).unwrap();
         let result = run_recipe(&recipe_path, "{}", &out, true, false, false);
@@ -2254,9 +2395,7 @@ files:
     inject: "conftest.py"
     after: "^# fixtures"
 "#;
-        let (dir, recipe_path) = setup_run_recipe(yaml, &[
-            ("fixture.j2", "fixture_new = 42"),
-        ]);
+        let (dir, recipe_path) = setup_run_recipe(yaml, &[("fixture.j2", "fixture_new = 42")]);
         let out = dir.path().join("out");
         fs::create_dir(&out).unwrap();
         fs::write(out.join("conftest.py"), "# fixtures\nfixture_a = 1\n").unwrap();
@@ -2285,14 +2424,22 @@ files:
     append: true
     skip_if: "{{ class_name }}"
 "#;
-        let (dir, recipe_path) = setup_run_recipe(yaml, &[
-            ("import.j2", "from services import {{ class_name }}"),
-        ]);
+        let (dir, recipe_path) = setup_run_recipe(
+            yaml,
+            &[("import.j2", "from services import {{ class_name }}")],
+        );
         let out = dir.path().join("out");
         fs::create_dir(&out).unwrap();
         fs::write(out.join("app.py"), "from services import BookingService\n").unwrap();
 
-        let result = run_recipe(&recipe_path, r#"{"class_name": "BookingService"}"#, &out, false, false, false);
+        let result = run_recipe(
+            &recipe_path,
+            r#"{"class_name": "BookingService"}"#,
+            &out,
+            false,
+            false,
+            false,
+        );
         assert_eq!(result.unwrap(), 0);
         // File should be unchanged — skip_if matched.
         let content = fs::read_to_string(out.join("app.py")).unwrap();
@@ -2317,21 +2464,38 @@ files:
     after: "^# imports"
     skip_if: "from utils import {{ name }}"
 "#;
-        let (dir, recipe_path) = setup_run_recipe(yaml, &[
-            ("base.j2", "# imports\n\nclass {{ name }}:\n    pass"),
-            ("import.j2", "from utils import {{ name }}"),
-        ]);
+        let (dir, recipe_path) = setup_run_recipe(
+            yaml,
+            &[
+                ("base.j2", "# imports\n\nclass {{ name }}:\n    pass"),
+                ("import.j2", "from utils import {{ name }}"),
+            ],
+        );
         let out = dir.path().join("out");
         fs::create_dir(&out).unwrap();
 
         // First run: creates file and injects.
-        let r1 = run_recipe(&recipe_path, r#"{"name": "BookingService"}"#, &out, false, false, false);
+        let r1 = run_recipe(
+            &recipe_path,
+            r#"{"name": "BookingService"}"#,
+            &out,
+            false,
+            false,
+            false,
+        );
         assert_eq!(r1.unwrap(), 0);
         let content_after_first = fs::read_to_string(out.join("service.py")).unwrap();
         assert!(content_after_first.contains("from utils import BookingService"));
 
         // Second run: all skip.
-        let r2 = run_recipe(&recipe_path, r#"{"name": "BookingService"}"#, &out, false, false, false);
+        let r2 = run_recipe(
+            &recipe_path,
+            r#"{"name": "BookingService"}"#,
+            &out,
+            false,
+            false,
+            false,
+        );
         assert_eq!(r2.unwrap(), 0);
         // Content unchanged — no duplicates.
         let content_after_second = fs::read_to_string(out.join("service.py")).unwrap();
@@ -2348,9 +2512,7 @@ files:
     inject: "target.py"
     after: "^NONEXISTENT_PATTERN"
 "#;
-        let (dir, recipe_path) = setup_run_recipe(yaml, &[
-            ("content.j2", "injected"),
-        ]);
+        let (dir, recipe_path) = setup_run_recipe(yaml, &[("content.j2", "injected")]);
         let out = dir.path().join("out");
         fs::create_dir(&out).unwrap();
         fs::write(out.join("target.py"), "line1\nline2\n").unwrap();
@@ -2369,9 +2531,7 @@ files:
     inject: "nonexistent.py"
     append: true
 "#;
-        let (dir, recipe_path) = setup_run_recipe(yaml, &[
-            ("content.j2", "injected"),
-        ]);
+        let (dir, recipe_path) = setup_run_recipe(yaml, &[("content.j2", "injected")]);
         let out = dir.path().join("out");
         fs::create_dir(&out).unwrap();
 
@@ -2393,14 +2553,19 @@ files:
     inject: "{{ module }}/init.py"
     append: true
 "#;
-        let (dir, recipe_path) = setup_run_recipe(yaml, &[
-            ("content.j2", "# added"),
-        ]);
+        let (dir, recipe_path) = setup_run_recipe(yaml, &[("content.j2", "# added")]);
         let out = dir.path().join("out");
         fs::create_dir_all(out.join("mymodule")).unwrap();
         fs::write(out.join("mymodule/init.py"), "# existing\n").unwrap();
 
-        let result = run_recipe(&recipe_path, r#"{"module": "mymodule"}"#, &out, false, false, false);
+        let result = run_recipe(
+            &recipe_path,
+            r#"{"module": "mymodule"}"#,
+            &out,
+            false,
+            false,
+            false,
+        );
         assert_eq!(result.unwrap(), 0);
         let content = fs::read_to_string(out.join("mymodule/init.py")).unwrap();
         assert!(content.contains("# added"));
@@ -2419,10 +2584,13 @@ files:
     inject: "target.txt"
     append: true
 "#;
-        let (dir, recipe_path) = setup_run_recipe(yaml, &[
-            ("header.j2", "=== HEADER ==="),
-            ("footer.j2", "=== FOOTER ==="),
-        ]);
+        let (dir, recipe_path) = setup_run_recipe(
+            yaml,
+            &[
+                ("header.j2", "=== HEADER ==="),
+                ("footer.j2", "=== FOOTER ==="),
+            ],
+        );
         let out = dir.path().join("out");
         fs::create_dir(&out).unwrap();
         fs::write(out.join("target.txt"), "middle content\n").unwrap();
@@ -2439,7 +2607,8 @@ files:
 
     #[test]
     fn parse_skill_frontmatter_simple() {
-        let content = "---\nname: add-endpoint\ndescription: Add a REST endpoint\n---\n# Add Endpoint\n";
+        let content =
+            "---\nname: add-endpoint\ndescription: Add a REST endpoint\n---\n# Add Endpoint\n";
         let (name, desc) = super::parse_skill_frontmatter(content);
         assert_eq!(name.unwrap(), "add-endpoint");
         assert_eq!(desc.unwrap(), "Add a REST endpoint");
@@ -2472,11 +2641,13 @@ files:
         fs::write(
             skill_a.join("SKILL.md"),
             "---\nname: add-field\ndescription: Add a model field\n---\n",
-        ).unwrap();
+        )
+        .unwrap();
         fs::write(
             skill_b.join("SKILL.md"),
             "---\nname: add-view\ndescription: Add a view\n---\n",
-        ).unwrap();
+        )
+        .unwrap();
 
         let results = super::scan_skills_dir(&skills_dir, tmp.path());
         assert_eq!(results.len(), 2);
