@@ -4,7 +4,7 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ## Project Status
 
-**v0.3 workflows complete.** All four file operations (create, inject, replace, patch) plus multi-recipe workflows with conditional steps, variable mapping, and error handling. 343 tests passing. Next up: libraries (v0.4).
+**v0.4 libraries complete.** All four file operations (create, inject, replace, patch) plus multi-recipe workflows with conditional steps, variable mapping, and error handling. Library management and execution fully wired — `jig run django/model/add-field` works end-to-end. Convention injection, template overrides, project extensions, and git install all operational. 402 tests passing. See `docs/workstreams/libraries/SHARED-CONTEXT.md` for details.
 
 ## What jig Is
 
