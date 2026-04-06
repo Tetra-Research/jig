@@ -185,7 +185,10 @@ fn normalize_json(json_str: &str, work_dir: &Path) -> serde_json::Value {
     let work_dir_str = work_dir.display().to_string();
     let normalized = json_str.replace(&format!("{}/", work_dir_str), "");
     serde_json::from_str(&normalized).unwrap_or_else(|e| {
-        panic!("failed to parse JSON output: {}\nraw output:\n{}", e, json_str)
+        panic!(
+            "failed to parse JSON output: {}\nraw output:\n{}",
+            e, json_str
+        )
     })
 }
 
@@ -332,10 +335,7 @@ fn error_fixtures_have_structured_fields() {
         })
         .collect();
 
-    assert!(
-        !error_fixtures.is_empty(),
-        "no error fixtures found"
-    );
+    assert!(!error_fixtures.is_empty(), "no error fixtures found");
 
     let mut exit_codes_seen = std::collections::HashSet::new();
 
@@ -363,13 +363,29 @@ fn error_fixtures_have_structured_fields() {
                 // Workflow JSON has steps array.
                 if let Some(steps) = json["steps"].as_array() {
                     let error_step = steps.iter().find(|s| s["status"] == "error");
-                    if let Some(step) = error_step {
-                        if let Some(err) = step.get("error") {
-                            assert!(err["what"].is_string(), "fixture '{}': error missing 'what'", name);
-                            assert!(err["where"].is_string(), "fixture '{}': error missing 'where'", name);
-                            assert!(err["why"].is_string(), "fixture '{}': error missing 'why'", name);
-                            assert!(err["hint"].is_string(), "fixture '{}': error missing 'hint'", name);
-                        }
+                    if let Some(step) = error_step
+                        && let Some(err) = step.get("error")
+                    {
+                        assert!(
+                            err["what"].is_string(),
+                            "fixture '{}': error missing 'what'",
+                            name
+                        );
+                        assert!(
+                            err["where"].is_string(),
+                            "fixture '{}': error missing 'where'",
+                            name
+                        );
+                        assert!(
+                            err["why"].is_string(),
+                            "fixture '{}': error missing 'why'",
+                            name
+                        );
+                        assert!(
+                            err["hint"].is_string(),
+                            "fixture '{}': error missing 'hint'",
+                            name
+                        );
                     }
                 }
             }
@@ -378,7 +394,8 @@ fn error_fixtures_have_structured_fields() {
                 assert!(
                     stderr.contains("where:") || stderr.contains("why:"),
                     "fixture '{}': stderr should contain structured error fields\nstderr: {}",
-                    name, stderr
+                    name,
+                    stderr
                 );
             }
         } else {
@@ -391,16 +408,33 @@ fn error_fixtures_have_structured_fields() {
                     .find(|op| op["action"] == "error")
                     .expect("expected an error operation in output");
 
-                assert!(error_op["what"].is_string(), "fixture '{}': error missing 'what'", name);
-                assert!(error_op["where"].is_string(), "fixture '{}': error missing 'where'", name);
-                assert!(error_op["why"].is_string(), "fixture '{}': error missing 'why'", name);
-                assert!(error_op["hint"].is_string(), "fixture '{}': error missing 'hint'", name);
+                assert!(
+                    error_op["what"].is_string(),
+                    "fixture '{}': error missing 'what'",
+                    name
+                );
+                assert!(
+                    error_op["where"].is_string(),
+                    "fixture '{}': error missing 'where'",
+                    name
+                );
+                assert!(
+                    error_op["why"].is_string(),
+                    "fixture '{}': error missing 'why'",
+                    name
+                );
+                assert!(
+                    error_op["hint"].is_string(),
+                    "fixture '{}': error missing 'hint'",
+                    name
+                );
             }
             if (exit_code == 1 || exit_code == 2 || exit_code == 4) && !stderr.is_empty() {
                 assert!(
                     stderr.contains("where:") || stderr.contains("why:"),
                     "fixture '{}': stderr should contain structured error fields\nstderr: {}",
-                    name, stderr
+                    name,
+                    stderr
                 );
             }
         }
@@ -433,8 +467,8 @@ fn determinism_identical_output_across_runs() {
 
         // Collect JSON output (normalized) and file contents.
         let json = normalize_json(&stdout, work_dir);
-        let file_content = fs::read(work_dir.join("src/service.rs"))
-            .expect("output file should exist");
+        let file_content =
+            fs::read(work_dir.join("src/service.rs")).expect("output file should exist");
 
         outputs.push((json.to_string(), file_content));
     }
@@ -490,9 +524,7 @@ fn idempotency_second_run_all_skips() {
         assert_eq!(
             op["action"], "skip",
             "second run op[{}] should be 'skip', got '{}'\nfull output: {}",
-            i,
-            op["action"],
-            json
+            i, op["action"], json
         );
     }
 
@@ -649,8 +681,14 @@ fn binary_no_extra_dynamic_deps() {
             }
             // Allow libc, libpthread, libdl, libm, libgcc, ld-linux
             let allowed = [
-                "libc.", "libpthread.", "libdl.", "libm.", "libgcc_s.",
-                "ld-linux", "linux-vdso", "librt.",
+                "libc.",
+                "libpthread.",
+                "libdl.",
+                "libm.",
+                "libgcc_s.",
+                "ld-linux",
+                "linux-vdso",
+                "librt.",
             ];
             assert!(
                 allowed.iter().any(|a| line.contains(a)),

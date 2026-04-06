@@ -106,7 +106,10 @@ impl LibraryManifest {
         // Validate semver format (AC-1.13).
         if !is_valid_semver(&raw.version) {
             return Err(JigError::RecipeValidation(StructuredError {
-                what: format!("invalid version '{}': must be semver (MAJOR.MINOR.PATCH)", raw.version),
+                what: format!(
+                    "invalid version '{}': must be semver (MAJOR.MINOR.PATCH)",
+                    raw.version
+                ),
                 where_: source_path.display().to_string(),
                 why: format!("'{}' does not conform to semver format", raw.version),
                 hint: "use MAJOR.MINOR.PATCH format, e.g., '1.0.0' or '0.3.1'".into(),
@@ -133,10 +136,7 @@ impl LibraryManifest {
             }
         }
 
-        let library_dir = source_path
-            .parent()
-            .unwrap_or(Path::new("."))
-            .to_path_buf();
+        let library_dir = source_path.parent().unwrap_or(Path::new(".")).to_path_buf();
 
         // Warn about recipe paths that lack a recipe.yaml (AC-1.4, AC-1.9).
         for recipe_path in raw.recipes.keys() {
@@ -192,7 +192,9 @@ fn is_valid_semver(version: &str) -> bool {
     if parts.len() != 3 {
         return false;
     }
-    parts.iter().all(|p| !p.is_empty() && p.chars().all(|c| c.is_ascii_digit()))
+    parts
+        .iter()
+        .all(|p| !p.is_empty() && p.chars().all(|c| c.is_ascii_digit()))
 }
 
 #[cfg(test)]
@@ -250,7 +252,10 @@ workflows:
         let m = LibraryManifest::parse(yaml, &dummy_path()).unwrap();
         assert_eq!(m.name, "django");
         assert_eq!(m.version, "0.3.0");
-        assert_eq!(m.description.as_deref(), Some("Recipes for Django development"));
+        assert_eq!(
+            m.description.as_deref(),
+            Some("Recipes for Django development")
+        );
         assert_eq!(m.framework.as_deref(), Some("django"));
         assert_eq!(m.language.as_deref(), Some("python"));
         assert_eq!(m.conventions.len(), 2);

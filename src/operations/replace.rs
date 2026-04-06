@@ -51,7 +51,11 @@ pub fn execute(
     };
 
     match match_result {
-        MatchResult::Found { start_idx, end_idx, mode } => {
+        MatchResult::Found {
+            start_idx,
+            end_idx,
+            mode,
+        } => {
             // Build new content by replacing the matched region.
             let (new_content, location) = match mode {
                 MatchMode::Between => {
@@ -69,10 +73,16 @@ pub fn execute(
                         }
                     }
                     let new = join_lines(&result_lines, file_content.ends_with('\n'));
-                    let replaced_count = if end_idx > start_idx + 1 { end_idx - start_idx - 1 } else { 0 };
+                    let replaced_count = if end_idx > start_idx + 1 {
+                        end_idx - start_idx - 1
+                    } else {
+                        0
+                    };
                     let loc = format!(
                         "between lines {}-{} ({} lines replaced)",
-                        start_idx + 1, end_idx + 1, replaced_count,
+                        start_idx + 1,
+                        end_idx + 1,
+                        replaced_count,
                     );
                     (new, loc)
                 }
@@ -93,7 +103,9 @@ pub fn execute(
                     let replaced_count = end_idx - start_idx + 1;
                     let loc = format!(
                         "pattern lines {}-{} ({} lines replaced)",
-                        start_idx + 1, end_idx + 1, replaced_count,
+                        start_idx + 1,
+                        end_idx + 1,
+                        replaced_count,
                     );
                     (new, loc)
                 }
@@ -127,16 +139,19 @@ pub fn execute(
                 scope_diagnostics: None,
             }
         }
-        MatchResult::NoMatch => {
-            apply_fallback(&file_content, rendered_content, fallback, &target, ctx, content_for_verbose)
-        }
-        MatchResult::Error(error) => {
-            OpResult::Error {
-                path: target,
-                error,
-                rendered_content: rendered_content.to_string(),
-            }
-        }
+        MatchResult::NoMatch => apply_fallback(
+            &file_content,
+            rendered_content,
+            fallback,
+            &target,
+            ctx,
+            content_for_verbose,
+        ),
+        MatchResult::Error(error) => OpResult::Error {
+            path: target,
+            error,
+            rendered_content: rendered_content.to_string(),
+        },
     }
 }
 
@@ -154,12 +169,21 @@ enum MatchMode {
 }
 
 enum MatchResult {
-    Found { start_idx: usize, end_idx: usize, mode: MatchMode },
+    Found {
+        start_idx: usize,
+        end_idx: usize,
+        mode: MatchMode,
+    },
     NoMatch,
     Error(StructuredError),
 }
 
-fn match_between(lines: &[&str], start_pattern: &str, end_pattern: &str, target: &std::path::Path) -> MatchResult {
+fn match_between(
+    lines: &[&str],
+    start_pattern: &str,
+    end_pattern: &str,
+    target: &std::path::Path,
+) -> MatchResult {
     let start_re = Regex::new(start_pattern).expect("regex validated at parse time");
     let end_re = Regex::new(end_pattern).expect("regex validated at parse time");
 
@@ -170,7 +194,10 @@ fn match_between(lines: &[&str], start_pattern: &str, end_pattern: &str, target:
     };
 
     // Find first line matching end AFTER start.
-    let end_idx = match lines[start_idx + 1..].iter().position(|line| end_re.is_match(line)) {
+    let end_idx = match lines[start_idx + 1..]
+        .iter()
+        .position(|line| end_re.is_match(line))
+    {
         Some(offset) => start_idx + 1 + offset,
         None => {
             return MatchResult::Error(StructuredError {
@@ -178,14 +205,21 @@ fn match_between(lines: &[&str], start_pattern: &str, end_pattern: &str, target:
                 where_: target.display().to_string(),
                 why: format!(
                     "start marker '{}' found at line {}, but end marker '{}' was not found after it",
-                    start_pattern, start_idx + 1, end_pattern,
+                    start_pattern,
+                    start_idx + 1,
+                    end_pattern,
                 ),
-                hint: "check that the end marker pattern matches a line after the start marker".into(),
+                hint: "check that the end marker pattern matches a line after the start marker"
+                    .into(),
             });
         }
     };
 
-    MatchResult::Found { start_idx, end_idx, mode: MatchMode::Between }
+    MatchResult::Found {
+        start_idx,
+        end_idx,
+        mode: MatchMode::Between,
+    }
 }
 
 fn match_pattern(lines: &[&str], pattern: &str) -> MatchResult {
@@ -198,15 +232,19 @@ fn match_pattern(lines: &[&str], pattern: &str) -> MatchResult {
     };
 
     let mut last = first;
-    for i in (first + 1)..lines.len() {
-        if re.is_match(lines[i]) {
+    for (i, line) in lines.iter().enumerate().skip(first + 1) {
+        if re.is_match(line) {
             last = i;
         } else {
             break;
         }
     }
 
-    MatchResult::Found { start_idx: first, end_idx: last, mode: MatchMode::Pattern }
+    MatchResult::Found {
+        start_idx: first,
+        end_idx: last,
+        mode: MatchMode::Pattern,
+    }
 }
 
 fn apply_fallback(
@@ -284,7 +322,8 @@ fn write_back(
     ctx: &mut ExecutionContext,
 ) -> Option<OpResult> {
     if ctx.dry_run {
-        ctx.virtual_files.insert(target.to_path_buf(), new_content.to_string());
+        ctx.virtual_files
+            .insert(target.to_path_buf(), new_content.to_string());
         None
     } else {
         if let Err(e) = std::fs::write(target, new_content) {
@@ -299,7 +338,8 @@ fn write_back(
                 rendered_content: rendered_content.to_string(),
             });
         }
-        ctx.virtual_files.insert(target.to_path_buf(), new_content.to_string());
+        ctx.virtual_files
+            .insert(target.to_path_buf(), new_content.to_string());
         None
     }
 }
@@ -325,10 +365,26 @@ mod tests {
         fs::write(&target, "# START\nold line 1\nold line 2\n# END\n").unwrap();
 
         let mut ctx = make_ctx(dir.path(), false);
-        let spec = ReplaceSpec::Between { start: "^# START".into(), end: "^# END".into() };
-        let result = execute("target.txt", "new content\n", &spec, &Fallback::Error, &mut ctx, false);
+        let spec = ReplaceSpec::Between {
+            start: "^# START".into(),
+            end: "^# END".into(),
+        };
+        let result = execute(
+            "target.txt",
+            "new content\n",
+            &spec,
+            &Fallback::Error,
+            &mut ctx,
+            false,
+        );
 
-        assert!(matches!(&result, OpResult::Success { action: "replace", .. }));
+        assert!(matches!(
+            &result,
+            OpResult::Success {
+                action: "replace",
+                ..
+            }
+        ));
         let content = fs::read_to_string(&target).unwrap();
         assert!(content.contains("# START"));
         assert!(content.contains("# END"));
@@ -343,10 +399,26 @@ mod tests {
         fs::write(&target, "# START\n# END\n").unwrap();
 
         let mut ctx = make_ctx(dir.path(), false);
-        let spec = ReplaceSpec::Between { start: "^# START".into(), end: "^# END".into() };
-        let result = execute("target.txt", "inserted\n", &spec, &Fallback::Error, &mut ctx, false);
+        let spec = ReplaceSpec::Between {
+            start: "^# START".into(),
+            end: "^# END".into(),
+        };
+        let result = execute(
+            "target.txt",
+            "inserted\n",
+            &spec,
+            &Fallback::Error,
+            &mut ctx,
+            false,
+        );
 
-        assert!(matches!(&result, OpResult::Success { action: "replace", .. }));
+        assert!(matches!(
+            &result,
+            OpResult::Success {
+                action: "replace",
+                ..
+            }
+        ));
         let content = fs::read_to_string(&target).unwrap();
         let lines: Vec<&str> = content.lines().collect();
         assert_eq!(lines[0], "# START");
@@ -361,8 +433,18 @@ mod tests {
         fs::write(&target, "header\n# START\nold\n# END\nfooter\n").unwrap();
 
         let mut ctx = make_ctx(dir.path(), false);
-        let spec = ReplaceSpec::Between { start: "^# START".into(), end: "^# END".into() };
-        let result = execute("target.txt", "line1\nline2\nline3\n", &spec, &Fallback::Error, &mut ctx, false);
+        let spec = ReplaceSpec::Between {
+            start: "^# START".into(),
+            end: "^# END".into(),
+        };
+        let result = execute(
+            "target.txt",
+            "line1\nline2\nline3\n",
+            &spec,
+            &Fallback::Error,
+            &mut ctx,
+            false,
+        );
 
         assert!(matches!(&result, OpResult::Success { .. }));
         let content = fs::read_to_string(&target).unwrap();
@@ -378,8 +460,18 @@ mod tests {
         fs::write(&target, "# START\ncontent\nno end marker\n").unwrap();
 
         let mut ctx = make_ctx(dir.path(), false);
-        let spec = ReplaceSpec::Between { start: "^# START".into(), end: "^# END".into() };
-        let result = execute("target.txt", "new\n", &spec, &Fallback::Error, &mut ctx, false);
+        let spec = ReplaceSpec::Between {
+            start: "^# START".into(),
+            end: "^# END".into(),
+        };
+        let result = execute(
+            "target.txt",
+            "new\n",
+            &spec,
+            &Fallback::Error,
+            &mut ctx,
+            false,
+        );
 
         assert!(result.is_error());
         if let OpResult::Error { error, .. } = &result {
@@ -394,8 +486,18 @@ mod tests {
         fs::write(&target, "no markers here\n").unwrap();
 
         let mut ctx = make_ctx(dir.path(), false);
-        let spec = ReplaceSpec::Between { start: "^# START".into(), end: "^# END".into() };
-        let result = execute("target.txt", "new\n", &spec, &Fallback::Error, &mut ctx, false);
+        let spec = ReplaceSpec::Between {
+            start: "^# START".into(),
+            end: "^# END".into(),
+        };
+        let result = execute(
+            "target.txt",
+            "new\n",
+            &spec,
+            &Fallback::Error,
+            &mut ctx,
+            false,
+        );
 
         // Start not found → NoMatch → fallback:error
         assert!(result.is_error());
@@ -414,9 +516,22 @@ mod tests {
 
         let mut ctx = make_ctx(dir.path(), false);
         let spec = ReplaceSpec::Pattern("^old_".into());
-        let result = execute("target.txt", "new_line\n", &spec, &Fallback::Error, &mut ctx, false);
+        let result = execute(
+            "target.txt",
+            "new_line\n",
+            &spec,
+            &Fallback::Error,
+            &mut ctx,
+            false,
+        );
 
-        assert!(matches!(&result, OpResult::Success { action: "replace", .. }));
+        assert!(matches!(
+            &result,
+            OpResult::Success {
+                action: "replace",
+                ..
+            }
+        ));
         let content = fs::read_to_string(&target).unwrap();
         assert!(content.contains("new_line"));
         assert!(!content.contains("old_"));
@@ -432,7 +547,14 @@ mod tests {
 
         let mut ctx = make_ctx(dir.path(), false);
         let spec = ReplaceSpec::Pattern("^target_".into());
-        let result = execute("target.txt", "replaced\n", &spec, &Fallback::Error, &mut ctx, false);
+        let result = execute(
+            "target.txt",
+            "replaced\n",
+            &spec,
+            &Fallback::Error,
+            &mut ctx,
+            false,
+        );
 
         assert!(matches!(&result, OpResult::Success { .. }));
         let content = fs::read_to_string(&target).unwrap();
@@ -448,7 +570,14 @@ mod tests {
 
         let mut ctx = make_ctx(dir.path(), false);
         let spec = ReplaceSpec::Pattern("^NONEXISTENT".into());
-        let result = execute("target.txt", "new\n", &spec, &Fallback::Error, &mut ctx, false);
+        let result = execute(
+            "target.txt",
+            "new\n",
+            &spec,
+            &Fallback::Error,
+            &mut ctx,
+            false,
+        );
 
         assert!(result.is_error());
     }
@@ -463,9 +592,22 @@ mod tests {
 
         let mut ctx = make_ctx(dir.path(), false);
         let spec = ReplaceSpec::Pattern("^NONEXISTENT".into());
-        let result = execute("target.txt", "appended\n", &spec, &Fallback::Append, &mut ctx, false);
+        let result = execute(
+            "target.txt",
+            "appended\n",
+            &spec,
+            &Fallback::Append,
+            &mut ctx,
+            false,
+        );
 
-        assert!(matches!(&result, OpResult::Success { action: "replace", .. }));
+        assert!(matches!(
+            &result,
+            OpResult::Success {
+                action: "replace",
+                ..
+            }
+        ));
         if let OpResult::Success { location, .. } = &result {
             assert_eq!(location.as_deref(), Some("fallback:append"));
         }
@@ -482,9 +624,22 @@ mod tests {
 
         let mut ctx = make_ctx(dir.path(), false);
         let spec = ReplaceSpec::Pattern("^NONEXISTENT".into());
-        let result = execute("target.txt", "prepended\n", &spec, &Fallback::Prepend, &mut ctx, false);
+        let result = execute(
+            "target.txt",
+            "prepended\n",
+            &spec,
+            &Fallback::Prepend,
+            &mut ctx,
+            false,
+        );
 
-        assert!(matches!(&result, OpResult::Success { action: "replace", .. }));
+        assert!(matches!(
+            &result,
+            OpResult::Success {
+                action: "replace",
+                ..
+            }
+        ));
         if let OpResult::Success { location, .. } = &result {
             assert_eq!(location.as_deref(), Some("fallback:prepend"));
         }
@@ -500,7 +655,14 @@ mod tests {
 
         let mut ctx = make_ctx(dir.path(), false);
         let spec = ReplaceSpec::Pattern("^NONEXISTENT".into());
-        let result = execute("target.txt", "new\n", &spec, &Fallback::Skip, &mut ctx, false);
+        let result = execute(
+            "target.txt",
+            "new\n",
+            &spec,
+            &Fallback::Skip,
+            &mut ctx,
+            false,
+        );
 
         assert!(matches!(&result, OpResult::Skip { .. }));
     }
@@ -513,10 +675,22 @@ mod tests {
 
         let mut ctx = make_ctx(dir.path(), false);
         let spec = ReplaceSpec::Pattern("^NONEXISTENT".into());
-        let result = execute("target.txt", "new\n", &spec, &Fallback::Error, &mut ctx, false);
+        let result = execute(
+            "target.txt",
+            "new\n",
+            &spec,
+            &Fallback::Error,
+            &mut ctx,
+            false,
+        );
 
         assert!(result.is_error());
-        if let OpResult::Error { error, rendered_content, .. } = &result {
+        if let OpResult::Error {
+            error,
+            rendered_content,
+            ..
+        } = &result
+        {
             assert!(error.what.contains("replace pattern not found"));
             assert_eq!(rendered_content, "new\n");
         }
@@ -535,10 +709,22 @@ mod tests {
         let dir = TempDir::new().unwrap();
         let mut ctx = make_ctx(dir.path(), false);
         let spec = ReplaceSpec::Pattern(".*".into());
-        let result = execute("nonexistent.txt", "content\n", &spec, &Fallback::Error, &mut ctx, false);
+        let result = execute(
+            "nonexistent.txt",
+            "content\n",
+            &spec,
+            &Fallback::Error,
+            &mut ctx,
+            false,
+        );
 
         assert!(result.is_error());
-        if let OpResult::Error { error, rendered_content, .. } = &result {
+        if let OpResult::Error {
+            error,
+            rendered_content,
+            ..
+        } = &result
+        {
             assert!(error.what.contains("target file not found"));
             assert_eq!(rendered_content, "content\n");
         }
@@ -549,12 +735,29 @@ mod tests {
         let dir = TempDir::new().unwrap();
         let mut ctx = make_ctx(dir.path(), true);
         let target = dir.path().join("file.txt");
-        ctx.virtual_files.insert(target.clone(), "# START\nold\n# END\n".into());
+        ctx.virtual_files
+            .insert(target.clone(), "# START\nold\n# END\n".into());
 
-        let spec = ReplaceSpec::Between { start: "^# START".into(), end: "^# END".into() };
-        let result = execute("file.txt", "new\n", &spec, &Fallback::Error, &mut ctx, false);
+        let spec = ReplaceSpec::Between {
+            start: "^# START".into(),
+            end: "^# END".into(),
+        };
+        let result = execute(
+            "file.txt",
+            "new\n",
+            &spec,
+            &Fallback::Error,
+            &mut ctx,
+            false,
+        );
 
-        assert!(matches!(&result, OpResult::Success { action: "replace", .. }));
+        assert!(matches!(
+            &result,
+            OpResult::Success {
+                action: "replace",
+                ..
+            }
+        ));
         let content = ctx.virtual_files.get(&target).unwrap();
         assert!(content.contains("new"));
         assert!(!content.contains("old"));
@@ -567,10 +770,21 @@ mod tests {
         let mut ctx = make_ctx(dir.path(), true);
         let target = dir.path().join("file.txt");
         // Simulate prior create.
-        ctx.virtual_files.insert(target.clone(), "header\n# START\n# END\nfooter\n".into());
+        ctx.virtual_files
+            .insert(target.clone(), "header\n# START\n# END\nfooter\n".into());
 
-        let spec = ReplaceSpec::Between { start: "^# START".into(), end: "^# END".into() };
-        let result = execute("file.txt", "inserted\n", &spec, &Fallback::Error, &mut ctx, false);
+        let spec = ReplaceSpec::Between {
+            start: "^# START".into(),
+            end: "^# END".into(),
+        };
+        let result = execute(
+            "file.txt",
+            "inserted\n",
+            &spec,
+            &Fallback::Error,
+            &mut ctx,
+            false,
+        );
 
         assert!(matches!(&result, OpResult::Success { .. }));
         let content = ctx.virtual_files.get(&target).unwrap();
@@ -584,11 +798,26 @@ mod tests {
         fs::write(&target, "# START\nold\n# END\n").unwrap();
 
         let mut ctx = make_ctx(dir.path(), false);
-        let spec = ReplaceSpec::Between { start: "^# START".into(), end: "^# END".into() };
-        let result = execute("target.txt", "new\n", &spec, &Fallback::Error, &mut ctx, false);
+        let spec = ReplaceSpec::Between {
+            start: "^# START".into(),
+            end: "^# END".into(),
+        };
+        let result = execute(
+            "target.txt",
+            "new\n",
+            &spec,
+            &Fallback::Error,
+            &mut ctx,
+            false,
+        );
 
         match &result {
-            OpResult::Success { action, location, lines, .. } => {
+            OpResult::Success {
+                action,
+                location,
+                lines,
+                ..
+            } => {
                 assert_eq!(*action, "replace");
                 assert!(location.is_some());
                 assert!(*lines > 0);
@@ -604,11 +833,23 @@ mod tests {
         fs::write(&target, "# START\nold\n# END\n").unwrap();
 
         let mut ctx = make_ctx(dir.path(), false);
-        let spec = ReplaceSpec::Between { start: "^# START".into(), end: "^# END".into() };
-        let result = execute("target.txt", "new\n", &spec, &Fallback::Error, &mut ctx, true);
+        let spec = ReplaceSpec::Between {
+            start: "^# START".into(),
+            end: "^# END".into(),
+        };
+        let result = execute(
+            "target.txt",
+            "new\n",
+            &spec,
+            &Fallback::Error,
+            &mut ctx,
+            true,
+        );
 
         match &result {
-            OpResult::Success { rendered_content, .. } => {
+            OpResult::Success {
+                rendered_content, ..
+            } => {
                 assert_eq!(rendered_content.as_deref(), Some("new\n"));
             }
             _ => panic!("expected Success"),

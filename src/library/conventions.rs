@@ -124,10 +124,7 @@ libraries:
         assert_eq!(config.libraries.len(), 1);
         let django = &config.libraries["django"];
         assert_eq!(django.conventions.len(), 2);
-        assert_eq!(
-            django.conventions["models"],
-            "{{ app }}/models.py"
-        );
+        assert_eq!(django.conventions["models"], "{{ app }}/models.py");
     }
 
     #[test]
@@ -148,7 +145,10 @@ libraries:
             language: None,
             conventions: IndexMap::from([
                 ("models".into(), "{{ app }}/models/{{ model }}.py".into()),
-                ("services".into(), "{{ app }}/services/{{ model }}_service.py".into()),
+                (
+                    "services".into(),
+                    "{{ app }}/services/{{ model }}_service.py".into(),
+                ),
             ]),
             recipes: IndexMap::new(),
             workflows: IndexMap::new(),
@@ -171,7 +171,10 @@ libraries:
             language: None,
             conventions: IndexMap::from([
                 ("models".into(), "{{ app }}/models/{{ model }}.py".into()),
-                ("services".into(), "{{ app }}/services/{{ model }}_service.py".into()),
+                (
+                    "services".into(),
+                    "{{ app }}/services/{{ model }}_service.py".into(),
+                ),
             ]),
             recipes: IndexMap::new(),
             workflows: IndexMap::new(),
@@ -182,9 +185,7 @@ libraries:
             libraries: IndexMap::from([(
                 "django".into(),
                 LibraryOverrides {
-                    conventions: IndexMap::from([
-                        ("models".into(), "{{ app }}/models.py".into()),
-                    ]),
+                    conventions: IndexMap::from([("models".into(), "{{ app }}/models.py".into())]),
                 },
             )]),
         };
@@ -208,9 +209,7 @@ libraries:
             description: None,
             framework: None,
             language: None,
-            conventions: IndexMap::from([
-                ("models".into(), "{{ app }}/models.py".into()),
-            ]),
+            conventions: IndexMap::from([("models".into(), "{{ app }}/models.py".into())]),
             recipes: IndexMap::new(),
             workflows: IndexMap::new(),
             library_dir: "/tmp".into(),
@@ -220,9 +219,10 @@ libraries:
             libraries: IndexMap::from([(
                 "django".into(),
                 LibraryOverrides {
-                    conventions: IndexMap::from([
-                        ("custom".into(), "{{ app }}/custom/{{ model }}.py".into()),
-                    ]),
+                    conventions: IndexMap::from([(
+                        "custom".into(),
+                        "{{ app }}/custom/{{ model }}.py".into(),
+                    )]),
                 },
             )]),
         };

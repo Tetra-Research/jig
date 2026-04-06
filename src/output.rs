@@ -32,7 +32,10 @@ pub fn detect_mode(force_json: bool) -> OutputMode {
 
 /// Build the full JSON output object for `jig run`.
 pub fn format_json(results: &[OpResult], dry_run: bool, verbose: bool) -> Value {
-    let operations: Vec<Value> = results.iter().map(|r| op_result_to_json(r, verbose)).collect();
+    let operations: Vec<Value> = results
+        .iter()
+        .map(|r| op_result_to_json(r, verbose))
+        .collect();
     let (files_written, files_skipped) = compute_file_summaries(results);
 
     serde_json::json!({
@@ -45,7 +48,14 @@ pub fn format_json(results: &[OpResult], dry_run: bool, verbose: bool) -> Value 
 
 pub(crate) fn op_result_to_json(result: &OpResult, verbose: bool) -> Value {
     match result {
-        OpResult::Success { action, path, lines, location, rendered_content, scope_diagnostics } => {
+        OpResult::Success {
+            action,
+            path,
+            lines,
+            location,
+            rendered_content,
+            scope_diagnostics,
+        } => {
             let mut obj = serde_json::json!({
                 "action": action,
                 "path": path.display().to_string(),
@@ -54,44 +64,49 @@ pub(crate) fn op_result_to_json(result: &OpResult, verbose: bool) -> Value {
             if let Some(loc) = location {
                 obj["location"] = Value::String(loc.clone());
             }
-            if verbose
-                && let Some(content) = rendered_content {
-                    obj["rendered_content"] = Value::String(content.clone());
+            if verbose && let Some(content) = rendered_content {
+                obj["rendered_content"] = Value::String(content.clone());
+            }
+            if verbose && let Some(diag) = scope_diagnostics {
+                let mut diag_obj = serde_json::json!({
+                    "anchor_line": diag.anchor_line,
+                    "scope_start": diag.scope_start,
+                    "scope_end": diag.scope_end,
+                    "insertion_line": diag.insertion_line,
+                });
+                if let Some(fl) = diag.find_match_line {
+                    diag_obj["find_match_line"] = Value::Number(fl.into());
                 }
-            if verbose
-                && let Some(diag) = scope_diagnostics {
-                    let mut diag_obj = serde_json::json!({
-                        "anchor_line": diag.anchor_line,
-                        "scope_start": diag.scope_start,
-                        "scope_end": diag.scope_end,
-                        "insertion_line": diag.insertion_line,
+                if let Some((ref from, ref to)) = diag.position_fallback {
+                    diag_obj["position_fallback"] = serde_json::json!({
+                        "from": from,
+                        "to": to,
                     });
-                    if let Some(fl) = diag.find_match_line {
-                        diag_obj["find_match_line"] = Value::Number(fl.into());
-                    }
-                    if let Some((ref from, ref to)) = diag.position_fallback {
-                        diag_obj["position_fallback"] = serde_json::json!({
-                            "from": from,
-                            "to": to,
-                        });
-                    }
-                    obj["scope_diagnostics"] = diag_obj;
                 }
+                obj["scope_diagnostics"] = diag_obj;
+            }
             obj
         }
-        OpResult::Skip { path, reason, rendered_content } => {
+        OpResult::Skip {
+            path,
+            reason,
+            rendered_content,
+        } => {
             let mut obj = serde_json::json!({
                 "action": "skip",
                 "path": path.display().to_string(),
                 "reason": reason,
             });
-            if verbose
-                && let Some(content) = rendered_content {
-                    obj["rendered_content"] = Value::String(content.clone());
-                }
+            if verbose && let Some(content) = rendered_content {
+                obj["rendered_content"] = Value::String(content.clone());
+            }
             obj
         }
-        OpResult::Error { path, error, rendered_content } => {
+        OpResult::Error {
+            path,
+            error,
+            rendered_content,
+        } => {
             serde_json::json!({
                 "action": "error",
                 "path": path.display().to_string(),
@@ -190,7 +205,14 @@ pub fn format_human(results: &[OpResult], dry_run: bool, verbose: bool) {
 
     for result in results {
         match result {
-            OpResult::Success { action, path, lines, location, rendered_content, scope_diagnostics } => {
+            OpResult::Success {
+                action,
+                path,
+                lines,
+                location,
+                rendered_content,
+                scope_diagnostics,
+            } => {
                 let action_str = action.to_string();
                 eprint!("  {} {}", action_str.green(), path.display());
                 if let Some(loc) = location {
@@ -204,32 +226,47 @@ pub fn format_human(results: &[OpResult], dry_run: bool, verbose: bool) {
                         }
                     }
                     if let Some(diag) = scope_diagnostics {
-                        eprintln!("    {} anchor={} scope={}-{} insert={}{}",
+                        eprintln!(
+                            "    {} anchor={} scope={}-{} insert={}{}",
                             "diagnostics:".dimmed(),
-                            diag.anchor_line, diag.scope_start, diag.scope_end,
+                            diag.anchor_line,
+                            diag.scope_start,
+                            diag.scope_end,
                             diag.insertion_line,
-                            diag.find_match_line.map(|l| format!(" find={}", l)).unwrap_or_default(),
+                            diag.find_match_line
+                                .map(|l| format!(" find={}", l))
+                                .unwrap_or_default(),
                         );
                     }
                 }
             }
-            OpResult::Skip { path, reason, rendered_content } => {
+            OpResult::Skip {
+                path,
+                reason,
+                rendered_content,
+            } => {
                 eprintln!("  {} {} — {}", "skip".yellow(), path.display(), reason);
-                if verbose
-                    && let Some(content) = rendered_content {
-                        for line in content.lines() {
-                            eprintln!("    {}", line.dimmed());
-                        }
+                if verbose && let Some(content) = rendered_content {
+                    for line in content.lines() {
+                        eprintln!("    {}", line.dimmed());
                     }
+                }
             }
-            OpResult::Error { path, error, rendered_content } => {
+            OpResult::Error {
+                path,
+                error,
+                rendered_content,
+            } => {
                 eprintln!("  {} {}", "error".red(), path.display());
                 eprintln!("    what: {}", error.what);
                 eprintln!("    where: {}", error.where_);
                 eprintln!("    why: {}", error.why);
                 eprintln!("    hint: {}", error.hint);
                 if verbose || !rendered_content.is_empty() {
-                    eprintln!("    rendered content ({} lines):", rendered_content.lines().count());
+                    eprintln!(
+                        "    rendered content ({} lines):",
+                        rendered_content.lines().count()
+                    );
                     for line in rendered_content.lines() {
                         eprintln!("      {}", line.dimmed());
                     }
@@ -379,11 +416,7 @@ pub fn format_workflow_json(
 
 // ── Workflow execution human output ──────────────────────────────
 
-pub fn format_workflow_human(
-    result: &workflow::WorkflowResult,
-    dry_run: bool,
-    verbose: bool,
-) {
+pub fn format_workflow_human(result: &workflow::WorkflowResult, dry_run: bool, verbose: bool) {
     if dry_run {
         eprintln!("{}", "(dry run)".dimmed());
     }
@@ -396,13 +429,7 @@ pub fn format_workflow_human(
     for (i, step) in result.steps.iter().enumerate() {
         match step {
             workflow::StepResult::Success { recipe, operations } => {
-                eprintln!(
-                    "\n{} {}/{}: {}",
-                    "Step".bold(),
-                    i + 1,
-                    total,
-                    recipe
-                );
+                eprintln!("\n{} {}/{}: {}", "Step".bold(), i + 1, total, recipe);
                 format_human(operations, false, verbose);
                 succeeded += 1;
             }
@@ -516,7 +543,12 @@ mod tests {
         assert_eq!(ops[0]["lines"], 10);
         assert_eq!(ops[1]["action"], "skip");
         assert_eq!(ops[1]["path"], "src/lib.rs");
-        assert!(ops[1]["reason"].as_str().unwrap().contains("skip_if_exists"));
+        assert!(
+            ops[1]["reason"]
+                .as_str()
+                .unwrap()
+                .contains("skip_if_exists")
+        );
     }
 
     // ── AC-6.5: Error operation has all structured error fields ──
@@ -544,10 +576,18 @@ mod tests {
             success_result("c.rs", 3),
         ];
         let json = format_json(&results, false, false);
-        let written: Vec<&str> = json["files_written"].as_array().unwrap()
-            .iter().map(|v| v.as_str().unwrap()).collect();
-        let skipped: Vec<&str> = json["files_skipped"].as_array().unwrap()
-            .iter().map(|v| v.as_str().unwrap()).collect();
+        let written: Vec<&str> = json["files_written"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|v| v.as_str().unwrap())
+            .collect();
+        let skipped: Vec<&str> = json["files_skipped"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|v| v.as_str().unwrap())
+            .collect();
         assert_eq!(written, vec!["a.rs", "c.rs"]);
         assert_eq!(skipped, vec!["b.rs"]);
     }
@@ -561,10 +601,18 @@ mod tests {
             success_result("target.rs", 10),
         ];
         let json = format_json(&results, false, false);
-        let written: Vec<&str> = json["files_written"].as_array().unwrap()
-            .iter().map(|v| v.as_str().unwrap()).collect();
-        let skipped: Vec<&str> = json["files_skipped"].as_array().unwrap()
-            .iter().map(|v| v.as_str().unwrap()).collect();
+        let written: Vec<&str> = json["files_written"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|v| v.as_str().unwrap())
+            .collect();
+        let skipped: Vec<&str> = json["files_skipped"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|v| v.as_str().unwrap())
+            .collect();
         assert_eq!(written, vec!["target.rs"]);
         assert!(skipped.is_empty());
     }
@@ -579,8 +627,12 @@ mod tests {
             success_result("b.rs", 1),
         ];
         let json = format_json(&results, false, false);
-        let written: Vec<&str> = json["files_written"].as_array().unwrap()
-            .iter().map(|v| v.as_str().unwrap()).collect();
+        let written: Vec<&str> = json["files_written"]
+            .as_array()
+            .unwrap()
+            .iter()
+            .map(|v| v.as_str().unwrap())
+            .collect();
         assert_eq!(written, vec!["c.rs", "a.rs", "b.rs"]);
     }
 

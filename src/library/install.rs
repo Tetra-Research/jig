@@ -302,7 +302,12 @@ pub fn update_from_path(
     })?;
 
     // Update install metadata.
-    write_install_meta(&existing_path, &source.display().to_string(), "local", &manifest.version)?;
+    write_install_meta(
+        &existing_path,
+        &source.display().to_string(),
+        "local",
+        &manifest.version,
+    )?;
 
     Ok(InstalledLibrary {
         name: manifest.name,
@@ -370,14 +375,24 @@ pub fn list_installed(base_dir: &Path) -> Result<Vec<InstalledLibrary>, JigError
     // Project-local first (takes precedence).
     let project_dir = project_libraries_dir(base_dir);
     if project_dir.is_dir() {
-        scan_libraries_dir(&project_dir, InstallLocation::ProjectLocal, &mut libraries, &mut seen_names)?;
+        scan_libraries_dir(
+            &project_dir,
+            InstallLocation::ProjectLocal,
+            &mut libraries,
+            &mut seen_names,
+        )?;
     }
 
     // Then global.
     if let Ok(global_dir) = global_libraries_dir()
         && global_dir.is_dir()
     {
-        scan_libraries_dir(&global_dir, InstallLocation::Global, &mut libraries, &mut seen_names)?;
+        scan_libraries_dir(
+            &global_dir,
+            InstallLocation::Global,
+            &mut libraries,
+            &mut seen_names,
+        )?;
     }
 
     // Sort by name for deterministic output (M5 fix).
@@ -388,7 +403,10 @@ pub fn list_installed(base_dir: &Path) -> Result<Vec<InstalledLibrary>, JigError
 
 /// Find an installed library by name.
 /// Project-local takes precedence over global.
-pub fn find_installed_library(name: &str, base_dir: &Path) -> Result<(PathBuf, InstallLocation), JigError> {
+pub fn find_installed_library(
+    name: &str,
+    base_dir: &Path,
+) -> Result<(PathBuf, InstallLocation), JigError> {
     // Check project-local first.
     let project_path = project_libraries_dir(base_dir).join(name);
     if project_path.join("jig-library.yaml").exists() {
@@ -407,7 +425,8 @@ pub fn find_installed_library(name: &str, base_dir: &Path) -> Result<(PathBuf, I
         what: format!("library '{name}' is not installed"),
         where_: "libraries".into(),
         why: format!("no library named '{name}' found in project or global libraries"),
-        hint: "use 'jig library list' to see installed libraries, or 'jig library add' to install".into(),
+        hint: "use 'jig library list' to see installed libraries, or 'jig library add' to install"
+            .into(),
     }))
 }
 
@@ -509,27 +528,6 @@ mod tests {
     use std::fs;
     use tempfile::TempDir;
 
-    fn create_test_library(dir: &Path, name: &str, version: &str) {
-        let lib_dir = dir.join(name);
-        fs::create_dir_all(&lib_dir).unwrap();
-        let manifest = format!(
-            r#"name: {name}
-version: {version}
-description: Test library
-recipes:
-  model/add-field: "Add a field"
-"#
-        );
-        fs::write(lib_dir.join("jig-library.yaml"), manifest).unwrap();
-        let recipe_dir = lib_dir.join("model/add-field/templates");
-        fs::create_dir_all(&recipe_dir).unwrap();
-        fs::write(
-            lib_dir.join("model/add-field/recipe.yaml"),
-            "name: add-field\nfiles: []\n",
-        )
-        .unwrap();
-    }
-
     #[test]
     fn add_from_local_path() {
         let tmp = TempDir::new().unwrap();
@@ -544,7 +542,15 @@ recipes:
         let project_dir = tmp.path().join("project");
         fs::create_dir_all(&project_dir).unwrap();
 
-        let result = add_from_path_with_options(&source_dir, InstallLocation::ProjectLocal, &project_dir, false, "", "local").unwrap();
+        let result = add_from_path_with_options(
+            &source_dir,
+            InstallLocation::ProjectLocal,
+            &project_dir,
+            false,
+            "",
+            "local",
+        )
+        .unwrap();
         assert_eq!(result.name, "mylib");
         assert_eq!(result.version, "0.1.0");
         assert_eq!(result.location, InstallLocation::ProjectLocal);
@@ -565,8 +571,24 @@ recipes:
         let project_dir = tmp.path().join("project");
         fs::create_dir_all(&project_dir).unwrap();
 
-        add_from_path_with_options(&source_dir, InstallLocation::ProjectLocal, &project_dir, false, "", "local").unwrap();
-        let err = add_from_path_with_options(&source_dir, InstallLocation::ProjectLocal, &project_dir, false, "", "local").unwrap_err();
+        add_from_path_with_options(
+            &source_dir,
+            InstallLocation::ProjectLocal,
+            &project_dir,
+            false,
+            "",
+            "local",
+        )
+        .unwrap();
+        let err = add_from_path_with_options(
+            &source_dir,
+            InstallLocation::ProjectLocal,
+            &project_dir,
+            false,
+            "",
+            "local",
+        )
+        .unwrap_err();
         let msg = format!("{err}");
         assert!(msg.contains("already installed"));
     }
@@ -580,7 +602,15 @@ recipes:
         let project_dir = tmp.path().join("project");
         fs::create_dir_all(&project_dir).unwrap();
 
-        let err = add_from_path_with_options(&empty_dir, InstallLocation::ProjectLocal, &project_dir, false, "", "local").unwrap_err();
+        let err = add_from_path_with_options(
+            &empty_dir,
+            InstallLocation::ProjectLocal,
+            &project_dir,
+            false,
+            "",
+            "local",
+        )
+        .unwrap_err();
         let msg = format!("{err}");
         assert!(msg.contains("no jig-library.yaml"));
     }
@@ -599,7 +629,15 @@ recipes:
         let project_dir = tmp.path().join("project");
         fs::create_dir_all(&project_dir).unwrap();
 
-        add_from_path_with_options(&source_dir, InstallLocation::ProjectLocal, &project_dir, false, "", "local").unwrap();
+        add_from_path_with_options(
+            &source_dir,
+            InstallLocation::ProjectLocal,
+            &project_dir,
+            false,
+            "",
+            "local",
+        )
+        .unwrap();
         let removed = remove("mylib", &project_dir).unwrap();
         assert_eq!(removed.name, "mylib");
         assert!(!removed.path.exists());
@@ -628,7 +666,15 @@ recipes:
                 format!("name: {name}\nversion: 0.1.0\nrecipes: {{}}\n"),
             )
             .unwrap();
-            add_from_path_with_options(&source, InstallLocation::ProjectLocal, &project_dir, false, "", "local").unwrap();
+            add_from_path_with_options(
+                &source,
+                InstallLocation::ProjectLocal,
+                &project_dir,
+                false,
+                "",
+                "local",
+            )
+            .unwrap();
         }
 
         let list = list_installed(&project_dir).unwrap();
@@ -652,7 +698,15 @@ recipes:
             "name: mylib\nversion: 0.1.0\nrecipes: {}\n",
         )
         .unwrap();
-        add_from_path_with_options(&source_v1, InstallLocation::ProjectLocal, &project_dir, false, "", "local").unwrap();
+        add_from_path_with_options(
+            &source_v1,
+            InstallLocation::ProjectLocal,
+            &project_dir,
+            false,
+            "",
+            "local",
+        )
+        .unwrap();
 
         // Update with v2 source.
         let source_v2 = tmp.path().join("source-v2");

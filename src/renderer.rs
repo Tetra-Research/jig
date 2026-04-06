@@ -119,7 +119,10 @@ fn convert_render_error(
     vars: &Value,
 ) -> JigError {
     let kind = err.kind();
-    let line_info = err.line().map(|l| format!(" (line {})", l)).unwrap_or_default();
+    let line_info = err
+        .line()
+        .map(|l| format!(" (line {})", l))
+        .unwrap_or_default();
 
     match kind {
         minijinja::ErrorKind::UndefinedError => {
@@ -131,7 +134,10 @@ fn convert_render_error(
             JigError::TemplateRendering(StructuredError {
                 what: format!("undefined variable '{}'", var_name),
                 where_: format!("{}{}", source_path, line_info),
-                why: format!("variable '{}' is not defined in the provided context", var_name),
+                why: format!(
+                    "variable '{}' is not defined in the provided context",
+                    var_name
+                ),
                 hint,
             })
         }
@@ -158,7 +164,10 @@ fn convert_render_error(
 
 #[allow(dead_code)] // Used in recipe env creation
 fn template_syntax_error(template_name: &str, err: &minijinja::Error) -> JigError {
-    let line_info = err.line().map(|l| format!(" (line {})", l)).unwrap_or_default();
+    let line_info = err
+        .line()
+        .map(|l| format!(" (line {})", l))
+        .unwrap_or_default();
     let detail = err.detail().unwrap_or("syntax error");
 
     JigError::TemplateRendering(StructuredError {
@@ -176,7 +185,11 @@ fn template_syntax_error(template_name: &str, err: &minijinja::Error) -> JigErro
 /// first identifier from expressions like `{{ user.name }}` (yields "user", not
 /// "user.name"). Falls back to "unknown" if no match is found. minijinja does not
 /// expose the undefined variable name directly, so this is the best we can do for v0.1.
-fn find_undefined_variable(template_source: &str, error_line: Option<usize>, vars: &Value) -> String {
+fn find_undefined_variable(
+    template_source: &str,
+    error_line: Option<usize>,
+    vars: &Value,
+) -> String {
     let var_keys: Vec<&str> = match vars.as_object() {
         Some(obj) => obj.keys().map(|s| s.as_str()).collect(),
         None => vec![],
@@ -186,7 +199,10 @@ fn find_undefined_variable(template_source: &str, error_line: Option<usize>, var
     // Matches {{ name }}, {{ name | filter }}, {{ name.attr }}, etc.
     let re = regex::Regex::new(r"\{\{[\s-]*([a-zA-Z_][a-zA-Z0-9_]*)").unwrap();
     // Also check {% if/for/elif blocks
-    let block_re = regex::Regex::new(r"\{%[\s-]*(?:if|elif|for\s+\w+\s+in|set\s+\w+\s*=)\s+([a-zA-Z_][a-zA-Z0-9_]*)").unwrap();
+    let block_re = regex::Regex::new(
+        r"\{%[\s-]*(?:if|elif|for\s+\w+\s+in|set\s+\w+\s*=)\s+([a-zA-Z_][a-zA-Z0-9_]*)",
+    )
+    .unwrap();
 
     let lines: Vec<&str> = template_source.lines().collect();
 
@@ -202,7 +218,10 @@ fn find_undefined_variable(template_source: &str, error_line: Option<usize>, var
     }
 
     // Fall back to scanning the entire template
-    for cap in re.captures_iter(template_source).chain(block_re.captures_iter(template_source)) {
+    for cap in re
+        .captures_iter(template_source)
+        .chain(block_re.captures_iter(template_source))
+    {
         let name = &cap[1];
         if !var_keys.contains(&name) {
             return name.to_string();
@@ -221,7 +240,10 @@ fn did_you_mean_hint(var_name: &str, vars: &Value) -> String {
     };
 
     if keys.is_empty() {
-        return format!("check variable name '{}' — no variables were provided", var_name);
+        return format!(
+            "check variable name '{}' — no variables were provided",
+            var_name
+        );
     }
 
     let mut best_match: Option<(&str, usize)> = None;
@@ -234,7 +256,11 @@ fn did_you_mean_hint(var_name: &str, vars: &Value) -> String {
 
     match best_match {
         Some((suggestion, _)) => format!("did you mean '{suggestion}'?"),
-        None => format!("check variable name '{}' — available variables: {}", var_name, keys.join(", ")),
+        None => format!(
+            "check variable name '{}' — available variables: {}",
+            var_name,
+            keys.join(", ")
+        ),
     }
 }
 
@@ -307,7 +333,11 @@ mod tests {
         let err = render("{{ clss_name }}", &vars).unwrap_err();
         assert_eq!(err.exit_code(), 2);
         let se = err.structured_error();
-        assert!(se.what.contains("undefined variable"), "what was: {}", se.what);
+        assert!(
+            se.what.contains("undefined variable"),
+            "what was: {}",
+            se.what
+        );
         assert!(se.what.contains("clss_name"), "what was: {}", se.what);
         assert!(se.hint.contains("did you mean"), "hint was: {}", se.hint);
         assert!(se.hint.contains("class_name"), "hint was: {}", se.hint);
@@ -400,9 +430,9 @@ mod tests {
 
     #[test]
     fn recipe_env_loads_templates() {
+        use crate::recipe::Recipe;
         use std::fs;
         use tempfile::TempDir;
-        use crate::recipe::Recipe;
 
         let dir = TempDir::new().unwrap();
         let recipe_yaml = "files:\n  - template: hello.j2\n    to: out.txt\n";

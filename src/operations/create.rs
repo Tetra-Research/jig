@@ -39,7 +39,8 @@ pub fn execute(
                     what: format!("file already exists: '{}'", target.display()),
                     where_: target.display().to_string(),
                     why: "skip_if_exists is false and --force was not specified".into(),
-                    hint: "use --force to overwrite, or set skip_if_exists: true in the recipe".into(),
+                    hint: "use --force to overwrite, or set skip_if_exists: true in the recipe"
+                        .into(),
                 },
                 rendered_content: rendered_content.to_string(),
             };
@@ -48,7 +49,8 @@ pub fn execute(
 
     if ctx.dry_run {
         // Record in virtual file state but don't write to disk.
-        ctx.virtual_files.insert(target.clone(), rendered_content.to_string());
+        ctx.virtual_files
+            .insert(target.clone(), rendered_content.to_string());
         return OpResult::Success {
             action: "create",
             path: target,
@@ -61,19 +63,20 @@ pub fn execute(
 
     // Create parent directories.
     if let Some(parent) = target.parent().filter(|p| !p.as_os_str().is_empty())
-        && let Err(e) = std::fs::create_dir_all(parent) {
-            let parent_display = parent.display().to_string();
-            return OpResult::Error {
-                path: target,
-                error: StructuredError {
-                    what: format!("cannot create parent directory '{}'", parent_display),
-                    where_: parent_display,
-                    why: e.to_string(),
-                    hint: "check directory permissions".into(),
-                },
-                rendered_content: rendered_content.to_string(),
-            };
-        }
+        && let Err(e) = std::fs::create_dir_all(parent)
+    {
+        let parent_display = parent.display().to_string();
+        return OpResult::Error {
+            path: target,
+            error: StructuredError {
+                what: format!("cannot create parent directory '{}'", parent_display),
+                where_: parent_display,
+                why: e.to_string(),
+                hint: "check directory permissions".into(),
+            },
+            rendered_content: rendered_content.to_string(),
+        };
+    }
 
     // Write the file.
     if let Err(e) = std::fs::write(&target, rendered_content) {
@@ -118,7 +121,13 @@ mod tests {
         let dir = TempDir::new().unwrap();
         let mut ctx = make_ctx(dir.path(), false, false);
         let result = execute("output.rs", "fn main() {}\n", false, &mut ctx, false);
-        assert!(matches!(result, OpResult::Success { action: "create", .. }));
+        assert!(matches!(
+            result,
+            OpResult::Success {
+                action: "create",
+                ..
+            }
+        ));
         let content = fs::read_to_string(dir.path().join("output.rs")).unwrap();
         assert_eq!(content, "fn main() {}\n");
     }
@@ -137,10 +146,19 @@ mod tests {
             &mut ctx,
             false,
         );
-        assert!(matches!(result, OpResult::Success { action: "create", .. }));
+        assert!(matches!(
+            result,
+            OpResult::Success {
+                action: "create",
+                ..
+            }
+        ));
         let path = dir.path().join("src/services/booking_service.rs");
         assert!(path.exists());
-        assert_eq!(fs::read_to_string(path).unwrap(), "pub struct BookingService;");
+        assert_eq!(
+            fs::read_to_string(path).unwrap(),
+            "pub struct BookingService;"
+        );
     }
 
     // ── AC-4.3: Parent directories created automatically ──
@@ -149,7 +167,13 @@ mod tests {
     fn ac_4_3_creates_parent_dirs() {
         let dir = TempDir::new().unwrap();
         let mut ctx = make_ctx(dir.path(), false, false);
-        let result = execute("deep/nested/dir/file.txt", "content", false, &mut ctx, false);
+        let result = execute(
+            "deep/nested/dir/file.txt",
+            "content",
+            false,
+            &mut ctx,
+            false,
+        );
         assert!(matches!(result, OpResult::Success { .. }));
         assert!(dir.path().join("deep/nested/dir/file.txt").exists());
     }
@@ -169,7 +193,10 @@ mod tests {
             _ => panic!("expected Skip, got {:?}", result),
         }
         // File content unchanged.
-        assert_eq!(fs::read_to_string(dir.path().join("existing.rs")).unwrap(), "old content");
+        assert_eq!(
+            fs::read_to_string(dir.path().join("existing.rs")).unwrap(),
+            "old content"
+        );
     }
 
     // ── AC-4.5: File exists without force → error ──
@@ -181,7 +208,12 @@ mod tests {
         let mut ctx = make_ctx(dir.path(), false, false);
         let result = execute("existing.rs", "new", false, &mut ctx, false);
         assert!(result.is_error());
-        if let OpResult::Error { error, rendered_content, .. } = &result {
+        if let OpResult::Error {
+            error,
+            rendered_content,
+            ..
+        } = &result
+        {
             assert!(error.what.contains("already exists"));
             assert!(error.hint.contains("--force"));
             assert_eq!(rendered_content, "new");
@@ -196,8 +228,17 @@ mod tests {
         fs::write(dir.path().join("existing.rs"), "old").unwrap();
         let mut ctx = make_ctx(dir.path(), false, true);
         let result = execute("existing.rs", "new content", false, &mut ctx, false);
-        assert!(matches!(result, OpResult::Success { action: "create", .. }));
-        assert_eq!(fs::read_to_string(dir.path().join("existing.rs")).unwrap(), "new content");
+        assert!(matches!(
+            result,
+            OpResult::Success {
+                action: "create",
+                ..
+            }
+        ));
+        assert_eq!(
+            fs::read_to_string(dir.path().join("existing.rs")).unwrap(),
+            "new content"
+        );
     }
 
     // ── AC-4.7: --base-dir changes output root ──
@@ -239,7 +280,12 @@ mod tests {
         let mut ctx = make_ctx(std::path::Path::new("/proc/nonexistent"), false, false);
         let result = execute("file.txt", "content", false, &mut ctx, false);
         assert!(result.is_error());
-        if let OpResult::Error { error, rendered_content, .. } = &result {
+        if let OpResult::Error {
+            error,
+            rendered_content,
+            ..
+        } = &result
+        {
             assert!(!error.what.is_empty());
             assert_eq!(rendered_content, "content");
         }
@@ -252,11 +298,20 @@ mod tests {
         let dir = TempDir::new().unwrap();
         let mut ctx = make_ctx(dir.path(), true, false);
         let result = execute("output.rs", "fn main() {}\n", false, &mut ctx, false);
-        assert!(matches!(result, OpResult::Success { action: "create", .. }));
+        assert!(matches!(
+            result,
+            OpResult::Success {
+                action: "create",
+                ..
+            }
+        ));
         // File should NOT exist on disk.
         assert!(!dir.path().join("output.rs").exists());
         // But should be in virtual_files.
-        assert!(ctx.virtual_files.contains_key(&dir.path().join("output.rs")));
+        assert!(
+            ctx.virtual_files
+                .contains_key(&dir.path().join("output.rs"))
+        );
     }
 
     // ── AC-6.8: dry-run + force reports create for existing files ──
@@ -267,9 +322,18 @@ mod tests {
         fs::write(dir.path().join("existing.rs"), "old").unwrap();
         let mut ctx = make_ctx(dir.path(), true, true);
         let result = execute("existing.rs", "new", false, &mut ctx, false);
-        assert!(matches!(result, OpResult::Success { action: "create", .. }));
+        assert!(matches!(
+            result,
+            OpResult::Success {
+                action: "create",
+                ..
+            }
+        ));
         // Original file untouched.
-        assert_eq!(fs::read_to_string(dir.path().join("existing.rs")).unwrap(), "old");
+        assert_eq!(
+            fs::read_to_string(dir.path().join("existing.rs")).unwrap(),
+            "old"
+        );
     }
 
     // ── Verbose includes rendered content ──
@@ -280,7 +344,9 @@ mod tests {
         let mut ctx = make_ctx(dir.path(), false, false);
         let result = execute("file.txt", "hello world", false, &mut ctx, true);
         match result {
-            OpResult::Success { rendered_content, .. } => {
+            OpResult::Success {
+                rendered_content, ..
+            } => {
                 assert_eq!(rendered_content.as_deref(), Some("hello world"));
             }
             _ => panic!("expected Success"),
@@ -296,7 +362,9 @@ mod tests {
         let mut ctx = make_ctx(dir.path(), false, false);
         let result = execute("existing.rs", "new content here", false, &mut ctx, false);
         match result {
-            OpResult::Error { rendered_content, .. } => {
+            OpResult::Error {
+                rendered_content, ..
+            } => {
                 assert_eq!(rendered_content, "new content here");
             }
             _ => panic!("expected Error"),

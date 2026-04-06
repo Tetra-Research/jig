@@ -3,8 +3,8 @@ use regex::Regex;
 use crate::error::StructuredError;
 use crate::recipe::Position;
 
-use super::ScopeResult;
 use super::PositionResult;
+use super::ScopeResult;
 
 /// Resolve the insertion position within a scope.
 /// `rendered_content` is needed for `Position::Sorted` to determine alphabetical placement.
@@ -17,20 +17,16 @@ pub fn resolve_position(
     let indent = detect_scope_indent(lines, scope);
 
     match position {
-        Position::Before => {
-            Ok(PositionResult {
-                insertion_line: scope.start_line,
-                indent,
-                fallback: None,
-            })
-        }
-        Position::After => {
-            Ok(PositionResult {
-                insertion_line: scope.end_line + 1,
-                indent,
-                fallback: None,
-            })
-        }
+        Position::Before => Ok(PositionResult {
+            insertion_line: scope.start_line,
+            indent,
+            fallback: None,
+        }),
+        Position::After => Ok(PositionResult {
+            insertion_line: scope.end_line + 1,
+            indent,
+            fallback: None,
+        }),
         Position::BeforeClose => {
             let line = scope.closing_line.unwrap_or(scope.end_line + 1);
             Ok(PositionResult {
@@ -42,13 +38,11 @@ pub fn resolve_position(
         Position::AfterLastField => {
             let field_re = Regex::new(r"^\s*\w+\s*[:=]").unwrap();
             match find_last_matching(lines, scope, &field_re) {
-                Some(line_idx) => {
-                    Ok(PositionResult {
-                        insertion_line: line_idx + 1,
-                        indent,
-                        fallback: None,
-                    })
-                }
+                Some(line_idx) => Ok(PositionResult {
+                    insertion_line: line_idx + 1,
+                    indent,
+                    fallback: None,
+                }),
                 None => {
                     // Fallback to before_close.
                     let line = scope.closing_line.unwrap_or(scope.end_line + 1);
@@ -85,25 +79,19 @@ pub fn resolve_position(
         Position::AfterLastImport => {
             let import_re = Regex::new(r"^\s*(from|import)\s+").unwrap();
             match find_last_matching(lines, scope, &import_re) {
-                Some(line_idx) => {
-                    Ok(PositionResult {
-                        insertion_line: line_idx + 1,
-                        indent,
-                        fallback: None,
-                    })
-                }
-                None => {
-                    Ok(PositionResult {
-                        insertion_line: scope.start_line,
-                        indent,
-                        fallback: Some(("after_last_import".into(), "before".into())),
-                    })
-                }
+                Some(line_idx) => Ok(PositionResult {
+                    insertion_line: line_idx + 1,
+                    indent,
+                    fallback: None,
+                }),
+                None => Ok(PositionResult {
+                    insertion_line: scope.start_line,
+                    indent,
+                    fallback: Some(("after_last_import".into(), "before".into())),
+                }),
             }
         }
-        Position::Sorted => {
-            resolve_sorted(lines, scope, &indent, rendered_content)
-        }
+        Position::Sorted => resolve_sorted(lines, scope, &indent, rendered_content),
     }
 }
 
@@ -127,8 +115,7 @@ fn find_method_body_end(lines: &[&str], method_line: usize) -> usize {
 
     // Walk forward past the method body.
     let mut end = method_line;
-    for i in (method_line + 1)..lines.len() {
-        let line = lines[i];
+    for (i, line) in lines.iter().enumerate().skip(method_line + 1) {
         if line.trim().is_empty() {
             continue;
         }
@@ -263,12 +250,7 @@ mod tests {
 
     #[test]
     fn after_last_field_python() {
-        let lines: Vec<&str> = vec![
-            "class User:",
-            "    name = ''",
-            "    age = 0",
-            "",
-        ];
+        let lines: Vec<&str> = vec!["class User:", "    name = ''", "    age = 0", ""];
         let s = scope(1, 2, None);
         let result = resolve_position(&lines, &s, &Position::AfterLastField, None).unwrap();
         assert_eq!(result.insertion_line, 3);
@@ -335,12 +317,7 @@ mod tests {
 
     #[test]
     fn sorted_insertion_middle() {
-        let lines: Vec<&str> = vec![
-            "struct Foo {",
-            "    a: i32,",
-            "    c: i32,",
-            "}",
-        ];
+        let lines: Vec<&str> = vec!["struct Foo {", "    a: i32,", "    c: i32,", "}"];
         let s = scope(1, 2, Some(3));
         // "b: i32," sorts between "a:" and "c:"
         let result = resolve_position(&lines, &s, &Position::Sorted, Some("b: i32,")).unwrap();
@@ -349,12 +326,7 @@ mod tests {
 
     #[test]
     fn sorted_insertion_end() {
-        let lines: Vec<&str> = vec![
-            "struct Foo {",
-            "    a: i32,",
-            "    b: i32,",
-            "}",
-        ];
+        let lines: Vec<&str> = vec!["struct Foo {", "    a: i32,", "    b: i32,", "}"];
         let s = scope(1, 2, Some(3));
         // "z: i32," sorts after everything
         let result = resolve_position(&lines, &s, &Position::Sorted, Some("z: i32,")).unwrap();
@@ -363,12 +335,7 @@ mod tests {
 
     #[test]
     fn sorted_insertion_beginning() {
-        let lines: Vec<&str> = vec![
-            "struct Foo {",
-            "    m: i32,",
-            "    z: i32,",
-            "}",
-        ];
+        let lines: Vec<&str> = vec!["struct Foo {", "    m: i32,", "    z: i32,", "}"];
         let s = scope(1, 2, Some(3));
         // "a: i32," sorts before everything
         let result = resolve_position(&lines, &s, &Position::Sorted, Some("a: i32,")).unwrap();
@@ -377,10 +344,7 @@ mod tests {
 
     #[test]
     fn after_last_field_fallback() {
-        let lines: Vec<&str> = vec![
-            "struct Empty {",
-            "}",
-        ];
+        let lines: Vec<&str> = vec!["struct Empty {", "}"];
         let s = ScopeResult {
             start_line: 0,
             end_line: 1,
@@ -396,10 +360,7 @@ mod tests {
 
     #[test]
     fn after_last_method_fallback() {
-        let lines: Vec<&str> = vec![
-            "class Foo:",
-            "    x = 1",
-        ];
+        let lines: Vec<&str> = vec!["class Foo:", "    x = 1"];
         let s = scope(1, 1, None);
         let result = resolve_position(&lines, &s, &Position::AfterLastMethod, None).unwrap();
         assert!(result.fallback.is_some());
@@ -407,10 +368,7 @@ mod tests {
 
     #[test]
     fn after_last_import_fallback() {
-        let lines: Vec<&str> = vec![
-            "class Foo:",
-            "    x = 1",
-        ];
+        let lines: Vec<&str> = vec!["class Foo:", "    x = 1"];
         let s = scope(1, 1, None);
         let result = resolve_position(&lines, &s, &Position::AfterLastImport, None).unwrap();
         assert!(result.fallback.is_some());
@@ -463,10 +421,7 @@ mod tests {
 
     #[test]
     fn after_last_field_at_indent_zero() {
-        let lines: Vec<&str> = vec![
-            "CONST = 1",
-            "OTHER = 2",
-        ];
+        let lines: Vec<&str> = vec!["CONST = 1", "OTHER = 2"];
         let s = scope(0, 1, None);
         let result = resolve_position(&lines, &s, &Position::AfterLastField, None).unwrap();
         assert_eq!(result.insertion_line, 2);
@@ -475,10 +430,7 @@ mod tests {
 
     #[test]
     fn after_last_field_top_level_constant() {
-        let lines: Vec<&str> = vec![
-            "CONSTANT = 42",
-            "OTHER = 'x'",
-        ];
+        let lines: Vec<&str> = vec!["CONSTANT = 42", "OTHER = 'x'"];
         let s = scope(0, 1, None);
         let result = resolve_position(&lines, &s, &Position::AfterLastField, None).unwrap();
         assert_eq!(result.insertion_line, 2);
@@ -487,11 +439,7 @@ mod tests {
 
     #[test]
     fn indent_detection() {
-        let lines: Vec<&str> = vec![
-            "class Foo:",
-            "    x = 1",
-            "    y = 2",
-        ];
+        let lines: Vec<&str> = vec!["class Foo:", "    x = 1", "    y = 2"];
         let s = scope(1, 2, None);
         let indent = detect_scope_indent(&lines, &s);
         assert_eq!(indent, "    ");

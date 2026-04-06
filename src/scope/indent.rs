@@ -22,9 +22,7 @@ pub fn detect_indent_scope(
 
     // For class_body/function_body, find the start of the body.
     let body_start = match scope_type {
-        ScopeType::ClassBody | ScopeType::FunctionBody => {
-            find_body_start(lines, anchor_line)
-        }
+        ScopeType::ClassBody | ScopeType::FunctionBody => find_body_start(lines, anchor_line),
         _ => anchor_line + 1,
     };
 
@@ -70,26 +68,24 @@ pub fn detect_indent_scope(
                 is_empty: false,
             })
         }
-        None => {
-            Ok(ScopeResult {
-                start_line: body_start.min(lines.len().saturating_sub(1)),
-                end_line: body_start.min(lines.len().saturating_sub(1)),
-                closing_line: None,
-                is_empty: true,
-            })
-        }
+        None => Ok(ScopeResult {
+            start_line: body_start.min(lines.len().saturating_sub(1)),
+            end_line: body_start.min(lines.len().saturating_sub(1)),
+            closing_line: None,
+            is_empty: true,
+        }),
     }
 }
 
 /// Find the start of the body for class/function declarations.
 /// Handles multi-line declarations by scanning forward for the colon.
 fn find_body_start(lines: &[&str], anchor_line: usize) -> usize {
-    for i in anchor_line..lines.len() {
-        if lines[i].contains(':') {
+    for (i, line) in lines.iter().enumerate().skip(anchor_line) {
+        if line.contains(':') {
             return i + 1;
         }
         // Stop at blank lines or non-continuation lines after anchor.
-        if i > anchor_line && lines[i].trim().is_empty() {
+        if i > anchor_line && line.trim().is_empty() {
             break;
         }
     }
@@ -140,14 +136,7 @@ mod tests {
 
     #[test]
     fn blank_lines_within_scope() {
-        let lines: Vec<&str> = vec![
-            "class Foo:",
-            "    a = 1",
-            "",
-            "    b = 2",
-            "",
-            "outside",
-        ];
+        let lines: Vec<&str> = vec!["class Foo:", "    a = 1", "", "    b = 2", "", "outside"];
         let scope = detect_indent_scope(&lines, 0, &ScopeType::ClassBody).unwrap();
         assert_eq!(scope.start_line, 1);
         assert_eq!(scope.end_line, 3);
@@ -156,10 +145,7 @@ mod tests {
 
     #[test]
     fn empty_scope() {
-        let lines: Vec<&str> = vec![
-            "class Empty:",
-            "other",
-        ];
+        let lines: Vec<&str> = vec!["class Empty:", "other"];
         let scope = detect_indent_scope(&lines, 0, &ScopeType::ClassBody).unwrap();
         assert!(scope.is_empty);
     }
@@ -195,12 +181,7 @@ mod tests {
     #[test]
     fn mixed_tabs_spaces() {
         // Tab-indented body (1 tab > 0 spaces anchor).
-        let lines: Vec<&str> = vec![
-            "class Foo:",
-            "\tname = ''",
-            "\tage = 0",
-            "",
-        ];
+        let lines: Vec<&str> = vec!["class Foo:", "\tname = ''", "\tage = 0", ""];
         let scope = detect_indent_scope(&lines, 0, &ScopeType::ClassBody).unwrap();
         assert_eq!(scope.start_line, 1);
         assert_eq!(scope.end_line, 2);
@@ -224,12 +205,7 @@ mod tests {
     #[test]
     fn decorator_before_class() {
         // Decorator is before the class, anchor is on the class line.
-        let lines: Vec<&str> = vec![
-            "@decorator",
-            "class Foo:",
-            "    x = 1",
-            "",
-        ];
+        let lines: Vec<&str> = vec!["@decorator", "class Foo:", "    x = 1", ""];
         let scope = detect_indent_scope(&lines, 1, &ScopeType::ClassBody).unwrap();
         assert_eq!(scope.start_line, 2);
         assert_eq!(scope.end_line, 2);

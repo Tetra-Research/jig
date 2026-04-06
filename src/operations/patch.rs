@@ -44,14 +44,14 @@ pub fn execute(
     };
 
     // Check skip_if: search entire file content.
-    if let Some(skip_str) = rendered_skip_if {
-        if file_content.contains(skip_str) {
-            return OpResult::Skip {
-                path: target,
-                reason: format!("skip_if matched: {skip_str}"),
-                rendered_content: content_for_verbose,
-            };
-        }
+    if let Some(skip_str) = rendered_skip_if
+        && file_content.contains(skip_str)
+    {
+        return OpResult::Skip {
+            path: target,
+            reason: format!("skip_if matched: {skip_str}"),
+            rendered_content: content_for_verbose,
+        };
     }
 
     let lines: Vec<&str> = file_content.lines().collect();
@@ -66,7 +66,10 @@ pub fn execute(
                 error: StructuredError {
                     what: format!("anchor pattern '{}' not found", anchor.pattern),
                     where_: target.display().to_string(),
-                    why: format!("pattern '{}' did not match any line in '{}'", anchor.pattern, rendered_path),
+                    why: format!(
+                        "pattern '{}' did not match any line in '{}'",
+                        anchor.pattern, rendered_path
+                    ),
                     hint: "check the anchor pattern against the file contents".into(),
                 },
                 rendered_content: rendered_content.to_string(),
@@ -140,7 +143,12 @@ pub fn execute(
     };
 
     // Resolve position.
-    let pos_result = match scope::position::resolve_position(&lines, &effective_scope, &anchor.position, Some(rendered_content)) {
+    let pos_result = match scope::position::resolve_position(
+        &lines,
+        &effective_scope,
+        &anchor.position,
+        Some(rendered_content),
+    ) {
         Ok(p) => p,
         Err(e) => {
             return OpResult::Error {
@@ -197,7 +205,8 @@ fn adjust_indentation(rendered_content: &str, target_indent: &str) -> String {
     }
 
     // Detect base indent of rendered content (first non-empty line).
-    let base_indent_len = content_lines.iter()
+    let base_indent_len = content_lines
+        .iter()
         .find(|l| !l.trim().is_empty())
         .map(|l| l.len() - l.trim_start().len())
         .unwrap_or(0);
@@ -247,7 +256,8 @@ fn write_back(
     ctx: &mut ExecutionContext,
 ) -> Option<OpResult> {
     if ctx.dry_run {
-        ctx.virtual_files.insert(target.to_path_buf(), new_content.to_string());
+        ctx.virtual_files
+            .insert(target.to_path_buf(), new_content.to_string());
         None
     } else {
         if let Err(e) = std::fs::write(target, new_content) {
@@ -262,7 +272,8 @@ fn write_back(
                 rendered_content: rendered_content.to_string(),
             });
         }
-        ctx.virtual_files.insert(target.to_path_buf(), new_content.to_string());
+        ctx.virtual_files
+            .insert(target.to_path_buf(), new_content.to_string());
         None
     }
 }
@@ -296,10 +307,20 @@ mod tests {
         fs::write(&target, "class User:\n    name = ''\n    age = 0\n").unwrap();
 
         let mut ctx = make_ctx(dir.path(), false);
-        let a = anchor("^class User:", ScopeType::ClassBody, Position::AfterLastField);
+        let a = anchor(
+            "^class User:",
+            ScopeType::ClassBody,
+            Position::AfterLastField,
+        );
         let result = execute("models.py", "email = ''", None, &a, &mut ctx, false);
 
-        assert!(matches!(&result, OpResult::Success { action: "patch", .. }));
+        assert!(matches!(
+            &result,
+            OpResult::Success {
+                action: "patch",
+                ..
+            }
+        ));
         let content = fs::read_to_string(&target).unwrap();
         assert!(content.contains("email = ''"));
         assert!(content.contains("age = 0"));
@@ -312,10 +333,20 @@ mod tests {
         fs::write(&target, "def hello():\n    print('hi')\n    return True\n").unwrap();
 
         let mut ctx = make_ctx(dir.path(), false);
-        let a = anchor("^def hello\\(\\):", ScopeType::FunctionBody, Position::After);
+        let a = anchor(
+            "^def hello\\(\\):",
+            ScopeType::FunctionBody,
+            Position::After,
+        );
         let result = execute("main.py", "print('bye')", None, &a, &mut ctx, false);
 
-        assert!(matches!(&result, OpResult::Success { action: "patch", .. }));
+        assert!(matches!(
+            &result,
+            OpResult::Success {
+                action: "patch",
+                ..
+            }
+        ));
     }
 
     #[test]
@@ -328,7 +359,13 @@ mod tests {
         let a = anchor("^struct Config", ScopeType::Braces, Position::BeforeClose);
         let result = execute("config.rs", "value: i32,", None, &a, &mut ctx, false);
 
-        assert!(matches!(&result, OpResult::Success { action: "patch", .. }));
+        assert!(matches!(
+            &result,
+            OpResult::Success {
+                action: "patch",
+                ..
+            }
+        ));
         let content = fs::read_to_string(&target).unwrap();
         assert!(content.contains("value: i32,"));
     }
@@ -343,7 +380,13 @@ mod tests {
         let a = anchor("^items = \\[", ScopeType::Brackets, Position::BeforeClose);
         let result = execute("items.py", "'c',", None, &a, &mut ctx, false);
 
-        assert!(matches!(&result, OpResult::Success { action: "patch", .. }));
+        assert!(matches!(
+            &result,
+            OpResult::Success {
+                action: "patch",
+                ..
+            }
+        ));
         let content = fs::read_to_string(&target).unwrap();
         assert!(content.contains("'c',"));
     }
@@ -352,13 +395,23 @@ mod tests {
     fn patch_function_signature() {
         let dir = TempDir::new().unwrap();
         let target = dir.path().join("func.py");
-        fs::write(&target, "def process(\n    arg1: str,\n    arg2: int,\n):\n    pass\n").unwrap();
+        fs::write(
+            &target,
+            "def process(\n    arg1: str,\n    arg2: int,\n):\n    pass\n",
+        )
+        .unwrap();
 
         let mut ctx = make_ctx(dir.path(), false);
         let a = anchor("^def process\\(", ScopeType::Parens, Position::BeforeClose);
         let result = execute("func.py", "arg3: bool,", None, &a, &mut ctx, false);
 
-        assert!(matches!(&result, OpResult::Success { action: "patch", .. }));
+        assert!(matches!(
+            &result,
+            OpResult::Success {
+                action: "patch",
+                ..
+            }
+        ));
         let content = fs::read_to_string(&target).unwrap();
         assert!(content.contains("arg3: bool,"));
     }
@@ -367,7 +420,11 @@ mod tests {
     fn patch_find_narrowing_brackets() {
         let dir = TempDir::new().unwrap();
         let target = dir.path().join("admin.py");
-        fs::write(&target, "class Admin:\n    list_display = [\n        'name',\n    ]\n    other = 1\n").unwrap();
+        fs::write(
+            &target,
+            "class Admin:\n    list_display = [\n        'name',\n    ]\n    other = 1\n",
+        )
+        .unwrap();
 
         let mut ctx = make_ctx(dir.path(), false);
         let a = Anchor {
@@ -378,7 +435,13 @@ mod tests {
         };
         let result = execute("admin.py", "'email',", None, &a, &mut ctx, false);
 
-        assert!(matches!(&result, OpResult::Success { action: "patch", .. }));
+        assert!(matches!(
+            &result,
+            OpResult::Success {
+                action: "patch",
+                ..
+            }
+        ));
         let content = fs::read_to_string(&target).unwrap();
         assert!(content.contains("'email',"));
     }
@@ -390,8 +453,19 @@ mod tests {
         fs::write(&target, "class User:\n    email = ''\n").unwrap();
 
         let mut ctx = make_ctx(dir.path(), false);
-        let a = anchor("^class User:", ScopeType::ClassBody, Position::AfterLastField);
-        let result = execute("target.py", "email = ''", Some("email = ''"), &a, &mut ctx, false);
+        let a = anchor(
+            "^class User:",
+            ScopeType::ClassBody,
+            Position::AfterLastField,
+        );
+        let result = execute(
+            "target.py",
+            "email = ''",
+            Some("email = ''"),
+            &a,
+            &mut ctx,
+            false,
+        );
 
         assert!(matches!(&result, OpResult::Skip { .. }));
     }
@@ -403,10 +477,27 @@ mod tests {
         fs::write(&target, "class User:\n    name = ''\n").unwrap();
 
         let mut ctx = make_ctx(dir.path(), false);
-        let a = anchor("^class User:", ScopeType::ClassBody, Position::AfterLastField);
-        let result = execute("target.py", "email = ''", Some("NONEXISTENT"), &a, &mut ctx, false);
+        let a = anchor(
+            "^class User:",
+            ScopeType::ClassBody,
+            Position::AfterLastField,
+        );
+        let result = execute(
+            "target.py",
+            "email = ''",
+            Some("NONEXISTENT"),
+            &a,
+            &mut ctx,
+            false,
+        );
 
-        assert!(matches!(&result, OpResult::Success { action: "patch", .. }));
+        assert!(matches!(
+            &result,
+            OpResult::Success {
+                action: "patch",
+                ..
+            }
+        ));
     }
 
     #[test]
@@ -419,7 +510,13 @@ mod tests {
         let a = anchor("^# marker", ScopeType::Line, Position::After);
         let result = execute("target.py", "new line", None, &a, &mut ctx, false);
 
-        assert!(matches!(&result, OpResult::Success { action: "patch", .. }));
+        assert!(matches!(
+            &result,
+            OpResult::Success {
+                action: "patch",
+                ..
+            }
+        ));
         let content = fs::read_to_string(&target).unwrap();
         let lines: Vec<&str> = content.lines().collect();
         assert_eq!(lines[0], "# marker");
@@ -433,7 +530,11 @@ mod tests {
         fs::write(&target, "class Foo:\n    x = 1\n").unwrap();
 
         let mut ctx = make_ctx(dir.path(), false);
-        let a = anchor("^class Foo:", ScopeType::ClassBody, Position::AfterLastField);
+        let a = anchor(
+            "^class Foo:",
+            ScopeType::ClassBody,
+            Position::AfterLastField,
+        );
         let result = execute("target.py", "y = 2", None, &a, &mut ctx, false);
 
         assert!(matches!(&result, OpResult::Success { .. }));
@@ -453,7 +554,12 @@ mod tests {
         let result = execute("target.py", "new", None, &a, &mut ctx, false);
 
         assert!(result.is_error());
-        if let OpResult::Error { error, rendered_content, .. } = &result {
+        if let OpResult::Error {
+            error,
+            rendered_content,
+            ..
+        } = &result
+        {
             assert!(error.what.contains("anchor pattern"));
             assert_eq!(rendered_content, "new");
         }
@@ -482,12 +588,23 @@ mod tests {
         let dir = TempDir::new().unwrap();
         let mut ctx = make_ctx(dir.path(), true);
         let target = dir.path().join("target.py");
-        ctx.virtual_files.insert(target.clone(), "class Foo:\n    x = 1\n".into());
+        ctx.virtual_files
+            .insert(target.clone(), "class Foo:\n    x = 1\n".into());
 
-        let a = anchor("^class Foo:", ScopeType::ClassBody, Position::AfterLastField);
+        let a = anchor(
+            "^class Foo:",
+            ScopeType::ClassBody,
+            Position::AfterLastField,
+        );
         let result = execute("target.py", "y = 2", None, &a, &mut ctx, false);
 
-        assert!(matches!(&result, OpResult::Success { action: "patch", .. }));
+        assert!(matches!(
+            &result,
+            OpResult::Success {
+                action: "patch",
+                ..
+            }
+        ));
         assert!(!target.exists());
         let content = ctx.virtual_files.get(&target).unwrap();
         assert!(content.contains("y = 2"));
@@ -498,9 +615,14 @@ mod tests {
         let dir = TempDir::new().unwrap();
         let mut ctx = make_ctx(dir.path(), true);
         let target = dir.path().join("new.py");
-        ctx.virtual_files.insert(target.clone(), "class New:\n    x = 1\n".into());
+        ctx.virtual_files
+            .insert(target.clone(), "class New:\n    x = 1\n".into());
 
-        let a = anchor("^class New:", ScopeType::ClassBody, Position::AfterLastField);
+        let a = anchor(
+            "^class New:",
+            ScopeType::ClassBody,
+            Position::AfterLastField,
+        );
         let result = execute("new.py", "y = 2", None, &a, &mut ctx, false);
 
         assert!(matches!(&result, OpResult::Success { .. }));
@@ -513,7 +635,11 @@ mod tests {
         fs::write(&target, "class Foo:\n    x = 1\nclass Foo:\n    y = 2\n").unwrap();
 
         let mut ctx = make_ctx(dir.path(), false);
-        let a = anchor("^class Foo:", ScopeType::ClassBody, Position::AfterLastField);
+        let a = anchor(
+            "^class Foo:",
+            ScopeType::ClassBody,
+            Position::AfterLastField,
+        );
         let result = execute("target.py", "z = 3", None, &a, &mut ctx, false);
 
         assert!(matches!(&result, OpResult::Success { .. }));
@@ -545,11 +671,19 @@ mod tests {
         fs::write(&target, "class Foo:\n    x = 1\n").unwrap();
 
         let mut ctx = make_ctx(dir.path(), false);
-        let a = anchor("^class Foo:", ScopeType::ClassBody, Position::AfterLastField);
+        let a = anchor(
+            "^class Foo:",
+            ScopeType::ClassBody,
+            Position::AfterLastField,
+        );
         let result = execute("target.py", "y = 2", None, &a, &mut ctx, true);
 
         match &result {
-            OpResult::Success { rendered_content, location, .. } => {
+            OpResult::Success {
+                rendered_content,
+                location,
+                ..
+            } => {
                 assert_eq!(rendered_content.as_deref(), Some("y = 2"));
                 assert!(location.is_some());
             }
@@ -564,7 +698,11 @@ mod tests {
         fs::write(&target, "class Foo:\n    x = 1\n").unwrap();
 
         let mut ctx = make_ctx(dir.path(), false);
-        let a = anchor("^class Foo:", ScopeType::ClassBody, Position::AfterLastField);
+        let a = anchor(
+            "^class Foo:",
+            ScopeType::ClassBody,
+            Position::AfterLastField,
+        );
 
         // First patch.
         let r1 = execute("target.py", "y = 2", Some("y = 2"), &a, &mut ctx, false);

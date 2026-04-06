@@ -1,6 +1,6 @@
 use heck::{ToKebabCase, ToLowerCamelCase, ToSnakeCase, ToUpperCamelCase};
-use minijinja::value::Kwargs;
 use minijinja::Environment;
+use minijinja::value::Kwargs;
 
 /// Register all 13 built-in filters on the given Environment.
 pub fn register_all(env: &mut Environment) {
@@ -72,11 +72,7 @@ fn filter_quote(value: String) -> String {
 
 /// Indent each line by `width` spaces. By default, indents ALL lines including the first.
 /// Use `indent(N, first=false)` to skip the first line.
-fn filter_indent(
-    value: String,
-    width: usize,
-    kwargs: Kwargs,
-) -> Result<String, minijinja::Error> {
+fn filter_indent(value: String, width: usize, kwargs: Kwargs) -> Result<String, minijinja::Error> {
     let indent_first: bool = if kwargs.has("first") {
         kwargs.get::<bool>("first")?
     } else {
@@ -274,7 +270,10 @@ mod tests {
             ("upper", render("{{ s | upper }}", &ctx)),
             ("lower", render("{{ s | lower }}", &ctx)),
             ("capitalize", render("{{ s | capitalize }}", &ctx)),
-            ("replace", render("{{ s | replace('Service', 'Handler') }}", &ctx)),
+            (
+                "replace",
+                render("{{ s | replace('Service', 'Handler') }}", &ctx),
+            ),
             ("pluralize", render("{{ s | pluralize }}", &ctx)),
             ("singularize", render("{{ s | singularize }}", &ctx)),
             ("quote", render("{{ s | quote }}", &ctx)),
