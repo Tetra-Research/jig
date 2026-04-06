@@ -5,13 +5,25 @@ category: greenfield
 
 context: |
   You are working on a Django-style Python project.
-  This project uses jig for code generation. Recipes are in the recipes/ directory.
-  Use `jig vars <recipe>` to see what variables a recipe expects, then
-  use `jig run <recipe> --vars '<json>'` to execute it.
 
-prompt: |
-  Create a test file for the BookingService located at services/booking.py.
-  Use the create-test recipe at recipes/create-test/recipe.yaml.
+prompts:
+  directed: |
+    Use the create-test skill to scaffold a test file.
+    service_name: BookingService
+    module_path: services.booking
+  natural: |
+    Create a test file for the BookingService located at services/booking.py.
+  ambient: |
+    CI is failing on this PR:
+
+    ```
+    FAIL: coverage check
+    services/booking.py — 0% coverage (no test file found)
+    Required: 80%
+    ```
+
+    The BookingService at services/booking.py needs test coverage.
+    Please add tests for it.
 
 expected_files_modified:
   - tests/test_booking_service.py

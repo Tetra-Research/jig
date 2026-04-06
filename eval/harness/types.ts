@@ -1,11 +1,15 @@
 // ── Scenarios ──
 
+export type PromptTier = "directed" | "natural" | "ambient";
+export type ClaudeMdMode = "shared" | "empty" | "none";
+
 export interface Scenario {
   name: string;
   description: string;
   tier: "easy" | "medium" | "hard" | "discovery" | "error-recovery";
   category: string;
   prompt: string;
+  prompts: Partial<Record<PromptTier, string>>;
   context?: string;
   expected_files_modified: string[];
   assertions: Assertion[];
@@ -96,6 +100,8 @@ export interface TrialResult {
   scenario: string;
   agent: string;
   mode: "jig" | "baseline";
+  prompt_tier: PromptTier;
+  claude_md: ClaudeMdMode;
   rep: number;
   tier: string;
   category: string;
@@ -108,6 +114,8 @@ export interface TrialResult {
   jig_invocations: JigInvocation[];
   agent_exit_code: number;
   agent_tool_calls: number;
+  tokens_used: number;
+  cost_usd: number;
   timeout: boolean;
   tags: string[];
 }
@@ -120,12 +128,15 @@ export interface AggregateScores {
   baseline_delta?: number;
   by_agent: Record<string, number>;
   by_tier: Record<string, number>;
+  by_prompt_tier: Record<string, number>;
   by_category: Record<string, number>;
   weakest_scenarios: Array<{ name: string; score: number }>;
   mean_duration_jig?: number;
   mean_duration_baseline?: number;
   mean_tokens_jig?: number;
   mean_tokens_baseline?: number;
+  mean_cost_jig?: number;
+  mean_cost_baseline?: number;
 }
 
 // ── Validation ──

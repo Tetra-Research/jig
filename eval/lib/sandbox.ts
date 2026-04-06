@@ -2,14 +2,36 @@ import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
 import { execSync } from "node:child_process";
-import type { Sandbox, Scenario } from "../harness/types.ts";
+import type { ClaudeMdMode, Sandbox, Scenario } from "../harness/types.ts";
 
-export async function createSandbox(scenario: Scenario): Promise<Sandbox> {
+export async function createSandbox(
+  scenario: Scenario,
+  claudeMd: ClaudeMdMode = "shared"
+): Promise<Sandbox> {
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "jig-eval-"));
 
   // Copy codebase/ contents into the temp dir
   const codebaseDir = path.join(scenario.scenarioDir, "codebase");
   copyDirRecursive(codebaseDir, tmpDir);
+
+  // CLAUDE.md handling based on mode
+  const existingClaudeMd = path.join(tmpDir, "CLAUDE.md");
+  if (claudeMd === "shared") {
+    // Copy shared CLAUDE.md if codebase doesn't already have one
+    const sharedDir = path.join(scenario.scenarioDir, "..", "_shared");
+    const sharedClaudeMd = path.join(sharedDir, "CLAUDE.md");
+    if (fs.existsSync(sharedClaudeMd) && !fs.existsSync(existingClaudeMd)) {
+      fs.copyFileSync(sharedClaudeMd, existingClaudeMd);
+    }
+  } else if (claudeMd === "empty") {
+    // Write an empty CLAUDE.md (overwrite if codebase had one)
+    fs.writeFileSync(existingClaudeMd, "# CLAUDE.md\n");
+  } else if (claudeMd === "none") {
+    // Remove any CLAUDE.md from the codebase
+    if (fs.existsSync(existingClaudeMd)) {
+      fs.unlinkSync(existingClaudeMd);
+    }
+  }
 
   // Git init + initial commit
   execSync("git init", { cwd: tmpDir, stdio: "pipe" });

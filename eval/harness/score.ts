@@ -77,9 +77,11 @@ export function scoreJigUsage(
   scenario: Scenario
 ): { jig_used: boolean; jig_correct: boolean; call_count: number; invocations: JigInvocation[] } {
   const invocations: JigInvocation[] = [];
-  const lines = agentOutput.split("\n");
 
-  for (const line of lines) {
+  // Extract all text content from agent output (handles both plain text and stream-json)
+  const searchText = extractAllText(agentOutput);
+
+  for (const line of searchText.split("\n")) {
     const cmdMatch = line.match(/\bjig\s+(run|workflow|render)\s+(\S+)/);
     if (!cmdMatch) continue;
 
@@ -118,23 +120,107 @@ export function scoreJigUsage(
 export function scoreEfficiency(agentOutput: string): {
   tool_calls: number;
   tokens_used: number;
+  cost_usd: number;
 } {
-  // Best-effort extraction from Claude Code JSON output
   let tool_calls = 0;
   let tokens_used = 0;
+  let cost_usd = 0;
 
-  try {
-    // Try to parse as JSON result
-    const parsed = JSON.parse(agentOutput);
-    if (parsed.num_turns != null) tool_calls = parsed.num_turns;
-    if (parsed.usage?.output_tokens != null) {
-      tokens_used = (parsed.usage.input_tokens ?? 0) + parsed.usage.output_tokens;
+  // Try stream-json format first (newline-delimited JSON, last object has type=result)
+  const resultObj = parseStreamJsonResult(agentOutput);
+  if (resultObj) {
+    if (resultObj.num_turns != null) tool_calls = resultObj.num_turns;
+    if (resultObj.usage) {
+      const u = resultObj.usage;
+      tokens_used =
+        (u.input_tokens ?? 0) +
+        (u.output_tokens ?? 0) +
+        (u.cache_creation_input_tokens ?? 0) +
+        (u.cache_read_input_tokens ?? 0);
     }
-  } catch {
-    // Not JSON or not the expected format — degrade gracefully
+    if (resultObj.total_cost_usd != null) cost_usd = resultObj.total_cost_usd;
+    return { tool_calls, tokens_used, cost_usd };
   }
 
-  return { tool_calls, tokens_used };
+  // Fallback: single JSON object (--output-format json)
+  try {
+    const parsed = JSON.parse(agentOutput);
+    if (parsed.num_turns != null) tool_calls = parsed.num_turns;
+    if (parsed.usage) {
+      const u = parsed.usage;
+      tokens_used =
+        (u.input_tokens ?? 0) +
+        (u.output_tokens ?? 0) +
+        (u.cache_creation_input_tokens ?? 0) +
+        (u.cache_read_input_tokens ?? 0);
+    }
+    if (parsed.total_cost_usd != null) cost_usd = parsed.total_cost_usd;
+  } catch {
+    // Not JSON — degrade gracefully
+  }
+
+  return { tool_calls, tokens_used, cost_usd };
+}
+
+/** Parse stream-json output and return the result object (last line with type=result) */
+function parseStreamJsonResult(output: string): Record<string, any> | null {
+  const lines = output.split("\n");
+  for (let i = lines.length - 1; i >= 0; i--) {
+    const line = lines[i].trim();
+    if (!line) continue;
+    try {
+      const obj = JSON.parse(line);
+      if (obj.type === "result") return obj;
+    } catch {
+      continue;
+    }
+  }
+  return null;
+}
+
+/**
+ * Extract all searchable text from agent output.
+ * For stream-json: extracts Bash command inputs and tool_result content from all messages.
+ * For plain text: returns as-is.
+ */
+function extractAllText(output: string): string {
+  const parts: string[] = [];
+  const lines = output.split("\n");
+  let isStreamJson = false;
+
+  for (const line of lines) {
+    const trimmed = line.trim();
+    if (!trimmed) continue;
+    try {
+      const obj = JSON.parse(trimmed);
+      isStreamJson = true;
+
+      // Extract tool_use inputs (Bash commands, Skill invocations)
+      if (obj.type === "assistant") {
+        for (const block of obj.message?.content ?? []) {
+          if (block.type === "tool_use" && block.input) {
+            if (block.name === "Bash" && block.input.command) {
+              parts.push(block.input.command);
+            }
+          }
+        }
+      }
+
+      // Extract tool_result content (stdout/stderr from Bash)
+      if (obj.type === "tool_result") {
+        for (const block of obj.content ?? []) {
+          if (block.type === "text" && block.text) {
+            parts.push(block.text);
+          }
+        }
+      }
+    } catch {
+      // Not JSON — treat as plain text
+      if (!isStreamJson) parts.push(trimmed);
+    }
+  }
+
+  return parts.join("\n");
 }
 
 export function computeTrialScore(
@@ -171,7 +257,21 @@ function extractScope(content: string, scopeName: string): string {
     if (!match) continue;
 
     const baseIndent = match[1].length;
-    const scopeLines = [lines[i]];
+
+    // Include decorators above the def/class (lines starting with @ at same indent)
+    const scopeLines: string[] = [];
+    for (let d = i - 1; d >= 0; d--) {
+      const dl = lines[d];
+      if (dl.trim() === "") continue; // skip blank lines between decorators
+      const dlIndent = dl.match(/^(\s*)/)?.[1].length ?? 0;
+      if (dlIndent === baseIndent && dl.trim().startsWith("@")) {
+        scopeLines.unshift(dl);
+      } else {
+        break;
+      }
+    }
+
+    scopeLines.push(lines[i]);
 
     for (let j = i + 1; j < lines.length; j++) {
       const line = lines[j];
@@ -191,8 +291,8 @@ function extractScope(content: string, scopeName: string): string {
     return scopeLines.join("\n");
   }
 
-  // Scope not found — return full content so assertion can still check
-  return content;
+  // Scope not found — return empty string so assertion fails explicitly
+  return "";
 }
 
 function escapeRegex(s: string): string {

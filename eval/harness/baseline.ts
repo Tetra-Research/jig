@@ -1,5 +1,3 @@
-import type { Scenario } from "./types.ts";
-
 const BASELINE_CONTEXT = `You are working on a codebase. Make the requested changes using your native Read, Edit, and Write tools. Do not use jig.`;
 
 const JIG_PATTERNS = [
@@ -8,16 +6,16 @@ const JIG_PATTERNS = [
   /^.*--vars\b.*$/gm,
 ];
 
-export function transformPromptForBaseline(scenario: Scenario): string {
-  let prompt = scenario.prompt;
+export function transformPromptForBaseline(prompt: string): string {
+  let result = prompt;
 
   // Strip jig-specific references
   for (const pattern of JIG_PATTERNS) {
-    prompt = prompt.replace(pattern, "").trim();
+    result = result.replace(pattern, "").trim();
   }
 
   // Remove consecutive blank lines left by stripping
-  prompt = prompt.replace(/\n{3,}/g, "\n\n");
+  result = result.replace(/\n{3,}/g, "\n\n");
 
-  return `${BASELINE_CONTEXT}\n\n${prompt}`;
+  return `${BASELINE_CONTEXT}\n\n${result}`;
 }

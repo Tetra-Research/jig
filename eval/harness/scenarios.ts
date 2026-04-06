@@ -2,9 +2,10 @@ import fs from "node:fs";
 import path from "node:path";
 import { parse as parseYaml } from "yaml";
 import { readdirRecursive } from "../lib/fs.ts";
-import type { Assertion, NegativeAssertion, Scenario, ValidationError } from "./types.ts";
+import type { Assertion, NegativeAssertion, PromptTier, Scenario, ValidationError } from "./types.ts";
 
 const VALID_TIERS = ["easy", "medium", "hard", "discovery", "error-recovery"] as const;
+export const VALID_PROMPT_TIERS: PromptTier[] = ["directed", "natural", "ambient"];
 
 export function loadScenario(dir: string): Scenario {
   const scenarioDir = path.resolve(dir);
@@ -30,12 +31,29 @@ export function loadScenario(dir: string): Scenario {
     })
   );
 
+  // Resolve prompts map with backward compat
+  const rawPrompts = parsed.prompts as Record<string, string> | undefined;
+  const legacyPrompt = parsed.prompt as string | undefined;
+
+  let prompts: Partial<Record<PromptTier, string>> = {};
+  if (rawPrompts) {
+    for (const tier of VALID_PROMPT_TIERS) {
+      if (rawPrompts[tier]) prompts[tier] = rawPrompts[tier];
+    }
+  }
+  if (!prompts.natural && legacyPrompt) {
+    prompts.natural = legacyPrompt;
+  }
+
+  const prompt = prompts.natural ?? legacyPrompt ?? "";
+
   return {
     name: parsed.name as string,
     description: parsed.description as string,
     tier: parsed.tier as Scenario["tier"],
     category: (parsed.category as string) ?? "",
-    prompt: parsed.prompt as string,
+    prompt,
+    prompts,
     context: parsed.context as string | undefined,
     expected_files_modified: (parsed.expected_files_modified as string[]) ?? [],
     assertions,
@@ -75,13 +93,18 @@ export function validateScenario(scenario: Scenario): ValidationError[] {
     ["name", scenario.name],
     ["description", scenario.description],
     ["tier", scenario.tier],
-    ["prompt", scenario.prompt],
   ];
 
   for (const [field, value] of requiredStrings) {
     if (!value || (typeof value === "string" && value.trim() === "")) {
       errors.push({ field, message: `Missing required field: ${field}`, scenarioPath: sp });
     }
+  }
+
+  // At least one prompt tier must be defined
+  const hasAnyPrompt = Object.values(scenario.prompts).some((p) => p && p.trim() !== "");
+  if (!hasAnyPrompt) {
+    errors.push({ field: "prompts", message: "At least one prompt tier (directed/natural/ambient) or prompt field is required", scenarioPath: sp });
   }
 
   if (!scenario.assertions || scenario.assertions.length === 0) {
