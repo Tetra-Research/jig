@@ -7,6 +7,7 @@ export function aggregate(results: TrialResult[]): AggregateScores {
       jig_used_pct: 0,
       by_agent: {},
       by_tier: {},
+      by_prompt_tier: {},
       by_category: {},
       weakest_scenarios: [],
     };
@@ -28,6 +29,12 @@ export function aggregate(results: TrialResult[]): AggregateScores {
   const by_tier: Record<string, number> = {};
   for (const [name, group] of groupBy(results, (r) => r.tier ?? "unknown")) {
     by_tier[name] = mean(group.map((r) => r.scores.total));
+  }
+
+  // By prompt tier
+  const by_prompt_tier: Record<string, number> = {};
+  for (const [name, group] of groupBy(results, (r) => r.prompt_tier ?? "natural")) {
+    by_prompt_tier[name] = mean(group.map((r) => r.scores.total));
   }
 
   // By category
@@ -53,6 +60,12 @@ export function aggregate(results: TrialResult[]): AggregateScores {
   const mean_duration_jig = jigTrials.length > 0 ? mean(jigTrials.map((r) => r.duration_ms)) : undefined;
   const mean_duration_baseline = baselineTrials.length > 0 ? mean(baselineTrials.map((r) => r.duration_ms)) : undefined;
 
+  // Token/cost stats
+  const mean_tokens_jig = jigTrials.length > 0 ? mean(jigTrials.map((r) => r.tokens_used ?? 0)) : undefined;
+  const mean_tokens_baseline = baselineTrials.length > 0 ? mean(baselineTrials.map((r) => r.tokens_used ?? 0)) : undefined;
+  const mean_cost_jig = jigTrials.length > 0 ? mean(jigTrials.map((r) => r.cost_usd ?? 0)) : undefined;
+  const mean_cost_baseline = baselineTrials.length > 0 ? mean(baselineTrials.map((r) => r.cost_usd ?? 0)) : undefined;
+
   // Baseline delta
   let baseline_delta: number | undefined;
   if (jigTrials.length > 0 && baselineTrials.length > 0) {
@@ -67,10 +80,15 @@ export function aggregate(results: TrialResult[]): AggregateScores {
     baseline_delta,
     by_agent,
     by_tier,
+    by_prompt_tier,
     by_category,
     weakest_scenarios,
     mean_duration_jig,
     mean_duration_baseline,
+    mean_tokens_jig,
+    mean_tokens_baseline,
+    mean_cost_jig,
+    mean_cost_baseline,
   };
 }
 
@@ -100,6 +118,14 @@ export function generateReport(results: TrialResult[]): string {
     lines.push(`  ${name}: ${score.toFixed(3)}`);
   }
 
+  if (Object.keys(agg.by_prompt_tier).length > 0) {
+    lines.push("");
+    lines.push("--- By Prompt Tier ---");
+    for (const [name, score] of Object.entries(agg.by_prompt_tier)) {
+      lines.push(`  ${name}: ${score.toFixed(3)}`);
+    }
+  }
+
   if (Object.keys(agg.by_category).length > 0) {
     lines.push("");
     lines.push("--- By Category ---");
@@ -116,30 +142,41 @@ export function generateReport(results: TrialResult[]): string {
     }
   }
 
-  if (agg.mean_duration_jig != null) {
+  if (agg.mean_duration_jig != null || agg.mean_tokens_jig != null) {
     lines.push("");
-    lines.push(`Mean duration (jig): ${(agg.mean_duration_jig / 1000).toFixed(1)}s`);
-  }
-  if (agg.mean_duration_baseline != null) {
-    lines.push(`Mean duration (baseline): ${(agg.mean_duration_baseline / 1000).toFixed(1)}s`);
+    lines.push("--- Efficiency ---");
+    if (agg.mean_duration_jig != null) lines.push(`  Duration (jig): ${(agg.mean_duration_jig / 1000).toFixed(1)}s`);
+    if (agg.mean_duration_baseline != null) lines.push(`  Duration (baseline): ${(agg.mean_duration_baseline / 1000).toFixed(1)}s`);
+    if (agg.mean_tokens_jig != null) lines.push(`  Tokens (jig): ${Math.round(agg.mean_tokens_jig).toLocaleString()}`);
+    if (agg.mean_tokens_baseline != null) lines.push(`  Tokens (baseline): ${Math.round(agg.mean_tokens_baseline).toLocaleString()}`);
+    if (agg.mean_cost_jig != null) lines.push(`  Cost (jig): $${agg.mean_cost_jig.toFixed(4)}`);
+    if (agg.mean_cost_baseline != null) lines.push(`  Cost (baseline): $${agg.mean_cost_baseline.toFixed(4)}`);
+    if (agg.mean_tokens_jig != null && agg.mean_tokens_baseline != null && agg.mean_tokens_baseline > 0) {
+      const saved = ((1 - agg.mean_tokens_jig / agg.mean_tokens_baseline) * 100).toFixed(1);
+      lines.push(`  Token savings: ${saved}%`);
+    }
+    if (agg.mean_cost_jig != null && agg.mean_cost_baseline != null && agg.mean_cost_baseline > 0) {
+      const saved = ((1 - agg.mean_cost_jig / agg.mean_cost_baseline) * 100).toFixed(1);
+      lines.push(`  Cost savings: ${saved}%`);
+    }
   }
 
   // Stddev per scenario-agent when reps > 1
   const combos = new Map<string, number[]>();
   for (const r of results) {
-    const key = `${r.scenario}|${r.agent}`;
+    const key = `${r.scenario}|${r.agent}|${r.prompt_tier ?? "natural"}`;
     if (!combos.has(key)) combos.set(key, []);
     combos.get(key)!.push(r.scores.total);
   }
   const multiRep = [...combos.entries()].filter(([, v]) => v.length > 1);
   if (multiRep.length > 0) {
     lines.push("");
-    lines.push("--- Per Scenario-Agent (mean +/- stddev) ---");
+    lines.push("--- Per Scenario-Agent-PromptTier (mean +/- stddev) ---");
     for (const [key, scores] of multiRep) {
-      const [scenario, agent] = key.split("|");
+      const [scenario, agent, promptTier] = key.split("|");
       const m = mean(scores);
       const sd = stddev(scores);
-      lines.push(`  ${scenario} x ${agent}: ${m.toFixed(3)} +/- ${sd.toFixed(3)}`);
+      lines.push(`  ${scenario} x ${agent} [${promptTier}]: ${m.toFixed(3)} +/- ${sd.toFixed(3)}`);
     }
   }
 
@@ -160,6 +197,15 @@ export function generateMetricsOnly(results: TrialResult[]): string {
   for (const [name, score] of Object.entries(agg.by_agent)) {
     lines.push(`METRIC agent.${name}=${score.toFixed(3)}`);
   }
+
+  for (const [name, score] of Object.entries(agg.by_prompt_tier)) {
+    lines.push(`METRIC prompt_tier.${name}=${score.toFixed(3)}`);
+  }
+
+  if (agg.mean_tokens_jig != null) lines.push(`METRIC mean_tokens_jig=${Math.round(agg.mean_tokens_jig)}`);
+  if (agg.mean_tokens_baseline != null) lines.push(`METRIC mean_tokens_baseline=${Math.round(agg.mean_tokens_baseline)}`);
+  if (agg.mean_cost_jig != null) lines.push(`METRIC mean_cost_jig=${agg.mean_cost_jig.toFixed(4)}`);
+  if (agg.mean_cost_baseline != null) lines.push(`METRIC mean_cost_baseline=${agg.mean_cost_baseline.toFixed(4)}`);
 
   return lines.join("\n");
 }

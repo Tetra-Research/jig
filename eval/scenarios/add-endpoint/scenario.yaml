@@ -5,15 +5,30 @@ category: brownfield-extension
 
 context: |
   You are working on a Django REST framework application.
-  This project uses jig for code generation. Recipes are in the recipes/ directory.
-  Use `jig vars <recipe>` to see what variables a recipe expects, then
-  use `jig run <recipe> --vars '<json>'` to execute it.
 
-prompt: |
-  Add a GET /api/reservations/<id>/receipt endpoint that returns receipt details.
-  Use the add-endpoint recipe at recipes/add-endpoint/recipe.yaml.
-  The view should be named reservation_receipt, the URL should be at
-  reservations/<int:pk>/receipt/, and there should be a test for it.
+prompts:
+  directed: |
+    Use the add-endpoint skill to add a new endpoint.
+    view_name: reservation_receipt
+    url_path: reservations/<int:pk>/receipt/
+    url_name: reservation-receipt
+    schema_name: ReceiptSchema
+    model_name: Reservation
+  natural: |
+    Add a GET /api/reservations/<id>/receipt endpoint that returns receipt details.
+    The view should be named reservation_receipt, the URL should be at
+    reservations/<int:pk>/receipt/, and there should be a test for it.
+  ambient: |
+    ## JIRA-1234: Receipt endpoint for reservations
+
+    **Acceptance criteria:**
+    - GET /api/reservations/:id/receipt returns receipt data for a reservation
+    - View function: reservation_receipt
+    - URL: reservations/<int:pk>/receipt/
+    - Response schema class with id, guest, total, currency fields
+    - Unit test covering the happy path
+
+    Please implement this ticket.
 
 expected_files_modified:
   - views.py

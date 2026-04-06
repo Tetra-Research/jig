@@ -5,13 +5,28 @@ category: brownfield-extension
 
 context: |
   You are working on a Django-style Python project.
-  This project uses jig for code generation. Recipes are in the recipes/ directory.
-  Use `jig vars <recipe>` to see what variables a recipe expects, then
-  use `jig run <recipe> --vars '<json>'` to execute it.
 
-prompt: |
-  The models.py file is missing an import for DateTimeField from django.db.models.
-  Add it using the inject-import recipe at recipes/inject-import/recipe.yaml.
+prompts:
+  directed: |
+    Use the inject-import skill to add a missing import.
+    file: models.py
+    import_line: from django.db.models import DateTimeField
+  natural: |
+    The models.py file is missing an import for DateTimeField from django.db.models.
+    Add it.
+  ambient: |
+    I'm getting this error when I run the tests:
+
+    ```
+    Traceback (most recent call last):
+      File "models.py", line 14, in <module>
+        class Reservation(models.Model):
+      File "models.py", line 18, in Reservation
+        created_at = DateTimeField(auto_now_add=True)
+    NameError: name 'DateTimeField' is not defined
+    ```
+
+    Can you fix this?
 
 expected_files_modified:
   - models.py

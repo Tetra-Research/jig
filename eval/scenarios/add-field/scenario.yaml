@@ -5,15 +5,27 @@ category: brownfield-extension
 
 context: |
   You are working on a Django application with models, admin, factories, and serializers.
-  This project uses jig for code generation. Recipes are in the recipes/ directory.
-  Use `jig vars <recipe>` to see what variables a recipe expects, then
-  use `jig run <recipe> --vars '<json>'` to execute it.
-  The add-field recipe handles adding a field to the model, admin, serializer, and factory.
 
-prompt: |
-  Add a loyalty_tier field (CharField, max_length=20, default="bronze") to the Reservation model.
-  Propagate the field to admin.py (list_display), serializers.py (fields), and factories.py.
-  Use the add-field recipe at recipes/add-field/recipe.yaml.
+prompts:
+  directed: |
+    Use the add-field skill to add a field to the Reservation model.
+    model_name: Reservation
+    field_name: loyalty_tier
+    field_type: CharField
+    field_args: max_length=20, default="bronze"
+    factory_default: "bronze"
+  natural: |
+    Add a loyalty_tier field (CharField, max_length=20, default="bronze") to the Reservation model.
+    Propagate the field to admin.py (list_display), serializers.py (fields), and factories.py.
+  ambient: |
+    ## Data model review notes — 2026-04-03
+
+    We need a loyalty_tier field on Reservation so the receipt endpoint can
+    show tier-specific pricing. CharField, max_length=20, default "bronze".
+    Make sure it shows up in admin list_display, serializer fields, and the
+    factory for tests.
+
+    Please add this.
 
 expected_files_modified:
   - models.py
