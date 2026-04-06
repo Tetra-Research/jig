@@ -110,3 +110,32 @@ The agent reads the error, falls back to its native Edit tool, and places the co
 ## Status
 
 v0.4. All four file operations (create, inject, replace, patch), multi-recipe workflows with conditional steps and error handling, and library management are implemented and tested. 400+ tests passing. Single Rust binary, zero runtime dependencies.
+
+## Installation (Manual Release Channel)
+
+Latest release:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/Tetra-Research/jig/main/install.sh | sh
+```
+
+Pin a version:
+
+```bash
+curl -fsSL https://raw.githubusercontent.com/Tetra-Research/jig/main/install.sh | sh -s -- --version v0.1.0
+```
+
+Installer defaults:
+
+- Installs to `~/.local/bin` (override with `--install-dir` or `JIG_INSTALL_DIR`)
+- Pulls binaries from GitHub Releases in `Tetra-Research/jig`
+- Verifies signed `SHA256SUMS` first, then verifies the archive checksum
+
+Release process details live in [`docs/RELEASE-MANUAL.md`](docs/RELEASE-MANUAL.md).
+
+## Release Trust Model
+
+- MVP releases are cut manually (no GitHub Actions release automation).
+- Official release artifacts are authenticated via signed checksums and installer verification.
+- The installer refuses non-official repos unless `JIG_ALLOW_UNOFFICIAL_REPO=1` is set.
+- Public source remains buildable by anyone; this protects official release authenticity, not install exclusivity.

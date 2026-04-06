@@ -113,7 +113,7 @@ Libraries are versioned recipe collections for a framework. This is where framew
 
 ### v0.5 — Distribution
 
-**Workstream docs:** None (needs PLAN)
+**Workstream docs:** [docs/DISTRIBUTION-MANUAL-RELEASE-PLAN-2026-04-06.md](docs/DISTRIBUTION-MANUAL-RELEASE-PLAN-2026-04-06.md), [docs/RELEASE-MANUAL.md](docs/RELEASE-MANUAL.md)
 **Depends on:** v0.4 (distribution should include library install capability)
 **jig.md reference:** lines 806–950, roadmap line 1937
 
@@ -130,16 +130,22 @@ Package and ship jig so others can install it.
 | npm | Thin binary wrapper (`npx @<org>/jig`), platform-specific postinstall (esbuild pattern) |
 | Shell installer | `curl -fsSL .../install.sh \| sh` — detects platform, downloads binary |
 
-*CI/CD:*
+**Initial rollout strategy (explicit):**
+- Manual GitHub Releases first (no GitHub Actions in MVP; keep operating cost at $0).
+- Build binaries locally and upload release assets manually.
+- Ship a shell installer (`curl -fsSL .../install.sh | sh`) that downloads the matching GitHub Release asset.
+- Restrict release/tag authority to designated maintainers (protected tags/permissions).
+- Publish signed checksums with each release and keep asset naming stable for the installer.
+
+*Later automation (optional, post-MVP):*
 - GitHub Actions workflow for cross-compilation
 - Release automation on git tag push
 - Binary signing (optional)
-- SHA256 checksums in release notes
 
 **What this unlocks:** External users. Everything before v0.5 is author-only usage. This is also when the npm wrapper becomes available, which matters because the MCP server ships as `npx @jig/mcp-server` and needs to find the `jig` binary.
 
 **Open questions for PLAN:**
-- Minimum viable distribution: just GitHub Releases + Homebrew tap? Or all channels at once?
+- Homebrew is explicitly deferred until post-MVP.
 - Does the npm wrapper ship in this milestone or with the MCP server?
 
 ---
@@ -497,7 +503,7 @@ Key dependencies:
 | Agent evals (basic) | PLAN needed. Scope: harness skeleton, 3-5 scenarios, scoring, baseline comparison. | After v0.3 starts |
 | MCP server (Phase 1) | PLAN needed. Scope: TypeScript stdio wrapper, 3 tools (run, vars, workflow). | After v0.3 done |
 | v0.4 libraries | PLAN + SPEC needed. Most complex remaining spec work — manifest format, install logic, convention overrides, extensions. | After v0.3 done |
-| v0.5 distribution | PLAN needed. Mostly CI/packaging, not code design. | After v0.4 done |
+| v0.5 distribution | PLAN exists and manual release implementation is in progress. | After v0.4 done |
 | v0.6 plugin | PLAN + SPEC needed. Depends on MCP + libraries existing first. | After v0.4 + MCP done |
 | v0.7 scan/check | PLAN + SPEC needed. Algorithm design for template inversion. | After v0.4 done |
 
