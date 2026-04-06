@@ -1,0 +1,12 @@
+
+
+
+@api_view(["GET"])
+def {{ view_name }}(request, pk):
+    instance = {{ model_name }}.objects.get(pk=pk)
+    return Response({
+        "id": instance.id,
+        "guest": instance.guest_name,
+        "total": "100.00",
+        "currency": "USD",
+    })

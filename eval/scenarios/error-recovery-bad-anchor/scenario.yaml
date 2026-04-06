@@ -4,18 +4,21 @@ tier: error-recovery
 category: error-recovery
 
 context: |
-  You are working on a Django-style Python project.
-  This project uses jig for code generation. Recipes are in the recipes/ directory.
-  Use `jig vars <recipe>` to see what variables a recipe expects, then
-  use `jig run <recipe> --vars '<json>'` to execute it.
-  If jig fails, it will show the rendered content in the error output.
-  You can use this rendered content to manually apply the changes.
+  You are working on a Python project with models.
 
-prompt: |
-  Add a phone_number field (CharField, max_length=20) to the Contact model.
-  Use the add-field recipe at recipes/add-field/recipe.yaml.
-  Note: the recipe may fail because of an anchor mismatch. If jig fails,
-  use the rendered content from the error to apply the changes manually.
+prompts:
+  directed: |
+    Use the add-field skill to add a field to the Contact model.
+    model_name: Contact
+    field_name: phone_number
+    field_type: CharField
+    field_args: max_length=20
+  natural: |
+    Add a phone_number field (CharField, max_length=20) to the Contact model.
+  ambient: |
+    The Contact model in models.py is missing a phone number field.
+    Our customer support team needs to store phone numbers for contacts.
+    Add a phone_number CharField (max_length=20) to the Contact class.
 
 expected_files_modified:
   - models.py

@@ -324,6 +324,8 @@ await test("writeTrialResult + readResults: roundtrip preserves data", () => {
       scenario: "test",
       agent: "claude-code",
       mode: "jig",
+      prompt_tier: "natural",
+      claude_md: "shared",
       rep: 1,
       tier: "easy",
       category: "test",
@@ -336,6 +338,8 @@ await test("writeTrialResult + readResults: roundtrip preserves data", () => {
       jig_invocations: [{ command: "jig run recipe.yaml" }],
       agent_exit_code: 0,
       agent_tool_calls: 5,
+      tokens_used: 10000,
+      cost_usd: 0.05,
       timeout: false,
       tags: ["test"],
     };
@@ -354,11 +358,11 @@ await test("writeTrialResult: appends without overwriting", () => {
   const tmpFile = path.join(os.tmpdir(), `jig-test-results-${Date.now()}.jsonl`);
   try {
     const base: TrialResult = {
-      scenario: "s1", agent: "a1", mode: "jig", rep: 1, tier: "easy", category: "test",
+      scenario: "s1", agent: "a1", mode: "jig", prompt_tier: "natural", claude_md: "shared", rep: 1, tier: "easy", category: "test",
       timestamp: new Date().toISOString(), duration_ms: 100, jig_version: "0.1.0",
       scores: { assertion_score: 1, file_score: 1, negative_score: 1, jig_used: true, jig_correct: true, total: 1 },
       assertions: [], negative_assertions: [], jig_invocations: [],
-      agent_exit_code: 0, agent_tool_calls: 0, timeout: false, tags: [],
+      agent_exit_code: 0, agent_tool_calls: 0, tokens_used: 0, cost_usd: 0, timeout: false, tags: [],
     };
     writeTrialResult({ ...base, scenario: "first" }, tmpFile);
     writeTrialResult({ ...base, scenario: "second" }, tmpFile);
@@ -432,6 +436,44 @@ await test("createSandbox: unique temp dirs for same scenario", async () => {
   }
 });
 
+await test("createSandbox: claude-md=shared copies shared CLAUDE.md", async () => {
+  const scenario = loadScenario(path.join(FIXTURES, "valid-scenario"));
+  const sandbox = await createSandbox(scenario, "shared");
+  try {
+    const claudeMdPath = path.join(sandbox.workDir, "CLAUDE.md");
+    assert.ok(fs.existsSync(claudeMdPath), "CLAUDE.md should exist");
+    const content = fs.readFileSync(claudeMdPath, "utf-8");
+    assert.ok(content.includes("skill"), "Should contain shared CLAUDE.md content");
+  } finally {
+    await sandbox.cleanup();
+  }
+});
+
+await test("createSandbox: claude-md=empty writes minimal CLAUDE.md", async () => {
+  const scenario = loadScenario(path.join(FIXTURES, "valid-scenario"));
+  const sandbox = await createSandbox(scenario, "empty");
+  try {
+    const claudeMdPath = path.join(sandbox.workDir, "CLAUDE.md");
+    assert.ok(fs.existsSync(claudeMdPath), "CLAUDE.md should exist");
+    const content = fs.readFileSync(claudeMdPath, "utf-8");
+    assert.ok(!content.includes("skill"), "Should NOT contain shared content");
+    assert.ok(content.includes("CLAUDE.md"), "Should have minimal content");
+  } finally {
+    await sandbox.cleanup();
+  }
+});
+
+await test("createSandbox: claude-md=none removes CLAUDE.md", async () => {
+  const scenario = loadScenario(path.join(FIXTURES, "valid-scenario"));
+  const sandbox = await createSandbox(scenario, "none");
+  try {
+    const claudeMdPath = path.join(sandbox.workDir, "CLAUDE.md");
+    assert.ok(!fs.existsSync(claudeMdPath), "CLAUDE.md should NOT exist");
+  } finally {
+    await sandbox.cleanup();
+  }
+});
+
 // ── Agent config tests (Phase 2.1) ──
 
 console.log("\n--- agents.ts ---");
@@ -500,33 +542,22 @@ console.log("\n--- baseline.ts ---");
 
 await test("transformPromptForBaseline: replaces context with baseline instructions", () => {
   const scenario = loadScenario(path.join(FIXTURES, "valid-scenario"));
-  const prompt = transformPromptForBaseline(scenario);
+  const prompt = transformPromptForBaseline(scenario.prompt);
   assert.ok(prompt.includes("Do not use jig"), "Should include baseline instruction");
   assert.ok(prompt.includes("greeting function"), "Should preserve the core prompt");
 });
 
 await test("transformPromptForBaseline: strips jig references", () => {
-  const scenario: Scenario = {
-    name: "test", description: "test", tier: "easy", category: "test",
-    prompt: "Add a field.\nUse jig run recipes/add-field to automate.\nPass --vars to provide values.",
-    context: "Use jig for code gen.",
-    expected_files_modified: [], assertions: [{ file: "a.py", contains: "x", weight: 1 }],
-    tags: [], scenarioDir: "/tmp",
-  };
-  const result = transformPromptForBaseline(scenario);
+  const prompt = "Add a field.\nUse jig run recipes/add-field to automate.\nPass --vars to provide values.";
+  const result = transformPromptForBaseline(prompt);
   assert.ok(!result.includes("jig run"), "Should strip jig run references");
   assert.ok(!result.includes("--vars"), "Should strip --vars references");
   assert.ok(result.includes("Add a field"), "Should preserve non-jig content");
 });
 
 await test("transformPromptForBaseline: no jig run/workflow/library remain", () => {
-  const scenario: Scenario = {
-    name: "test", description: "test", tier: "easy", category: "test",
-    prompt: "Do things.\njig run something.\njig workflow deploy.\njig library add x.",
-    expected_files_modified: [], assertions: [{ file: "a.py", contains: "x", weight: 1 }],
-    tags: [], scenarioDir: "/tmp",
-  };
-  const result = transformPromptForBaseline(scenario);
+  const prompt = "Do things.\njig run something.\njig workflow deploy.\njig library add x.";
+  const result = transformPromptForBaseline(prompt);
   assert.ok(!result.includes("jig run"), "No jig run");
   assert.ok(!result.includes("jig workflow"), "No jig workflow");
   assert.ok(!result.includes("jig library"), "No jig library");
@@ -541,6 +572,8 @@ function makeResult(overrides: Partial<TrialResult> = {}): TrialResult {
     scenario: "test-scenario",
     agent: "claude-code",
     mode: "jig",
+    prompt_tier: "natural",
+    claude_md: "shared",
     rep: 1,
     tier: "easy",
     category: "test",
@@ -553,6 +586,8 @@ function makeResult(overrides: Partial<TrialResult> = {}): TrialResult {
     jig_invocations: [{ command: "jig run recipe.yaml" }],
     agent_exit_code: 0,
     agent_tool_calls: 5,
+    tokens_used: 15000,
+    cost_usd: 0.06,
     timeout: false,
     tags: ["easy"],
     ...overrides,
@@ -651,6 +686,74 @@ await test("generateReport: degrades gracefully with missing token data", () => 
   // Should not throw
   const report = generateReport(results);
   assert.ok(report.includes("Eval Report"));
+});
+
+// ── Prompt tier tests ──
+
+console.log("\n--- prompt tiers ---");
+
+await test("loadScenario: legacy prompt maps to prompts.natural", () => {
+  const s = loadScenario(path.join(FIXTURES, "valid-scenario"));
+  assert.ok(s.prompts.natural, "Should have natural prompt");
+  assert.strictEqual(s.prompts.natural, s.prompt);
+  assert.strictEqual(s.prompts.directed, undefined);
+  assert.strictEqual(s.prompts.ambient, undefined);
+});
+
+await test("loadScenario: prompts map loads all three tiers", () => {
+  const s = loadScenario(path.join(FIXTURES, "prompt-tiers-scenario"));
+  assert.ok(s.prompts.directed?.includes("add-greeting skill"));
+  assert.ok(s.prompts.natural?.includes("greeting function"));
+  assert.ok(s.prompts.ambient?.includes("onboarding flow"));
+  // prompt field defaults to natural
+  assert.strictEqual(s.prompt, s.prompts.natural);
+});
+
+await test("validateScenario: prompts-based scenario passes validation", () => {
+  const s = loadScenario(path.join(FIXTURES, "prompt-tiers-scenario"));
+  const errors = validateScenario(s);
+  assert.strictEqual(errors.length, 0, `Expected 0 errors, got: ${errors.map(e => e.message).join(", ")}`);
+});
+
+await test("aggregate: by_prompt_tier breakdown", () => {
+  const results = [
+    makeResult({ prompt_tier: "directed", scores: { ...makeResult().scores, total: 1.0 } }),
+    makeResult({ prompt_tier: "natural", scores: { ...makeResult().scores, total: 0.8 } }),
+    makeResult({ prompt_tier: "ambient", scores: { ...makeResult().scores, total: 0.5 } }),
+  ];
+  const agg = aggregate(results);
+  assert.ok(Math.abs(agg.by_prompt_tier["directed"] - 1.0) < 0.001);
+  assert.ok(Math.abs(agg.by_prompt_tier["natural"] - 0.8) < 0.001);
+  assert.ok(Math.abs(agg.by_prompt_tier["ambient"] - 0.5) < 0.001);
+});
+
+await test("generateReport: includes By Prompt Tier section", () => {
+  const results = [
+    makeResult({ prompt_tier: "directed" }),
+    makeResult({ prompt_tier: "natural" }),
+  ];
+  const report = generateReport(results);
+  assert.ok(report.includes("By Prompt Tier"), "Should include prompt tier section");
+  assert.ok(report.includes("directed"), "Should list directed tier");
+  assert.ok(report.includes("natural"), "Should list natural tier");
+});
+
+await test("generateMetricsOnly: includes prompt tier metrics", () => {
+  const results = [makeResult({ prompt_tier: "natural" })];
+  const metrics = generateMetricsOnly(results);
+  assert.ok(metrics.includes("prompt_tier.natural="), "Should include prompt tier metric");
+});
+
+await test("writeTrialResult + readResults: preserves prompt_tier", () => {
+  const tmpFile = path.join(os.tmpdir(), `jig-test-pt-${Date.now()}.jsonl`);
+  try {
+    const result = makeResult({ prompt_tier: "ambient" });
+    writeTrialResult(result, tmpFile);
+    const read = readResults(tmpFile);
+    assert.strictEqual(read[0].prompt_tier, "ambient");
+  } finally {
+    try { fs.unlinkSync(tmpFile); } catch {}
+  }
 });
 
 // ── Summary ──
