@@ -6,13 +6,26 @@ import type { ClaudeMdMode, Sandbox, Scenario } from "../harness/types.ts";
 
 export async function createSandbox(
   scenario: Scenario,
-  claudeMd: ClaudeMdMode = "shared"
+  claudeMd: ClaudeMdMode = "shared",
+  stripSkills: boolean = false,
 ): Promise<Sandbox> {
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "jig-eval-"));
 
   // Copy codebase/ contents into the temp dir
   const codebaseDir = path.join(scenario.scenarioDir, "codebase");
   copyDirRecursive(codebaseDir, tmpDir);
+
+  // Strip .claude/skills/ if requested (Level 0 control)
+  if (stripSkills) {
+    const skillsDir = path.join(tmpDir, ".claude", "skills");
+    if (fs.existsSync(skillsDir)) {
+      fs.rmSync(skillsDir, { recursive: true, force: true });
+    }
+    const claudeDir = path.join(tmpDir, ".claude");
+    if (fs.existsSync(claudeDir) && fs.readdirSync(claudeDir).length === 0) {
+      fs.rmSync(claudeDir, { recursive: true });
+    }
+  }
 
   // CLAUDE.md handling based on mode
   const existingClaudeMd = path.join(tmpDir, "CLAUDE.md");
@@ -49,7 +62,9 @@ export async function createSandbox(
     }
   };
 
-  return { workDir: tmpDir, jigVersion, cleanup };
+  const skillsAvailable = !stripSkills && fs.existsSync(path.join(tmpDir, ".claude", "skills"));
+
+  return { workDir: tmpDir, jigVersion, skillsAvailable, cleanup };
 }
 
 function getJigVersion(cwd: string): string {
