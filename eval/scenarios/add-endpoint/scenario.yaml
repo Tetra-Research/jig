@@ -1,0 +1,60 @@
+name: add-endpoint
+description: Add a GET /api/reservations/:id/receipt endpoint with view, URL, schema, and test
+tier: medium
+category: brownfield-extension
+
+context: |
+  You are working on a Django REST framework application.
+
+prompts:
+  directed: |
+    Use the add-endpoint skill to add a new endpoint.
+    view_name: reservation_receipt
+    url_path: reservations/<int:pk>/receipt/
+    url_name: reservation-receipt
+    schema_name: ReceiptSchema
+    model_name: Reservation
+  natural: |
+    Add a GET /api/reservations/<id>/receipt endpoint that returns receipt details.
+    The view should be named reservation_receipt, the URL should be at
+    reservations/<int:pk>/receipt/, and there should be a test for it.
+  ambient: |
+    ## JIRA-1234: Receipt endpoint for reservations
+
+    **Acceptance criteria:**
+    - GET /api/reservations/:id/receipt returns receipt data for a reservation
+    - View function: reservation_receipt
+    - URL: reservations/<int:pk>/receipt/
+    - Response schema class with id, guest, total, currency fields
+    - Unit test covering the happy path
+
+    Please implement this ticket.
+
+expected_files_modified:
+  - views.py
+  - urls.py
+  - schemas.py
+  - tests/test_views.py
+
+assertions:
+  - file: views.py
+    contains: "def reservation_receipt"
+    weight: 1.0
+  - file: urls.py
+    contains: "receipt"
+    weight: 1.0
+  - file: schemas.py
+    contains: "ReceiptSchema"
+    weight: 0.8
+  - file: tests/test_views.py
+    contains: "def test_reservation_receipt"
+    weight: 0.8
+
+negative_assertions:
+  - any_file: true
+    not_contains: "SyntaxError"
+    description: "Output must be syntactically valid Python"
+
+tags: [medium, brownfield-extension, multi-file, inject]
+estimated_jig_commands: 1
+max_jig_commands: 4

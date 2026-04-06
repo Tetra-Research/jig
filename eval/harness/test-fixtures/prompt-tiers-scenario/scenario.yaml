@@ -1,0 +1,36 @@
+name: prompt-tiers-test
+description: Test scenario with all three prompt tiers
+tier: easy
+category: test
+
+context: |
+  You are working on a Python project.
+
+prompts:
+  directed: |
+    Use the add-greeting skill to add a greet function to hello.py.
+  natural: |
+    Create a greeting function in hello.py
+  ambient: |
+    The onboarding flow needs a welcome message. There should be a greet
+    function in hello.py that returns a personalized greeting.
+
+expected_files_modified:
+  - hello.py
+
+assertions:
+  - file: hello.py
+    contains: "def greet"
+    weight: 1.0
+  - file: hello.py
+    contains: "return"
+    weight: 0.5
+
+negative_assertions:
+  - file: hello.py
+    not_contains: "SyntaxError"
+    description: "Output must be valid Python"
+
+tags: [test, easy]
+estimated_jig_commands: 1
+max_jig_commands: 2

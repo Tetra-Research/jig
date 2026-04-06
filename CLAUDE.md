@@ -114,7 +114,7 @@ jig library add|remove|update|list  # Manage recipe libraries
 - **Unit tests**: Recipe parsing, variable validation, template rendering, each operation type.
 - **Integration tests**: Fixture directories with `recipe.yaml`, `vars.json`, `templates/`, `existing/`, and `expected/`. Test runner copies existing/ to temp dir, runs jig, diffs against expected/.
 - **Snapshot tests**: `insta` crate for template rendering output.
-- **Agent evals** (`eval/`): End-to-end tests where real LLM agents invoke jig against fixture codebases, scored on assertion pass rate, jig usage, and efficiency vs. baseline.
+- **Agent evals** (`eval/`): End-to-end tests where real LLM agents invoke jig against fixture codebases, scored on assertion pass rate, jig usage, and efficiency vs. baseline. Always run evals in parallel (`PARALLEL=1`, the default in `run-gradient.sh`).
 
 ## Slash Commands
 

@@ -1,0 +1,17 @@
+name: add-serializer
+description: Create a serializer for a Django model
+
+variables:
+  model_name:
+    type: string
+    required: true
+    description: "Name of the model class"
+  fields:
+    type: string
+    required: true
+    description: "Comma-separated list of field names"
+
+files:
+  - template: templates/serializer.py.j2
+    inject: "serializers.py"
+    append: true

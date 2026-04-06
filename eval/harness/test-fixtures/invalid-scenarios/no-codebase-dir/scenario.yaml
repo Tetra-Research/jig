@@ -1,0 +1,8 @@
+name: no-codebase
+description: Missing codebase directory
+tier: easy
+category: test
+prompt: Do something
+assertions:
+  - file: test.py
+    contains: "hello"

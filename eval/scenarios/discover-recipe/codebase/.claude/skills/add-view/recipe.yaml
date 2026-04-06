@@ -1,0 +1,15 @@
+name: add-view
+description: Create a view function for a model
+
+variables:
+  model_name:
+    type: string
+    required: true
+  view_name:
+    type: string
+    required: true
+
+files:
+  - template: templates/view.py.j2
+    inject: "views.py"
+    append: true
