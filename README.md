@@ -2,9 +2,35 @@
 
 Deterministic file generation for LLM-native coding workflows.
 
-`jig` is built to sit inside an LLM's write/edit loop. The model reads code, extracts variables, and decides intent; `jig` applies reproducible file operations (`create`, `inject`, `replace`, `patch`) so the mechanical edits are deterministic.
+`jig` is an execution layer for agentic coding loops, not a generic scaffolding generator. The model reads code, extracts variables, and decides intent; `jig` applies reproducible file operations (`create`, `inject`, `replace`, `patch`) so the mechanical edits are deterministic across retries.
 
-Unlike templating tools that centralize recipes in one global store, `jig` is designed for skill-local ownership: put recipes and workflows directly in the skill that uses them. A single skill can own multiple recipes plus a multi-step workflow.
+Traditional templating tools usually assume human-interactive generation and central template catalogs. `jig` is designed for skill-local ownership: put recipes and workflows directly in the skill that uses them. A single skill can own multiple recipes plus a multi-step workflow.
+
+## Why We Built Jig
+
+LLMs are strong at reasoning about intent and weak at repeating the same structural edits consistently in existing codebases. We built `jig` to split those responsibilities cleanly:
+
+- LLM: understand code, choose workflow, extract variables, handle novel edge cases.
+- `jig`: render deterministic edits, apply idempotent operations, return structured failures an LLM can recover from.
+
+## Why This Is Not Just Another Templating Library
+
+| Dimension | Traditional Templating Libraries | jig |
+|---|---|---|
+| Primary target | Human-driven scaffolding | LLM-driven write/edit loops |
+| Typical scope | New-project bootstrap | Brownfield multi-file edits + scaffolding |
+| Input model | Interactive prompts / ad-hoc config | Structured JSON variables |
+| Template ownership | Centralized generator registry | Skill-local recipes/workflows |
+| Retry behavior | Often re-renders blindly | Idempotent operations (`skip_if`, `skip_if_exists`) |
+| Error contract | Human logs | Machine-parseable `what`/`where`/`why`/`hint` + deterministic exit codes |
+| Composition | One generator at a time | Multi-step workflows with per-step control |
+
+## Success Criteria (How We Judge Value)
+
+- Agents can discover the right recipe/workflow under realistic prompts.
+- Once `jig` is chosen, multi-file correctness is high and repeatable.
+- Structured output is parseable for harness scoring and archive analysis.
+- For non-trivial workflows, tool calls/tokens/cost trend down versus manual editing.
 
 ## Install (Manual Release Channel)
 
@@ -92,6 +118,15 @@ This keeps automation close to the workflow context instead of forcing one centr
 
 Eval harness lives in `eval/` and writes JSONL results.
 
+Current snapshot (from `eval/experiments/README.md`, dated 2026-04-06):
+
+- Directed prompts: mean score `0.923`, jig usage `92.3%` (`n=13`).
+- Natural prompts: mean score `0.725`, jig usage `21.6%` (`n=37`).
+- In natural prompts, discovered-jig trials score `1.000` vs `0.649` when jig was not discovered.
+- Smoke comparison (`add-view`, natural): jig run used `23.9%` fewer tokens, `21.4%` lower cost, and `21.3%` lower duration at equal score (`1.0`).
+
+Interpretation: execution quality is strong after skill selection; discovery under vague prompts is the current bottleneck.
+
 Readiness/CI-safe mode (default strict schema checks):
 
 ```bash
@@ -118,6 +153,7 @@ npx tsx experiments/split-results-by-schema.ts \
 ```
 
 More detail: [`eval/experiments/README.md`](eval/experiments/README.md).
+Blog-post reference synthesis: [`eval/experiments/README.md#blog-reference-current-takeaways-as-of-2026-04-06`](eval/experiments/README.md#blog-reference-current-takeaways-as-of-2026-04-06).
 
 ## Docs Map
 
