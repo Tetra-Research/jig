@@ -9,22 +9,48 @@ use crate::recipe::Recipe;
 /// Loads all templates from the recipe directory and registers filters.
 #[allow(dead_code)] // Used in later phases (jig run)
 pub fn create_recipe_env(recipe: &Recipe) -> Result<Environment<'static>, JigError> {
+    create_recipe_env_with_overrides(recipe, None)
+}
+
+/// Create a recipe environment with optional template override directory.
+/// When `override_dir` is Some, templates in that directory take precedence (AC-7.1, AC-N2.2).
+pub fn create_recipe_env_with_overrides(
+    recipe: &Recipe,
+    override_dir: Option<&std::path::Path>,
+) -> Result<Environment<'static>, JigError> {
     let mut env = Environment::new();
     env.set_undefined_behavior(UndefinedBehavior::Strict);
     filters::register_all(&mut env);
 
     for (i, op) in recipe.files.iter().enumerate() {
-        let tmpl_path = recipe.recipe_dir.join(op.template());
+        // Check for override first (AC-7.1, AC-7.2).
+        let (tmpl_path, is_override) = if let Some(ovr_dir) = override_dir {
+            let ovr_path = ovr_dir.join(op.template());
+            if ovr_path.exists() {
+                (ovr_path, true)
+            } else {
+                (recipe.recipe_dir.join(op.template()), false)
+            }
+        } else {
+            (recipe.recipe_dir.join(op.template()), false)
+        };
+
+        let source_desc = if is_override {
+            format!("{} (override)", tmpl_path.display())
+        } else {
+            op.template().to_string()
+        };
+
         let content = std::fs::read_to_string(&tmpl_path).map_err(|e| {
             JigError::TemplateRendering(StructuredError {
-                what: format!("cannot read template file '{}'", op.template()),
+                what: format!("cannot read template file '{}'", source_desc),
                 where_: format!("files[{}].template", i),
                 why: e.to_string(),
                 hint: "ensure the template file is readable".into(),
             })
         })?;
         env.add_template_owned(op.template().to_string(), content)
-            .map_err(|e| template_syntax_error(op.template(), &e))?;
+            .map_err(|e| template_syntax_error(&source_desc, &e))?;
     }
 
     Ok(env)
