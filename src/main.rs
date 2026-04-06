@@ -90,6 +90,18 @@ enum Commands {
         /// Path to the workflow YAML file
         path: PathBuf,
     },
+    /// List available skills and recipes
+    List {
+        /// List agent skills (scans for skills/ directories)
+        #[arg(long)]
+        skills: bool,
+        /// Scan .claude/skills/ (implies --skills)
+        #[arg(long)]
+        claude: bool,
+        /// Scan .codex/skills/ (implies --skills)
+        #[arg(long)]
+        codex: bool,
+    },
     /// Manage recipe libraries
     Library {
         #[command(subcommand)]
@@ -202,6 +214,9 @@ fn run(cli: Cli) -> Result<i32, JigError> {
                 cli.verbose,
                 &base_dir,
             )
+        }
+        Commands::List { skills, claude, codex } => {
+            cmd_list(skills, claude, codex, &base_dir, cli.json, cli.quiet)
         }
         Commands::Library { action } => {
             cmd_library(action, &base_dir, cli.json, cli.quiet)
@@ -905,6 +920,265 @@ fn compute_workflow_exit_code(
     } else {
         0
     }
+}
+
+// ── jig list ──────────────────────────────────────────────────────
+
+/// A discovered skill directory with metadata extracted from SKILL.md frontmatter.
+#[derive(Debug)]
+struct SkillEntry {
+    /// Directory name (e.g., "add-endpoint").
+    name: String,
+    /// Description from frontmatter, or None.
+    description: Option<String>,
+    /// Relative path from base_dir to the skill directory.
+    path: String,
+}
+
+/// Extract `name` and `description` from YAML frontmatter in a SKILL.md file.
+/// Frontmatter is delimited by `---` lines at the start of the file.
+fn parse_skill_frontmatter(content: &str) -> (Option<String>, Option<String>) {
+    let content = content.trim_start_matches('\u{feff}'); // strip BOM
+    if !content.starts_with("---") {
+        return (None, None);
+    }
+    let after_open = &content[3..];
+    let close = match after_open.find("\n---") {
+        Some(pos) => pos,
+        None => return (None, None),
+    };
+    let frontmatter = &after_open[..close];
+
+    // Use serde_yaml to handle block scalars, quoting, etc.
+    let parsed: serde_json::Value = match serde_yaml::from_str(frontmatter) {
+        Ok(v) => v,
+        Err(_) => return (None, None),
+    };
+    let obj = match parsed.as_object() {
+        Some(o) => o,
+        None => return (None, None),
+    };
+    let name = obj.get("name").and_then(|v| v.as_str()).map(|s| s.to_string());
+    // For descriptions, take only the first line (the summary).
+    let description = obj
+        .get("description")
+        .and_then(|v| v.as_str())
+        .map(|s| s.lines().next().unwrap_or("").trim().to_string())
+        .filter(|s| !s.is_empty());
+    (name, description)
+}
+
+/// Scan a directory for skill subdirectories (each containing SKILL.md).
+fn scan_skills_dir(
+    skills_dir: &std::path::Path,
+    base_dir: &std::path::Path,
+) -> Vec<SkillEntry> {
+    let Ok(entries) = std::fs::read_dir(skills_dir) else {
+        return Vec::new();
+    };
+    let mut results = Vec::new();
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if !path.is_dir() {
+            continue;
+        }
+        let skill_md = path.join("SKILL.md");
+        if !skill_md.exists() {
+            continue;
+        }
+        let dir_name = entry.file_name().to_string_lossy().to_string();
+        let content = std::fs::read_to_string(&skill_md).unwrap_or_default();
+        let (fm_name, fm_desc) = parse_skill_frontmatter(&content);
+
+        let rel_path = path
+            .strip_prefix(base_dir)
+            .map(|p| p.display().to_string())
+            .unwrap_or_else(|_| path.display().to_string());
+
+        results.push(SkillEntry {
+            name: fm_name.unwrap_or(dir_name),
+            description: fm_desc,
+            path: rel_path,
+        });
+    }
+    results.sort_by(|a, b| a.name.cmp(&b.name));
+    results
+}
+
+/// Recursively find directories named "skills" under `root`.
+fn find_skills_dirs(root: &std::path::Path) -> Vec<std::path::PathBuf> {
+    let mut found = Vec::new();
+    find_skills_dirs_rec(root, root, &mut found, 0);
+    found
+}
+
+fn find_skills_dirs_rec(
+    dir: &std::path::Path,
+    root: &std::path::Path,
+    found: &mut Vec<std::path::PathBuf>,
+    depth: usize,
+) {
+    // Don't recurse too deep or into hidden dirs (except agent config dirs).
+    if depth > 6 {
+        return;
+    }
+    let Ok(entries) = std::fs::read_dir(dir) else {
+        return;
+    };
+    for entry in entries.flatten() {
+        let path = entry.path();
+        if !path.is_dir() {
+            continue;
+        }
+        let name = entry.file_name();
+        let name_str = name.to_string_lossy();
+
+        // Skip build artifacts, node_modules, etc.
+        if matches!(
+            name_str.as_ref(),
+            "node_modules" | "target" | ".git" | "__pycache__" | "venv" | ".venv"
+        ) {
+            continue;
+        }
+
+        if name_str == "skills" {
+            // Check if this dir actually contains skill subdirs with SKILL.md.
+            if has_skill_children(&path) {
+                found.push(path.clone());
+            }
+        }
+
+        // Recurse (including into dotfiles like .claude, .codex).
+        find_skills_dirs_rec(&path, root, found, depth + 1);
+    }
+}
+
+/// Returns true if the directory contains at least one subdirectory with SKILL.md.
+fn has_skill_children(dir: &std::path::Path) -> bool {
+    let Ok(entries) = std::fs::read_dir(dir) else {
+        return false;
+    };
+    entries
+        .flatten()
+        .any(|e| e.path().is_dir() && e.path().join("SKILL.md").exists())
+}
+
+fn cmd_list(
+    skills: bool,
+    claude: bool,
+    codex: bool,
+    base_dir: &std::path::Path,
+    force_json: bool,
+    quiet: bool,
+) -> Result<i32, JigError> {
+    let mode = output::detect_mode(force_json);
+
+    // --claude or --codex imply --skills.
+    let skills = skills || claude || codex;
+
+    if !skills {
+        // No flags: list installed libraries (quick summary).
+        let libraries = library::install::list_installed(base_dir)?;
+        match mode {
+            output::OutputMode::Json => {
+                let items: Vec<serde_json::Value> = libraries
+                    .iter()
+                    .map(|lib| {
+                        serde_json::json!({
+                            "name": lib.name,
+                            "version": lib.version,
+                            "description": lib.description,
+                        })
+                    })
+                    .collect();
+                println!("{}", serde_json::to_string_pretty(&serde_json::json!({ "libraries": items })).unwrap());
+            }
+            output::OutputMode::Human => {
+                if !quiet {
+                    if libraries.is_empty() {
+                        eprintln!("No libraries installed. Use --skills to scan for agent skills.");
+                    } else {
+                        eprintln!("Installed libraries:");
+                        for lib in &libraries {
+                            let desc = lib.description.as_deref().map(|d| format!(" — {d}")).unwrap_or_default();
+                            eprintln!("  {} v{}{desc}", lib.name, lib.version);
+                        }
+                        eprintln!("");
+                        eprintln!("Use --skills to scan for agent skills, or `jig library recipes <name>` for recipe details.");
+                    }
+                }
+            }
+        }
+        return Ok(0);
+    }
+
+    // Skills mode: scan specific or all skills directories.
+    let mut skills_dirs: Vec<std::path::PathBuf> = Vec::new();
+
+    if claude {
+        let dir = base_dir.join(".claude/skills");
+        if dir.is_dir() {
+            skills_dirs.push(dir);
+        }
+    }
+    if codex {
+        let dir = base_dir.join(".codex/skills");
+        if dir.is_dir() {
+            skills_dirs.push(dir);
+        }
+    }
+    if !claude && !codex {
+        // Generic --skills: find all skills/ directories.
+        skills_dirs = find_skills_dirs(base_dir);
+    }
+
+    let mut all_skills: Vec<SkillEntry> = Vec::new();
+    for dir in &skills_dirs {
+        all_skills.extend(scan_skills_dir(dir, base_dir));
+    }
+
+    match mode {
+        output::OutputMode::Json => {
+            let items: Vec<serde_json::Value> = all_skills
+                .iter()
+                .map(|s| {
+                    serde_json::json!({
+                        "name": s.name,
+                        "description": s.description,
+                        "path": s.path,
+                    })
+                })
+                .collect();
+            println!(
+                "{}",
+                serde_json::to_string_pretty(&serde_json::json!({ "skills": items })).unwrap()
+            );
+        }
+        output::OutputMode::Human => {
+            if !quiet {
+                if all_skills.is_empty() {
+                    if claude {
+                        eprintln!("No skills found in .claude/skills/");
+                    } else if codex {
+                        eprintln!("No skills found in .codex/skills/");
+                    } else {
+                        eprintln!("No skills found.");
+                    }
+                } else {
+                    for skill in &all_skills {
+                        let desc = skill
+                            .description
+                            .as_deref()
+                            .map(|d| format!(" — {d}"))
+                            .unwrap_or_default();
+                        eprintln!("  {}{desc}", skill.name);
+                        eprintln!("    {}", skill.path);
+                    }
+                }
+            }
+        }
+    }
+    Ok(0)
 }
 
 fn cmd_library(
@@ -2159,5 +2433,84 @@ files:
         assert!(content.starts_with("=== HEADER ===\n"));
         assert!(content.ends_with("=== FOOTER ==="));
         assert!(content.contains("middle content"));
+    }
+
+    // ── jig list --skills ──
+
+    #[test]
+    fn parse_skill_frontmatter_simple() {
+        let content = "---\nname: add-endpoint\ndescription: Add a REST endpoint\n---\n# Add Endpoint\n";
+        let (name, desc) = super::parse_skill_frontmatter(content);
+        assert_eq!(name.unwrap(), "add-endpoint");
+        assert_eq!(desc.unwrap(), "Add a REST endpoint");
+    }
+
+    #[test]
+    fn parse_skill_frontmatter_block_scalar() {
+        let content = "---\nname: review\ndescription: |\n  Adversarial code review.\n  Multi-line description.\n---\n";
+        let (name, desc) = super::parse_skill_frontmatter(content);
+        assert_eq!(name.unwrap(), "review");
+        assert_eq!(desc.unwrap(), "Adversarial code review.");
+    }
+
+    #[test]
+    fn parse_skill_frontmatter_missing() {
+        let content = "# No frontmatter\nJust a markdown file.\n";
+        let (name, desc) = super::parse_skill_frontmatter(content);
+        assert!(name.is_none());
+        assert!(desc.is_none());
+    }
+
+    #[test]
+    fn scan_skills_dir_finds_skills() {
+        let tmp = TempDir::new().unwrap();
+        let skills_dir = tmp.path().join(".claude/skills");
+        let skill_a = skills_dir.join("add-field");
+        let skill_b = skills_dir.join("add-view");
+        fs::create_dir_all(&skill_a).unwrap();
+        fs::create_dir_all(&skill_b).unwrap();
+        fs::write(
+            skill_a.join("SKILL.md"),
+            "---\nname: add-field\ndescription: Add a model field\n---\n",
+        ).unwrap();
+        fs::write(
+            skill_b.join("SKILL.md"),
+            "---\nname: add-view\ndescription: Add a view\n---\n",
+        ).unwrap();
+
+        let results = super::scan_skills_dir(&skills_dir, tmp.path());
+        assert_eq!(results.len(), 2);
+        assert_eq!(results[0].name, "add-field");
+        assert_eq!(results[0].description.as_deref(), Some("Add a model field"));
+        assert_eq!(results[1].name, "add-view");
+    }
+
+    #[test]
+    fn scan_skills_dir_uses_dir_name_without_frontmatter() {
+        let tmp = TempDir::new().unwrap();
+        let skill = tmp.path().join("skills/my-skill");
+        fs::create_dir_all(&skill).unwrap();
+        fs::write(skill.join("SKILL.md"), "# My Skill\nNo frontmatter here.\n").unwrap();
+
+        let results = super::scan_skills_dir(&tmp.path().join("skills"), tmp.path());
+        assert_eq!(results.len(), 1);
+        assert_eq!(results[0].name, "my-skill"); // falls back to dir name
+        assert!(results[0].description.is_none());
+    }
+
+    #[test]
+    fn find_skills_dirs_recursive() {
+        let tmp = TempDir::new().unwrap();
+        // .claude/skills/ with a skill
+        let claude_skills = tmp.path().join(".claude/skills/test-skill");
+        fs::create_dir_all(&claude_skills).unwrap();
+        fs::write(claude_skills.join("SKILL.md"), "---\nname: test\n---\n").unwrap();
+        // top-level skills/ with a skill
+        let top_skills = tmp.path().join("skills/another");
+        fs::create_dir_all(&top_skills).unwrap();
+        fs::write(top_skills.join("SKILL.md"), "---\nname: another\n---\n").unwrap();
+
+        let dirs = super::find_skills_dirs(tmp.path());
+        assert_eq!(dirs.len(), 2);
     }
 }
