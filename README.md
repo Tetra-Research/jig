@@ -131,21 +131,27 @@ Scoring and efficiency model:
 
 Control-group snapshot (2026-04-06):
 
-| Comparison | Baseline Control | Jig Treatment | Delta vs Control |
+`add-view`, natural prompt, shared `CLAUDE.md`, `n=1` per arm:
+
+| Metric | Baseline Control | Jig Treatment | Delta vs Control |
 |---|---:|---:|---:|
-| `add-view` natural + shared `CLAUDE.md` (`n=1` per arm) score | `1.000` | `1.000` | `0.0%` |
-| Tokens | `317,608` | `241,702` | `-23.9%` |
-| Cost | `$0.8279` | `$0.6505` | `-21.4%` |
+| Score (`total`) | `1.000` | `1.000` | `0.0%` |
+| Input tokens | `N/A (legacy row)` | `N/A (legacy row)` | `N/A` |
+| Output tokens | `N/A (legacy row)` | `N/A (legacy row)` | `N/A` |
+| Total tokens | `317,608` | `241,702` | `-23.9%` |
+| Input-side cost | `N/A (legacy row)` | `N/A (legacy row)` | `N/A` |
+| Output-side cost | `N/A (legacy row)` | `N/A (legacy row)` | `N/A` |
+| Total cost | `$0.8279` | `$0.6505` | `-21.4%` |
 | Duration | `84.0s` | `66.2s` | `-21.3%` |
 
 Additional controls:
 
-| Control | Trials | Mean Score | Jig Usage | Tokens | Mean Cost | Mean Duration |
-|---|---:|---:|---:|---:|---:|---:|
-| Strict no-jig control (`add-view`, natural, `--mode baseline --claude-md none`) | 1 | `1.000` | `0%` | `162,530` | `$0.4746` | `50.0s` |
-| Full baseline sweep (`exp-004`, 7 scenarios, `--mode baseline --claude-md none`) | 7 | `0.730` | `0%` | legacy total-only | `$0.36` | `37.4s` |
+| Control | Trials | Mean Score | Jig Usage | Input Tokens | Output Tokens | Total Tokens | Input-Side Cost | Output-Side Cost | Mean Total Cost | Mean Duration |
+|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
+| Strict no-jig control (`add-view`, natural, `--mode baseline --claude-md none`) | 1 | `1.000` | `0%` | `N/A (legacy row)` | `N/A (legacy row)` | `162,530` | `N/A` | `N/A` | `$0.4746` | `50.0s` |
+| Full baseline sweep (`exp-004`, 7 scenarios, `--mode baseline --claude-md none`) | 7 | `0.730` | `0%` | `N/A (aggregate summary)` | `N/A (aggregate summary)` | `N/A (aggregate summary)` | `N/A` | `N/A` | `$0.36` | `37.4s` |
 
-Note: current baseline control archives are legacy shape and expose total tokens only (not split input/output/cache token fields).
+Cost-priority note: output-token reductions are usually more valuable than input-token reductions. Current baseline control archives are legacy shape and expose only total tokens + total cost, so input/output token and cost splits are not yet available for control-group deltas.
 
 Readiness/CI-safe mode (default strict schema checks):
 

@@ -70,26 +70,34 @@ Data used for this snapshot:
 
 `add-view`, natural prompt, shared `CLAUDE.md`, 1 trial per arm:
 
-| Arm | Mean Score | Tokens | Cost | Duration |
-|---|---:|---:|---:|---:|
-| Baseline control (`--mode baseline`) | 1.000 | 317,608 | $0.8279 | 84.0s |
-| Jig treatment (`--mode jig`) | 1.000 | 241,702 | $0.6505 | 66.2s |
+| Metric | Baseline control (`--mode baseline`) | Jig treatment (`--mode jig`) | Delta vs control |
+|---|---:|---:|---:|
+| Mean score (`total`) | 1.000 | 1.000 | 0.0% |
+| Input tokens | N/A (legacy row) | N/A (legacy row) | N/A |
+| Output tokens | N/A (legacy row) | N/A (legacy row) | N/A |
+| Total tokens | 317,608 | 241,702 | -23.9% |
+| Input-side cost | N/A (legacy row) | N/A (legacy row) | N/A |
+| Output-side cost | N/A (legacy row) | N/A (legacy row) | N/A |
+| Total cost | $0.8279 | $0.6505 | -21.4% |
+| Duration | 84.0s | 66.2s | -21.3% |
 
-Treatment delta vs control:
-
-- Tokens: `-23.9%`
-- Cost: `-21.4%`
-- Duration: `-21.3%`
+Cost-priority note: output-token reductions are usually higher-value than input-token reductions. This matched control archive row is legacy and provides total tokens/cost only.
 
 ### Strict No-Jig Control
 
 `add-view`, natural prompt, `--mode baseline --claude-md none`, 1 trial:
 
-- Score: `1.000`
-- Jig usage: `0%`
-- Tokens: `162,530`
-- Cost: `$0.4746`
-- Duration: `50.0s`
+| Metric | Value |
+|---|---:|
+| Score (`total`) | `1.000` |
+| Jig usage | `0%` |
+| Input tokens | `N/A (legacy row)` |
+| Output tokens | `N/A (legacy row)` |
+| Total tokens | `162,530` |
+| Input-side cost | `N/A` |
+| Output-side cost | `N/A` |
+| Total cost | `$0.4746` |
+| Duration | `50.0s` |
 
 This is the clean "agent hand-edits without jig nudges" control.
 
@@ -97,12 +105,19 @@ This is the clean "agent hand-edits without jig nudges" control.
 
 `exp-004` (`--mode baseline --claude-md none`, all 7 scenarios, 1 rep each):
 
-- Trials: `7`
-- Mean score: `0.730`
-- Jig usage: `0%`
-- Mean duration: `37.4s`
-- Mean cost: `$0.36`
-- Total cost: `$2.51`
+| Metric | Value |
+|---|---:|
+| Trials | `7` |
+| Mean score (`total`) | `0.730` |
+| Jig usage | `0%` |
+| Mean input tokens | `N/A (aggregate summary)` |
+| Mean output tokens | `N/A (aggregate summary)` |
+| Mean total tokens | `N/A (aggregate summary)` |
+| Mean input-side cost | `N/A` |
+| Mean output-side cost | `N/A` |
+| Mean total cost | `$0.36` |
+| Total cost | `$2.51` |
+| Mean duration | `37.4s` |
 
 ### Control-Only Interpretation
 
