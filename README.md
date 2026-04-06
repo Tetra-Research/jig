@@ -169,6 +169,14 @@ npx tsx experiments/analyze-gradient.ts \
   --schema-mode compat
 ```
 
+Thorough discovery-matrix sweep (parallel sharded workers, plus optional sequential-vs-parallel control):
+
+```bash
+cd eval
+REPS=1 AGENT=claude-code JOBS=8 SCHEMA_MODE=strict bash experiments/run-discovery-matrix.sh
+REPS=1 AGENT=claude-code JOBS=8 INCLUDE_PARALLEL_CONTROL=1 SCHEMA_MODE=strict bash experiments/run-discovery-matrix.sh
+```
+
 Split mixed archives into schema-homogeneous files:
 
 ```bash

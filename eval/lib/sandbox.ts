@@ -8,6 +8,7 @@ export async function createSandbox(
   scenario: Scenario,
   claudeMd: ClaudeMdMode = "shared",
   stripSkills: boolean = false,
+  disableJigBinary: boolean = false,
 ): Promise<Sandbox> {
   const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "jig-eval-"));
 
@@ -70,8 +71,9 @@ export async function createSandbox(
   };
 
   const skillsAvailable = !stripSkills && fs.existsSync(path.join(tmpDir, ".claude", "skills"));
+  const jigShimDir = disableJigBinary ? createJigShim(tmpDir) : undefined;
 
-  return { workDir: tmpDir, jigVersion, skillsAvailable, cleanup };
+  return { workDir: tmpDir, jigVersion, skillsAvailable, jigShimDir, cleanup };
 }
 
 function getJigVersion(cwd: string): string {
@@ -104,4 +106,20 @@ function copyDirRecursive(src: string, dest: string): void {
       fs.copyFileSync(srcPath, destPath);
     }
   }
+}
+
+function createJigShim(tmpDir: string): string {
+  const shimDir = path.join(tmpDir, ".eval-bin");
+  fs.mkdirSync(shimDir, { recursive: true });
+
+  const shimPath = path.join(shimDir, "jig");
+  const script = [
+    "#!/usr/bin/env bash",
+    "echo '[eval-control] jig is disabled for this baseline control run' >&2",
+    "exit 127",
+    "",
+  ].join("\n");
+
+  fs.writeFileSync(shimPath, script, { mode: 0o755 });
+  return shimDir;
 }

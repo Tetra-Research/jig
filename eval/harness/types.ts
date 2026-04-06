@@ -6,7 +6,7 @@ export type ClaudeMdMode = "shared" | "empty" | "none";
 export interface Scenario {
   name: string;
   description: string;
-  tier: "easy" | "medium" | "hard" | "discovery" | "error-recovery";
+  tier: "easy" | "medium" | "hard" | "discovery";
   category: string;
   prompt: string;
   prompts: Partial<Record<PromptTier, string>>;
@@ -59,6 +59,7 @@ export interface Sandbox {
   workDir: string;
   jigVersion: string;
   skillsAvailable: boolean;
+  jigShimDir?: string;
   cleanup: () => Promise<void>;
 }
 

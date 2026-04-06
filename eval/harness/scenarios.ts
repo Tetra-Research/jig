@@ -4,7 +4,7 @@ import { parse as parseYaml } from "yaml";
 import { readdirRecursive } from "../lib/fs.ts";
 import type { Assertion, NegativeAssertion, PromptTier, Scenario, ValidationError } from "./types.ts";
 
-const VALID_TIERS = ["easy", "medium", "hard", "discovery", "error-recovery"] as const;
+const VALID_TIERS = ["easy", "medium", "hard", "discovery"] as const;
 export const VALID_PROMPT_TIERS: PromptTier[] = ["directed", "natural", "ambient"];
 
 export function loadScenario(dir: string): Scenario {
@@ -169,4 +169,3 @@ export function validateScenario(scenario: Scenario): ValidationError[] {
 
   return errors;
 }
-

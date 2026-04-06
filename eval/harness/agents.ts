@@ -28,12 +28,13 @@ export function getAgentByName(configs: AgentConfig[], name: string): AgentConfi
 export function invokeAgent(
   agent: AgentConfig,
   prompt: string,
-  workDir: string
+  workDir: string,
+  envOverrides?: Record<string, string>
 ): Promise<AgentResult> {
   return new Promise((resolve) => {
     const start = Date.now();
     const args = [...agent.args, prompt];
-    const env = { ...process.env, ...(agent.env ?? {}) };
+    const env = { ...process.env, ...(agent.env ?? {}), ...(envOverrides ?? {}) };
 
     const child = spawn(agent.command, args, {
       cwd: workDir,

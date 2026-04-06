@@ -57,83 +57,101 @@ Efficiency accounting is explicit and parseable:
 - `cost_usd` is recorded per trial from agent output
 - Efficiency means are only computed on rows with full coverage (no zero-filling)
 
-## Control-Group Reference: Current Takeaways (as of 2026-04-06)
+## Strict-Control Snapshot: 2026-04-06
 
-This section intentionally reports only metrics anchored to a baseline control group.
+This section is the current source of truth for the "does jig help?" claim.
+It is fully control-anchored and based on current (`v2`) result rows.
 
-Data used for this snapshot:
+### Why We Re-Ran
 
-- `eval/experiments/experiments.jsonl` (`exp-001` to `exp-004`)
-- `eval/results/archive/results-smoke-tests.jsonl` (3 control/treatment smoke rows)
+We found an invalid control in earlier gradient runs: a baseline cell path could still run with jig mode defaults.
+To fix that, we enforced a strict no-jig baseline and re-ran a matched A/B sweep.
 
-### Matched Control Comparison (Same Scenario / Prompt)
+### Harness/Experiment Changes Applied
 
-`add-view`, natural prompt, shared `CLAUDE.md`, 1 trial per arm:
+1. Baseline now explicitly uses `--mode baseline` in the gradient helper.
+2. Added `--disable-jig-binary` in `eval/harness/run.ts` and sandbox plumbing.
+3. Sandbox now injects a shim `jig` binary that exits non-zero, so accidental jig calls fail in control.
+4. Strict control recipe now uses all of:
+   - `--mode baseline`
+   - `--prompt-tier natural`
+   - `--strip-skills`
+   - `--claude-md none`
+   - `--disable-jig-binary`
+5. Treatment arm uses directed jig:
+   - `--mode jig`
+   - `--prompt-tier directed`
+   - `--claude-md shared`
 
-| Metric | Baseline control (`--mode baseline`) | Jig treatment (`--mode jig`) | Delta vs control |
-|---|---:|---:|---:|
-| Mean score (`total`) | 1.000 | 1.000 | 0.0% |
-| Input tokens | N/A (legacy row) | N/A (legacy row) | N/A |
-| Output tokens | N/A (legacy row) | N/A (legacy row) | N/A |
-| Total tokens | 317,608 | 241,702 | -23.9% |
-| Input-side cost | N/A (legacy row) | N/A (legacy row) | N/A |
-| Output-side cost | N/A (legacy row) | N/A (legacy row) | N/A |
-| Total cost | $0.8279 | $0.6505 | -21.4% |
-| Duration | 84.0s | 66.2s | -21.3% |
+### Dataset Used
 
-Cost-priority note: output-token reductions are usually higher-value than input-token reductions. This matched control archive row is legacy and provides total tokens/cost only.
+- Control check seed: `eval/results/archive/results-gradient-control-check-20260406T170742.jsonl`
+- Confirmatory add-view: `eval/results/archive/results-confirmatory-2trial-add-view-20260406T171746.jsonl`
+- Main additional batch: `eval/results/archive/results-blog-solid-additional-20260406T172423.jsonl`
+- Merged cumulative n=5: `eval/results/archive/results-blog-solid-cumulative-n5-20260406T172423.jsonl`
+- Targeted timeout retry (add-field directed): `eval/results/archive/results-timeout-retry-add-field-directed-20260406T175159.jsonl`
+- Timeout-retry-adjusted cumulative: `eval/results/archive/results-blog-solid-cumulative-n5-timeout-retry-adjusted-20260406T175159.jsonl`
 
-### Strict No-Jig Control
+Final comparison set:
 
-`add-view`, natural prompt, `--mode baseline --claude-md none`, 1 trial:
+- Scenarios: `add-view`, `add-field`, `add-endpoint`
+- Agent: `claude-code`
+- Reps: `5` baseline + `5` jig per scenario (`30` total rows)
+- Schema mode: `strict`
 
-| Metric | Value |
-|---|---:|
-| Score (`total`) | `1.000` |
-| Jig usage | `0%` |
-| Input tokens | `N/A (legacy row)` |
-| Output tokens | `N/A (legacy row)` |
-| Total tokens | `162,530` |
-| Input-side cost | `N/A` |
-| Output-side cost | `N/A` |
-| Total cost | `$0.4746` |
-| Duration | `50.0s` |
+### Timeout Handling
 
-This is the clean "agent hand-edits without jig nudges" control.
+One timeout occurred in the main batch:
 
-### Full Baseline Control Sweep
+- scenario: `add-field`
+- arm: `jig` + `directed`
+- row: timeout `true`, `duration_ms ~120000`
 
-`exp-004` (`--mode baseline --claude-md none`, all 7 scenarios, 1 rep each):
+We publish three views to avoid hiding this:
 
-| Metric | Value |
-|---|---:|
-| Trials | `7` |
-| Mean score (`total`) | `0.730` |
-| Jig usage | `0%` |
-| Mean input tokens | `N/A (aggregate summary)` |
-| Mean output tokens | `N/A (aggregate summary)` |
-| Mean total tokens | `N/A (aggregate summary)` |
-| Mean input-side cost | `N/A` |
-| Mean output-side cost | `N/A` |
-| Mean total cost | `$0.36` |
-| Total cost | `$2.51` |
-| Mean duration | `37.4s` |
+1. `as-run` (includes timeout row)
+2. `exclude-timeouts` (drops timeout rows)
+3. `retry-adjusted` (replaces the timeout row with one targeted retry trial)
 
-### Control-Only Interpretation
+The summary below uses `retry-adjusted` so each arm stays balanced at `n=5`.
 
-- We can claim concrete token/cost/duration savings from the matched smoke control above.
-- We can claim a baseline quality floor (`0.730`) from the 7-scenario no-jig control sweep.
-- We should not quote broad input/output-token savings against control until we run a matched full-matrix baseline archive with current (`v2`) token fields.
+### Metrics (Explicit)
 
-### How Control Deltas Are Computed
+- `output_tokens`: assistant output tokens only.
+- `no_cache_tokens`: `input_tokens + output_tokens` (ignores cache read/create effects).
+- `no_read_tokens`: `tokens_used - cache_read_input_tokens` (keeps cache creation, removes cache reads).
+- `raw_cost_usd`: provider-reported total cost from row (`cost_usd`).
 
-For any metric `m` where lower is better (tokens, cost, duration):
+Note: we do not currently store `input_cost_usd` and `output_cost_usd` separately.
 
-- `delta_pct = (1 - treatment_m / control_m) * 100`
+### Plain-English Scorecard (Retry-Adjusted, n=5 Per Arm)
 
-Scores are still computed with the primary harness metric:
+`BETTER` means jig is lower (good). `WORSE` means jig is higher (bad).
 
-- `total = assertion_score * negative_score`
+| Scope | Output Tokens | No-Cache Tokens (`input+output`) | No-Read Tokens (`tokens_used-cache_read`) | Raw Cost USD |
+|---|---|---|---|---|
+| OVERALL | `2507.9 -> 1702.7` (`32.1% BETTER`) | `2583.4 -> 1745.1` (`32.5% BETTER`) | `12705.3 -> 10372.7` (`18.4% BETTER`) | `$0.7398 -> $0.6431` (`13.1% BETTER`) |
+| add-endpoint | `3335.2 -> 1301.8` (`61.0% BETTER`) | `3430.8 -> 1342.2` (`60.9% BETTER`) | `14019.4 -> 8873.0` (`36.7% BETTER`) | `$0.9586 -> $0.4987` (`48.0% BETTER`) |
+| add-view | `1407.4 -> 822.8` (`41.5% BETTER`) | `1458.0 -> 853.0` (`41.5% BETTER`) | `12296.0 -> 7341.4` (`40.3% BETTER`) | `$0.5153 -> $0.3804` (`26.2% BETTER`) |
+| add-field | `2781.2 -> 2983.4` (`7.3% WORSE`) | `2861.4 -> 3040.0` (`6.2% WORSE`) | `11800.6 -> 14903.8` (`26.3% WORSE`) | `$0.7456 -> $1.0500` (`40.8% WORSE`) |
+
+### Interpretation We Can Defend Today
+
+1. Jig is clearly better on `add-view` and `add-endpoint`.
+2. Jig is clearly worse on `add-field` right now.
+3. Net across all three scenarios, jig still wins on output tokens and raw cost.
+4. This is not only a cache artifact: `add-field` remains worse even in cache-neutral token views.
+
+### How We Compute Delta vs Baseline
+
+For any "lower is better" metric `m`:
+
+- `reduction_pct = (1 - jig_m / baseline_m) * 100`
+
+So:
+
+- positive `%` = `BETTER` (jig lower)
+- negative `%` = `WORSE` (jig higher)
 
 ## Methodology
 
@@ -158,12 +176,48 @@ npx tsx harness/run.ts --mode baseline --reps 3
 # Full jig run
 npx tsx harness/run.ts --mode jig --reps 3
 
+# Explicit results path (recommended for archiving)
+npx tsx harness/run.ts --mode baseline --reps 1 --results results/archive/results-baseline-$(date +%Y%m%dT%H%M%S).jsonl
+
 # Dry run (see trial count without executing)
 npx tsx harness/run.ts --dry-run
 
 # Gradient experiment helper (defaults to SCHEMA_MODE=compat)
 bash experiments/run-gradient.sh
+
+# Full discovery matrix (30 cells across mode/prompt/CLAUDE.md/skills)
+REPS=1 AGENT=claude-code JOBS=8 SCHEMA_MODE=strict bash experiments/run-discovery-matrix.sh
+
+# Include scheduler control pair (sequential JOBS=1 and parallel JOBS=8)
+REPS=1 AGENT=claude-code JOBS=8 INCLUDE_PARALLEL_CONTROL=1 SCHEMA_MODE=strict bash experiments/run-discovery-matrix.sh
 ```
+
+## Thorough Parallel Matrix
+
+`experiments/run-discovery-matrix.sh` runs a full discovery-factor matrix with sharded per-cell outputs.
+
+Dimensions:
+
+- `mode`: `baseline`, `jig`
+- `prompt-tier`: `natural`, `ambient` (and `directed` for `jig`)
+- `claude-md`: `none`, `empty`, `shared`
+- `strip-skills`: `false`, `true`
+
+This yields `30` cells total:
+
+- Baseline cells: `2 prompt tiers * 3 claude-md * 2 skill states = 12`
+- Jig cells: `3 prompt tiers * 3 claude-md * 2 skill states = 18`
+
+Each cell writes to its own JSONL shard under `results/tmp/...`, then the script merges shards into a single archive in `results/archive/` and emits a manifest TSV describing the matrix cell metadata.
+
+Parallelization controls:
+
+- `JOBS=<n>` sets concurrent cell workers (`xargs -P`).
+- `INCLUDE_PARALLEL_CONTROL=1` runs a built-in schedule-control pair:
+  - Sequential pass (`JOBS=1`)
+  - Parallel pass (`JOBS=<configured>`)
+
+This is the recommended way to quantify whether scheduler parallelism changes scores, token/cost metrics, or failure/timeout behavior.
 
 ## Schema Compatibility Modes
 
@@ -185,6 +239,9 @@ npx tsx experiments/analyze-gradient.ts \
 
 # Force strict mode in the gradient helper when desired
 SCHEMA_MODE=strict bash experiments/run-gradient.sh
+
+# Use an explicit output path for gradient runs
+RESULTS_PATH=results/archive/results-gradient-$(date +%Y%m%dT%H%M%S).jsonl SCHEMA_MODE=strict bash experiments/run-gradient.sh
 ```
 
 ## Archive Hygiene: Split Mixed JSONL

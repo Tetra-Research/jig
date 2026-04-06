@@ -29,6 +29,8 @@ const { values: args } = parseArgs({
     "dry-run": { type: "boolean", default: false },
     "metrics-only": { type: "boolean", default: false },
     "schema-mode": { type: "string", default: "strict" },
+    "disable-jig-binary": { type: "boolean", default: false },
+    results: { type: "string" },
   },
   strict: true,
 });
@@ -36,6 +38,7 @@ const { values: args } = parseArgs({
 const reps = parseInt(args.reps!, 10);
 const mode = args.mode as "jig" | "baseline";
 const stripSkills = args["strip-skills"] ?? false;
+const disableJigBinary = args["disable-jig-binary"] ?? false;
 const promptTierFilter = args["prompt-tier"] as PromptTier | undefined;
 const claudeMd = args["claude-md"] as ClaudeMdMode;
 const VALID_CLAUDE_MD: ClaudeMdMode[] = ["shared", "empty", "none"];
@@ -126,6 +129,10 @@ try {
   jigVersion = execSync("jig --version", { encoding: "utf-8", stdio: "pipe" }).trim();
 } catch {}
 
+const resultsPath = args.results
+  ? path.resolve(process.cwd(), args.results)
+  : path.join(EVAL_ROOT, "results", "results.jsonl");
+
 // Dry run
 if (args["dry-run"]) {
   let totalTrials = 0;
@@ -146,8 +153,10 @@ if (args["dry-run"]) {
   console.error("By prompt tier:", JSON.stringify(byPromptTier));
   console.error(`Mode: ${mode}`);
   console.error(`Schema mode: ${schemaMode}`);
+  console.error(`Results path: ${resultsPath}`);
   console.error(`CLAUDE.md: ${claudeMd}`);
   console.error(`Strip skills: ${stripSkills}`);
+  console.error(`Disable jig binary: ${disableJigBinary}`);
   if (promptTierFilter) console.error(`Prompt tier filter: ${promptTierFilter}`);
   console.error(`Jig version: ${jigVersion}`);
   console.error("Scenarios:");
@@ -181,7 +190,6 @@ function getPromptTiersForScenario(scenario: Scenario): PromptTier[] {
 }
 
 // Run trials
-const resultsPath = path.join(EVAL_ROOT, "results", "results.jsonl");
 
 // Strict mode fail-fast before expensive trial execution.
 if (schemaMode === "strict" && fs.existsSync(resultsPath)) {
@@ -215,7 +223,7 @@ for (const scenario of scenarios) {
         trialNum++;
         let sandbox;
         try {
-          sandbox = await createSandbox(scenario, claudeMd, stripSkills);
+          sandbox = await createSandbox(scenario, claudeMd, stripSkills, disableJigBinary);
         } catch (err) {
           console.error(`[${trialNum}/${totalTrials}] ${scenario.name} x ${agent.name} [${promptTier}] rep=${rep}  SANDBOX FAILED: ${err}`);
           continue;
@@ -231,8 +239,14 @@ for (const scenario of scenarios) {
           // Invoke agent
           console.error(`  [debug] cwd=${sandbox.workDir}`);
           console.error(`  [debug] prompt_tier=${promptTier}`);
+          if (disableJigBinary && sandbox.jigShimDir) {
+            console.error(`  [debug] jig disabled via shim dir=${sandbox.jigShimDir}`);
+          }
           console.error(`  [debug] cmd=${agent.command} ${agent.args.join(" ")} "${prompt.slice(0, 100)}..."`);
-          const agentResult = await invokeAgent(agent, prompt, sandbox.workDir);
+          const envOverrides = (disableJigBinary && sandbox.jigShimDir)
+            ? { PATH: `${sandbox.jigShimDir}${path.delimiter}${process.env.PATH ?? ""}` }
+            : undefined;
+          const agentResult = await invokeAgent(agent, prompt, sandbox.workDir, envOverrides);
 
           // Score — timeout trials get zeroed
           let assertionResults;
