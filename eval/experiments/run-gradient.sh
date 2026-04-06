@@ -10,6 +10,7 @@ REPS="${REPS:-1}"
 AGENT="${AGENT:-claude-code}"
 SCENARIOS="${SCENARIOS:-}"
 PARALLEL="${PARALLEL:-1}"
+SCHEMA_MODE="${SCHEMA_MODE:-compat}"
 
 cd "$(dirname "$0")/.."
 
@@ -20,14 +21,14 @@ fi
 
 TIMESTAMP=$(date +%Y%m%dT%H%M%S)
 echo "=== Gradient Experiment ($TIMESTAMP) ==="
-echo "Reps: $REPS | Agent: $AGENT | Scenarios: ${SCENARIOS:-all} | Parallel: $PARALLEL"
+echo "Reps: $REPS | Agent: $AGENT | Scenarios: ${SCENARIOS:-all} | Parallel: $PARALLEL | Schema mode: $SCHEMA_MODE"
 echo ""
 
 run_level() {
   local level=$1 label=$2
   shift 2
   echo "--- Level $level: $label ---"
-  npx tsx harness/run.ts "$@" --agent "$AGENT" --reps "$REPS" $SCENARIO_FLAG 2>&1
+  npx tsx harness/run.ts "$@" --schema-mode "$SCHEMA_MODE" --agent "$AGENT" --reps "$REPS" $SCENARIO_FLAG 2>&1
   echo "--- Level $level complete ---"
 }
 

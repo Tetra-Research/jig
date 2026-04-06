@@ -75,4 +75,44 @@ npx tsx harness/run.ts --mode jig --reps 3
 
 # Dry run (see trial count without executing)
 npx tsx harness/run.ts --dry-run
+
+# Gradient experiment helper (defaults to SCHEMA_MODE=compat)
+bash experiments/run-gradient.sh
 ```
+
+## Schema Compatibility Modes
+
+Result archives currently exist in both legacy (`v1`) and current (`v2`) shapes.
+
+- `strict` mode: fails on mixed schemas, malformed JSONL, or invalid rows.
+- `compat` mode: allows mixed archives, prints schema diagnostics, and computes efficiency metrics only on covered rows.
+
+Examples:
+
+```bash
+# Readiness/CI-safe run (default)
+npx tsx harness/run.ts --schema-mode strict
+
+# Exploratory archive analysis
+npx tsx experiments/analyze-gradient.ts \
+  --results results/archive/results-mixed-schema-20260406T114302.jsonl \
+  --schema-mode compat
+
+# Force strict mode in the gradient helper when desired
+SCHEMA_MODE=strict bash experiments/run-gradient.sh
+```
+
+## Archive Hygiene: Split Mixed JSONL
+
+Use the splitter utility to produce schema-homogeneous files from a mixed archive:
+
+```bash
+npx tsx experiments/split-results-by-schema.ts \
+  --input results/archive/results-mixed-schema-20260406T114302.jsonl \
+  --out-dir results/archive
+```
+
+This writes:
+
+- `<prefix>.v1-legacy.jsonl`
+- `<prefix>.v2-current.jsonl`

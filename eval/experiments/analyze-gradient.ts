@@ -1,8 +1,8 @@
 import path from "node:path";
 import { fileURLToPath } from "node:url";
 import { parseArgs } from "node:util";
-import { readResults } from "../harness/results.ts";
-import type { TrialResult } from "../harness/types.ts";
+import { readResults, ResultSchemaError, formatDiagnosticsSummary } from "../harness/results.ts";
+import type { TrialResult, SchemaPolicyMode } from "../harness/types.ts";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const EVAL_ROOT = path.resolve(__dirname, "..");
@@ -11,11 +11,19 @@ const { values: args } = parseArgs({
   options: {
     format: { type: "string", default: "table" },
     results: { type: "string", default: path.join(EVAL_ROOT, "results", "results.jsonl") },
+    "schema-mode": { type: "string", default: "compat" },
   },
   strict: true,
 });
 
 const LEVEL_NAMES = ["Control", "Skills Only", "Nudge", "Directed"];
+const schemaMode = args["schema-mode"] as SchemaPolicyMode;
+const VALID_SCHEMA_MODES: SchemaPolicyMode[] = ["strict", "compat"];
+
+if (!VALID_SCHEMA_MODES.includes(schemaMode)) {
+  console.error(`Unknown --schema-mode "${schemaMode}". Use: ${VALID_SCHEMA_MODES.join(", ")}`);
+  process.exit(1);
+}
 
 function deriveLevel(r: TrialResult): number {
   if (r.skills_available === false) return 0;
@@ -25,8 +33,9 @@ function deriveLevel(r: TrialResult): number {
 }
 
 /** Total context consumed regardless of caching */
-function effectiveInput(r: TrialResult): number {
-  return (r.input_tokens ?? 0) + (r.cache_creation_input_tokens ?? 0) + (r.cache_read_input_tokens ?? 0);
+function effectiveInput(r: TrialResult): number | undefined {
+  if (!hasCompleteEfficiencyMetrics(r)) return undefined;
+  return r.input_tokens + r.cache_creation_input_tokens + r.cache_read_input_tokens;
 }
 
 function mean(values: number[]): number {
@@ -45,36 +54,60 @@ interface LevelStats {
   level: number;
   name: string;
   trials: number;
+  efficiency_covered: number;
   mean_score: number;
   stddev_score: number;
   jig_used_pct: number;
-  mean_input: number;
-  mean_output: number;
-  mean_total: number;
-  mean_cost: number;
+  mean_input?: number;
+  mean_output?: number;
+  mean_total?: number;
+  mean_cost?: number;
   mean_duration_s: number;
 }
 
 function computeLevelStats(level: number, trials: TrialResult[]): LevelStats {
   const scores = trials.map((r) => r.scores.total);
   const jigUsed = trials.filter((r) => r.scores.jig_used).length;
+  const efficiencyTrials = trials.filter(hasCompleteEfficiencyMetrics);
+  const effectiveInputs = efficiencyTrials.map((r) => effectiveInput(r)!);
   return {
     level,
     name: LEVEL_NAMES[level] ?? `Level ${level}`,
     trials: trials.length,
+    efficiency_covered: efficiencyTrials.length,
     mean_score: mean(scores),
     stddev_score: stddev(scores),
     jig_used_pct: trials.length > 0 ? jigUsed / trials.length : 0,
-    mean_input: mean(trials.map(effectiveInput)),
-    mean_output: mean(trials.map((r) => r.output_tokens ?? 0)),
-    mean_total: mean(trials.map((r) => r.tokens_used ?? 0)),
-    mean_cost: mean(trials.map((r) => r.cost_usd ?? 0)),
+    mean_input: efficiencyTrials.length > 0 ? mean(effectiveInputs) : undefined,
+    mean_output: efficiencyTrials.length > 0 ? mean(efficiencyTrials.map((r) => r.output_tokens!)) : undefined,
+    mean_total: efficiencyTrials.length > 0 ? mean(efficiencyTrials.map((r) => r.tokens_used!)) : undefined,
+    mean_cost: efficiencyTrials.length > 0 ? mean(efficiencyTrials.map((r) => r.cost_usd!)) : undefined,
     mean_duration_s: mean(trials.map((r) => r.duration_ms / 1000)),
   };
 }
 
 // Read and group results
-const results = readResults(args.results!);
+let loadedResults;
+try {
+  loadedResults = readResults(args.results!, { schemaMode });
+} catch (err) {
+  if (err instanceof ResultSchemaError) {
+    console.error(err.message);
+    for (const line of formatDiagnosticsSummary(err.diagnostics)) {
+      console.error(line);
+    }
+    process.exit(1);
+  }
+  throw err;
+}
+
+if (schemaMode === "compat") {
+  for (const line of formatDiagnosticsSummary(loadedResults.diagnostics)) {
+    console.error(line);
+  }
+}
+
+const results = loadedResults.results;
 if (results.length === 0) {
   console.error("No results found.");
   process.exit(1);
@@ -97,7 +130,7 @@ if (args.format === "table") {
   console.log("|-------|------|--------|-------|--------|------|-------|--------|------|----------|");
   for (const s of stats) {
     console.log(
-      `| ${s.level} | ${s.name} | ${s.trials} | ${s.mean_score.toFixed(3)} | ${s.stddev_score.toFixed(3)} | ${(s.jig_used_pct * 100).toFixed(0)}% | ${Math.round(s.mean_input).toLocaleString()} | ${Math.round(s.mean_output).toLocaleString()} | $${s.mean_cost.toFixed(2)} | ${s.mean_duration_s.toFixed(1)}s |`
+      `| ${s.level} | ${s.name} | ${s.trials} | ${s.mean_score.toFixed(3)} | ${s.stddev_score.toFixed(3)} | ${(s.jig_used_pct * 100).toFixed(0)}% | ${formatIntWithCoverage(s.mean_input, s.efficiency_covered, s.trials)} | ${formatIntWithCoverage(s.mean_output, s.efficiency_covered, s.trials)} | ${formatCostWithCoverage(s.mean_cost, s.efficiency_covered, s.trials)} | ${s.mean_duration_s.toFixed(1)}s |`
     );
   }
 
@@ -110,12 +143,12 @@ if (args.format === "table") {
     console.log("|-------|------|---------|---------|----------|--------|");
     for (const s of stats.slice(1)) {
       const scoreDelta = s.mean_score - control.mean_score;
-      const inputDelta = control.mean_input > 0 ? ((s.mean_input - control.mean_input) / control.mean_input * 100) : 0;
-      const outputDelta = control.mean_output > 0 ? ((s.mean_output - control.mean_output) / control.mean_output * 100) : 0;
-      const costDelta = control.mean_cost > 0 ? ((s.mean_cost - control.mean_cost) / control.mean_cost * 100) : 0;
+      const inputDelta = percentDelta(s.mean_input, control.mean_input);
+      const outputDelta = percentDelta(s.mean_output, control.mean_output);
+      const costDelta = percentDelta(s.mean_cost, control.mean_cost);
       const fmt = (v: number) => `${v > 0 ? "+" : ""}${v.toFixed(1)}%`;
       console.log(
-        `| ${s.level} | ${s.name} | ${scoreDelta > 0 ? "+" : ""}${scoreDelta.toFixed(3)} | ${fmt(inputDelta)} | ${fmt(outputDelta)} | ${fmt(costDelta)} |`
+        `| ${s.level} | ${s.name} | ${scoreDelta > 0 ? "+" : ""}${scoreDelta.toFixed(3)} | ${inputDelta == null ? "N/A" : fmt(inputDelta)} | ${outputDelta == null ? "N/A" : fmt(outputDelta)} | ${costDelta == null ? "N/A" : fmt(costDelta)} |`
       );
     }
   }
@@ -126,7 +159,7 @@ if (args.format === "table") {
     const level = deriveLevel(r);
     const ei = effectiveInput(r);
     console.log(
-      `${level},${LEVEL_NAMES[level]},${r.scenario},${r.agent},${r.rep},${r.scores.total.toFixed(3)},${r.scores.jig_used},${r.input_tokens ?? 0},${r.output_tokens ?? 0},${r.cache_creation_input_tokens ?? 0},${r.cache_read_input_tokens ?? 0},${ei},${r.tokens_used ?? 0},${(r.cost_usd ?? 0).toFixed(4)},${(r.duration_ms / 1000).toFixed(1)}`
+      `${level},${LEVEL_NAMES[level]},${r.scenario},${r.agent},${r.rep},${r.scores.total.toFixed(3)},${r.scores.jig_used},${fmtCsvNum(r.input_tokens)},${fmtCsvNum(r.output_tokens)},${fmtCsvNum(r.cache_creation_input_tokens)},${fmtCsvNum(r.cache_read_input_tokens)},${fmtCsvNum(ei)},${fmtCsvNum(r.tokens_used)},${fmtCsvCost(r.cost_usd)},${(r.duration_ms / 1000).toFixed(1)}`
     );
   }
 } else if (args.format === "scenario") {
@@ -144,9 +177,13 @@ if (args.format === "table") {
         cells.push("—");
       } else {
         const score = mean(trials.map((r) => r.scores.total));
-        const out = Math.round(mean(trials.map((r) => r.output_tokens ?? 0)));
+        const efficiencyTrials = trials.filter(hasCompleteEfficiencyMetrics);
+        const coverage = `${efficiencyTrials.length}/${trials.length}`;
+        const out = efficiencyTrials.length > 0
+          ? `${Math.round(mean(efficiencyTrials.map((r) => r.output_tokens!))).toLocaleString()} out`
+          : "N/A out";
         const jig = trials.some((r) => r.scores.jig_used) ? "*" : "";
-        cells.push(`${score.toFixed(2)} (${out.toLocaleString()} out)${jig}`);
+        cells.push(`${score.toFixed(2)} (${out}, cov ${coverage})${jig}`);
       }
     }
     console.log("| " + cells.join(" | ") + " |");
@@ -155,4 +192,40 @@ if (args.format === "table") {
 } else {
   console.error(`Unknown format: ${args.format}. Use: table, csv, scenario`);
   process.exit(1);
+}
+
+function hasCompleteEfficiencyMetrics(r: TrialResult): boolean {
+  return typeof r.input_tokens === "number" &&
+    typeof r.output_tokens === "number" &&
+    typeof r.cache_creation_input_tokens === "number" &&
+    typeof r.cache_read_input_tokens === "number" &&
+    typeof r.tokens_used === "number" &&
+    typeof r.cost_usd === "number";
+}
+
+function formatIntWithCoverage(value: number | undefined, covered: number, total: number): string {
+  if (value == null) return `N/A (${covered}/${total})`;
+  if (covered < total) return `${Math.round(value).toLocaleString()} (${covered}/${total})`;
+  return Math.round(value).toLocaleString();
+}
+
+function formatCostWithCoverage(value: number | undefined, covered: number, total: number): string {
+  if (value == null) return `N/A (${covered}/${total})`;
+  if (covered < total) return `$${value.toFixed(2)} (${covered}/${total})`;
+  return `$${value.toFixed(2)}`;
+}
+
+function percentDelta(current: number | undefined, control: number | undefined): number | undefined {
+  if (current == null || control == null || control === 0) return undefined;
+  return ((current - control) / control) * 100;
+}
+
+function fmtCsvNum(value: number | undefined): string {
+  if (value == null) return "";
+  return String(value);
+}
+
+function fmtCsvCost(value: number | undefined): string {
+  if (value == null) return "";
+  return value.toFixed(4);
 }
