@@ -4,6 +4,10 @@
 test:
     cargo test
 
+# Build release artifacts locally (manual release path)
+release-build *args:
+    ./scripts/release/build.sh {{args}}
+
 # Initialize a new workstream
 init ws *args:
     ./scripts/ws-init.sh {{ws}} {{args}}
