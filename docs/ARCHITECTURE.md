@@ -628,7 +628,7 @@ jig run recipe.yaml --vars '...'         # second run: skip_if prevents duplicat
 - [x] Deterministic output ordering
 - [x] Correct exit codes (exit 3 for file ops, exit 1 for validation)
 
-**Code review findings:** Two review cycles across two iterations. All 3 critical, 5 major, and 7 minor findings fixed. See `docs/workstreams/libraries/SHARED-CONTEXT.md`.
+**Code review findings:** Two review cycles across two iterations. All 3 critical, 5 major, and 7 minor findings fixed. Historical details are archived on branch `archive/workstreams-artifacts-2026-04-06` (see PR #8).
 
 ## Testing Strategy
 
