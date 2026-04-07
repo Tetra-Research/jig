@@ -25,8 +25,12 @@ use crate::recipe::Recipe;
 )]
 struct Cli {
     /// Inline variables as JSON string
-    #[arg(long, global = true)]
+    #[arg(long, global = true, conflicts_with = "json_args")]
     vars: Option<String>,
+
+    /// Inline variables as JSON string (alias of --vars)
+    #[arg(long = "json-args", global = true, conflicts_with = "vars")]
+    json_args: Option<String>,
 
     /// Variables from a JSON file
     #[arg(long, global = true)]
@@ -175,6 +179,7 @@ fn run(cli: Cli) -> Result<i32, JigError> {
         .as_deref()
         .map(|p| p.to_path_buf())
         .unwrap_or_else(|| std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")));
+    let inline_vars_owned = cli.vars.clone().or(cli.json_args.clone());
 
     match cli.command {
         Commands::Validate { recipe } => {
@@ -188,7 +193,7 @@ fn run(cli: Cli) -> Result<i32, JigError> {
         Commands::Render { template, to } => cmd_render(
             &template,
             to.as_deref(),
-            cli.vars.as_deref(),
+            inline_vars_owned.as_deref(),
             cli.vars_file.as_deref(),
             cli.vars_stdin,
         ),
@@ -196,7 +201,7 @@ fn run(cli: Cli) -> Result<i32, JigError> {
             let resolved = resolve_recipe_or_library(&recipe, &base_dir);
             cmd_run(
                 &resolved.path,
-                cli.vars.as_deref(),
+                inline_vars_owned.as_deref(),
                 cli.vars_file.as_deref(),
                 cli.vars_stdin,
                 cli.dry_run,
@@ -212,7 +217,7 @@ fn run(cli: Cli) -> Result<i32, JigError> {
         }
         Commands::Workflow { path } => cmd_workflow(
             &path,
-            cli.vars.as_deref(),
+            inline_vars_owned.as_deref(),
             cli.vars_file.as_deref(),
             cli.vars_stdin,
             cli.dry_run,
@@ -1795,8 +1800,31 @@ mod tests {
         let cmd = Cli::command();
         // Check that the global options exist
         assert!(cmd.get_arguments().any(|a| a.get_id() == "vars"));
+        assert!(cmd.get_arguments().any(|a| a.get_id() == "json_args"));
         assert!(cmd.get_arguments().any(|a| a.get_id() == "vars_file"));
         assert!(cmd.get_arguments().any(|a| a.get_id() == "vars_stdin"));
+    }
+
+    #[test]
+    fn ac_7_6_json_args_flag_parses() {
+        use clap::Parser;
+        let parsed = Cli::try_parse_from(["jig", "--json-args", "{}", "render", "template.j2"]);
+        assert!(parsed.is_ok(), "--json-args should be accepted as a global option");
+    }
+
+    #[test]
+    fn ac_7_6_vars_and_json_args_conflict() {
+        use clap::Parser;
+        let parsed = Cli::try_parse_from([
+            "jig",
+            "--vars",
+            "{}",
+            "--json-args",
+            "{}",
+            "render",
+            "template.j2",
+        ]);
+        assert!(parsed.is_err(), "--vars and --json-args should conflict");
     }
 
     /// AC-7.7: --version is configured (clap handles the flag)

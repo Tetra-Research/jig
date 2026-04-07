@@ -1,0 +1,5 @@
+You are working on a Django-style Python project.
+
+
+Add a new Permission model to the auth module.
+The model should have fields: name (CharField, max_length=100) and codename (CharField, max_length=100).

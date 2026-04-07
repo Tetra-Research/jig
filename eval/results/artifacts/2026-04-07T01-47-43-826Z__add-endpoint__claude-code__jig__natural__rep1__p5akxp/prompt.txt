@@ -1,0 +1,6 @@
+You are working on a Django REST framework application.
+
+
+Add a GET /api/reservations/<id>/receipt endpoint that returns receipt details.
+The view should be named reservation_receipt, the URL should be at
+reservations/<int:pk>/receipt/, and there should be a test for it.

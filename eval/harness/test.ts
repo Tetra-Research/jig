@@ -392,6 +392,55 @@ await test("writeTrialResult + readResults: roundtrip preserves data", () => {
   }
 });
 
+await test("writeTrialResult + readResults: preserves agent_artifacts paths", () => {
+  const tmpFile = path.join(os.tmpdir(), `jig-test-results-artifacts-${Date.now()}.jsonl`);
+  try {
+    const result: TrialResult = {
+      scenario: "test-artifacts",
+      agent: "claude-code",
+      mode: "jig",
+      prompt_tier: "directed",
+      claude_md: "shared",
+      rep: 1,
+      tier: "easy",
+      category: "test",
+      timestamp: new Date().toISOString(),
+      duration_ms: 4321,
+      jig_version: "jig 0.1.0",
+      scores: { assertion_score: 1, file_score: 1, negative_score: 1, jig_used: true, jig_correct: true, total: 1 },
+      assertions: [],
+      negative_assertions: [],
+      jig_invocations: [{ command: "jig run recipe.yaml" }],
+      agent_exit_code: 0,
+      agent_tool_calls: 4,
+      input_tokens: 10,
+      output_tokens: 20,
+      cache_creation_input_tokens: 0,
+      cache_read_input_tokens: 0,
+      tokens_used: 30,
+      cost_usd: 0.01,
+      timeout: false,
+      skills_available: true,
+      tags: ["test"],
+      agent_artifacts: {
+        dir: "/tmp/artifacts/run-1",
+        prompt: "/tmp/artifacts/run-1/prompt.txt",
+        stdout: "/tmp/artifacts/run-1/stdout.log",
+        stderr: "/tmp/artifacts/run-1/stderr.log",
+        combined: "/tmp/artifacts/run-1/combined.log",
+      },
+    };
+    writeTrialResult(result, tmpFile);
+    const read = readResults(tmpFile, { schemaMode: "strict" });
+    assert.strictEqual(read.results.length, 1);
+    assert.ok(read.results[0].agent_artifacts);
+    assert.strictEqual(read.results[0].agent_artifacts?.dir, "/tmp/artifacts/run-1");
+    assert.strictEqual(read.results[0].agent_artifacts?.combined, "/tmp/artifacts/run-1/combined.log");
+  } finally {
+    try { fs.unlinkSync(tmpFile); } catch {}
+  }
+});
+
 await test("writeTrialResult: appends without overwriting", () => {
   const tmpFile = path.join(os.tmpdir(), `jig-test-results-${Date.now()}.jsonl`);
   try {

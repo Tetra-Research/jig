@@ -1,0 +1,4 @@
+You are working on a Django-style Python project.
+
+
+Create a test file for the BookingService located at services/booking.py.

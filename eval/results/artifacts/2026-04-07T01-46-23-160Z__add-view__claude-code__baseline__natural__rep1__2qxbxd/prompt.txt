@@ -1,0 +1,4 @@
+You are working on a codebase. Make the requested changes using your native Read, Edit, and Write tools. Do not use jig.
+
+Add a GET view called reservation_receipt that takes a pk and returns receipt
+details for a Reservation.

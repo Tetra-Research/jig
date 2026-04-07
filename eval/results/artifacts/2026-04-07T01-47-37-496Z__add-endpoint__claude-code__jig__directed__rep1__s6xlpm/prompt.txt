@@ -1,0 +1,9 @@
+You are working on a Django REST framework application.
+
+
+Use the add-endpoint skill to add a new endpoint.
+view_name: reservation_receipt
+url_path: reservations/<int:pk>/receipt/
+url_name: reservation-receipt
+schema_name: ReceiptSchema
+model_name: Reservation

@@ -1,0 +1,10 @@
+You are working on a Django application with models, admin, factories, and serializers.
+
+
+Use the add-field skill to add a field to the Reservation model.
+Prefer bash-style argument mapping before running jig.
+model_name: Reservation
+field_name: loyalty_tier
+field_type: CharField
+field_args: max_length=20, default="bronze"
+factory_default: "bronze"

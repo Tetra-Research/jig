@@ -1,0 +1,9 @@
+You are working on a Django-style Python project.
+
+
+Use the add-model skill to add a new model.
+module: auth
+model_name: Permission
+fields: |
+  name = models.CharField(max_length=100)
+      codename = models.CharField(max_length=100)

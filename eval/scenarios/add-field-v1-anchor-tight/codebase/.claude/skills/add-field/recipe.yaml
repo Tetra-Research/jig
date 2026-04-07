@@ -1,0 +1,53 @@
+name: add-field
+description: Add a field to a Django model and propagate to admin, serializer, and factory
+
+variables:
+  model_name:
+    type: string
+    required: true
+    description: "Name of the model class"
+  field_name:
+    type: string
+    required: true
+    description: "Name of the new field"
+  field_type:
+    type: string
+    required: true
+    description: "Django field type (e.g., CharField)"
+  field_args:
+    type: string
+    required: false
+    default: ""
+    description: "Field arguments (e.g., max_length=20, default='bronze')"
+  factory_default:
+    type: string
+    required: false
+    default: "'test'"
+    description: "Default value for the factory"
+
+files:
+  - template: templates/model_field.j2
+    patch: "models.py"
+    anchor:
+      pattern: "^class {{ model_name }}\\(models\\.Model\\):"
+      scope: class_body
+      position: after_last_field
+    skip_if: "{{ field_name }}"
+
+  - template: templates/admin_field.j2
+    inject: "admin.py"
+    after: 'list_display = \['
+    skip_if: "{{ field_name }}"
+
+  - template: templates/serializer_field.j2
+    inject: "serializers.py"
+    after: 'fields = \['
+    skip_if: "{{ field_name }}"
+
+  - template: templates/factory_field.j2
+    patch: "factories.py"
+    anchor:
+      pattern: "^class {{ model_name }}Factory\\("
+      scope: class_body
+      position: after_last_field
+    skip_if: "{{ field_name }}"

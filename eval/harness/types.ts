@@ -96,6 +96,14 @@ export interface JigInvocation {
   exit_code?: number;
 }
 
+export interface AgentArtifactPaths {
+  dir: string;
+  prompt: string;
+  stdout: string;
+  stderr: string;
+  combined: string;
+}
+
 // ── Results ──
 
 export interface TrialResult {
@@ -125,6 +133,7 @@ export interface TrialResult {
   timeout: boolean;
   skills_available?: boolean;
   tags?: string[];
+  agent_artifacts?: AgentArtifactPaths;
 }
 
 // ── Reporting ──

@@ -1,0 +1,5 @@
+You are working on a codebase. Make the requested changes using your native Read, Edit, and Write tools. Do not use jig.
+
+Add a GET /api/reservations/<id>/receipt endpoint that returns receipt details.
+The view should be named reservation_receipt, the URL should be at
+reservations/<int:pk>/receipt/, and there should be a test for it.

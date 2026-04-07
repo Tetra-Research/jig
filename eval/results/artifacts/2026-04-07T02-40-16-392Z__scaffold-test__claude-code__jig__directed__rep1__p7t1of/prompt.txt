@@ -1,0 +1,6 @@
+You are working on a Django-style Python project.
+
+
+Use the create-test skill to scaffold a test file.
+service_name: BookingService
+module_path: services.booking

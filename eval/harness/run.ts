@@ -8,10 +8,19 @@ import { loadAgentConfigs, getAgentByName, invokeAgent } from "./agents.ts";
 import { createSandbox } from "../lib/sandbox.ts";
 import { scoreAssertions, scoreNegativeAssertions, scoreJigUsage, scoreEfficiency, computeTrialScore } from "./score.ts";
 import { aggregateFileScore } from "../lib/diff.ts";
+import { writeAgentArtifacts } from "./artifacts.ts";
 import { writeTrialResult, readResults, ResultSchemaError, formatDiagnosticsSummary } from "./results.ts";
 import { transformPromptForBaseline } from "./baseline.ts";
 import { generateReport, generateMetricsOnly } from "./report.ts";
-import type { Scenario, AgentConfig, TrialResult, PromptTier, ClaudeMdMode, SchemaPolicyMode } from "./types.ts";
+import type {
+  Scenario,
+  AgentConfig,
+  TrialResult,
+  PromptTier,
+  ClaudeMdMode,
+  SchemaPolicyMode,
+  AgentArtifactPaths,
+} from "./types.ts";
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const EVAL_ROOT = path.resolve(__dirname, "..");
@@ -30,6 +39,9 @@ const { values: args } = parseArgs({
     "metrics-only": { type: "boolean", default: false },
     "schema-mode": { type: "string", default: "strict" },
     "disable-jig-binary": { type: "boolean", default: false },
+    "emit-jig-plan": { type: "boolean", default: false },
+    "artifacts-dir": { type: "string", default: "results/artifacts" },
+    "no-capture-artifacts": { type: "boolean", default: false },
     results: { type: "string" },
   },
   strict: true,
@@ -39,6 +51,9 @@ const reps = parseInt(args.reps!, 10);
 const mode = args.mode as "jig" | "baseline";
 const stripSkills = args["strip-skills"] ?? false;
 const disableJigBinary = args["disable-jig-binary"] ?? false;
+const emitJigPlan = args["emit-jig-plan"] ?? false;
+const captureArtifacts = !(args["no-capture-artifacts"] ?? false);
+const artifactsDirArg = args["artifacts-dir"];
 const promptTierFilter = args["prompt-tier"] as PromptTier | undefined;
 const claudeMd = args["claude-md"] as ClaudeMdMode;
 const VALID_CLAUDE_MD: ClaudeMdMode[] = ["shared", "empty", "none"];
@@ -132,6 +147,9 @@ try {
 const resultsPath = args.results
   ? path.resolve(process.cwd(), args.results)
   : path.join(EVAL_ROOT, "results", "results.jsonl");
+const artifactsRoot = artifactsDirArg
+  ? path.resolve(process.cwd(), artifactsDirArg)
+  : path.join(EVAL_ROOT, "results", "artifacts");
 
 // Dry run
 if (args["dry-run"]) {
@@ -154,9 +172,12 @@ if (args["dry-run"]) {
   console.error(`Mode: ${mode}`);
   console.error(`Schema mode: ${schemaMode}`);
   console.error(`Results path: ${resultsPath}`);
+  console.error(`Capture artifacts: ${captureArtifacts}`);
+  if (captureArtifacts) console.error(`Artifacts dir: ${artifactsRoot}`);
   console.error(`CLAUDE.md: ${claudeMd}`);
   console.error(`Strip skills: ${stripSkills}`);
   console.error(`Disable jig binary: ${disableJigBinary}`);
+  console.error(`Emit JIG_PLAN pre-tool note: ${emitJigPlan}`);
   if (promptTierFilter) console.error(`Prompt tier filter: ${promptTierFilter}`);
   console.error(`Jig version: ${jigVersion}`);
   console.error("Scenarios:");
@@ -187,6 +208,16 @@ function getPromptTiersForScenario(scenario: Scenario): PromptTier[] {
   }
 
   return tiers;
+}
+
+function addJigPlanDiagnosticInstruction(prompt: string): string {
+  return `${prompt}
+
+Diagnostic requirement for this run:
+Before your first tool call, output exactly one line in this format:
+JIG_PLAN: {"goal":"...","recipe":"...","vars":{"key":"value"},"sources":{"goal":"<where this came from>","recipe":"<where recipe name came from>","vars":{"key":"<where this var came from>"}},"command":"...","command_source":"<where command choice came from>"}
+For each field in vars, sources.vars must include the origin (for example: "$ARGUMENTS", "directed prompt", "natural prompt", "SKILL.md", "jig list", or "inferred").
+Keep it brief and factual, then continue with normal execution.`;
 }
 
 // Run trials
@@ -232,9 +263,12 @@ for (const scenario of scenarios) {
         try {
           // Assemble prompt from the selected tier
           const rawPrompt = scenario.prompts[promptTier]!;
-          const prompt = mode === "baseline"
+          let prompt = mode === "baseline"
             ? transformPromptForBaseline(rawPrompt)
             : (scenario.context ? `${scenario.context}\n\n${rawPrompt}` : rawPrompt);
+          if (mode === "jig" && emitJigPlan) {
+            prompt = addJigPlanDiagnosticInstruction(prompt);
+          }
 
           // Invoke agent
           console.error(`  [debug] cwd=${sandbox.workDir}`);
@@ -247,6 +281,25 @@ for (const scenario of scenarios) {
             ? { PATH: `${sandbox.jigShimDir}${path.delimiter}${process.env.PATH ?? ""}` }
             : undefined;
           const agentResult = await invokeAgent(agent, prompt, sandbox.workDir, envOverrides);
+          let artifactPaths: AgentArtifactPaths | undefined;
+          if (captureArtifacts) {
+            try {
+              artifactPaths = writeAgentArtifacts({
+                artifactsRoot,
+                scenario: scenario.name,
+                agent: agent.name,
+                promptTier,
+                rep,
+                mode,
+                prompt,
+                stdout: agentResult.stdout,
+                stderr: agentResult.stderr,
+              });
+              console.error(`  [debug] artifacts=${artifactPaths.dir}`);
+            } catch (err) {
+              console.error(`  [debug] artifact write failed: ${err}`);
+            }
+          }
 
           // Score — timeout trials get zeroed
           let assertionResults;
@@ -300,6 +353,7 @@ for (const scenario of scenarios) {
             timeout: agentResult.timedOut,
             skills_available: sandbox.skillsAvailable,
             tags: scenario.tags ?? [],
+            agent_artifacts: artifactPaths,
           };
 
           writeTrialResult(result, resultsPath);

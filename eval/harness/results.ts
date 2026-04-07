@@ -251,6 +251,15 @@ function isBaseTrialResult(value: unknown): value is TrialResult {
   if (!Array.isArray(obj.jig_invocations)) return false;
   if (!isNumber(obj.agent_exit_code)) return false;
   if (!isNumber(obj.agent_tool_calls)) return false;
+  if (hasOwn(obj, "agent_artifacts") && obj.agent_artifacts != null) {
+    if (!isObject(obj.agent_artifacts)) return false;
+    const artifacts = obj.agent_artifacts as Record<string, unknown>;
+    if (!isString(artifacts.dir)) return false;
+    if (!isString(artifacts.prompt)) return false;
+    if (!isString(artifacts.stdout)) return false;
+    if (!isString(artifacts.stderr)) return false;
+    if (!isString(artifacts.combined)) return false;
+  }
   if (typeof obj.timeout !== "boolean") return false;
   return true;
 }

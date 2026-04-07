@@ -170,6 +170,12 @@ cd eval
 # Smoke test
 npx tsx harness/run.ts --scenario add-view --prompt-tier natural --mode baseline --agent claude-code --reps 1
 
+# Disable per-trial artifact capture (stdout/stderr/prompt logs)
+npx tsx harness/run.ts --scenario add-view --reps 1 --no-capture-artifacts
+
+# Customize artifact output directory
+npx tsx harness/run.ts --scenario add-view --reps 1 --artifacts-dir results/artifacts-custom
+
 # Full baseline run
 npx tsx harness/run.ts --mode baseline --reps 3
 
