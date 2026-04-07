@@ -2,6 +2,22 @@
 
 Structured record of eval runs against the jig agent eval harness. Each experiment tests whether LLM agents discover and correctly use jig skills vs. hand-editing files.
 
+## 2026-04-07: Dedicated Head-to-Head Runner
+
+The preferred experiment path is now the dedicated head-to-head runner:
+
+- `eval/head2head/run.ts`
+- `eval/head2head/README.md`
+- helper script: `eval/experiments/run-head2head.sh`
+
+This runner removes the old multi-level matrix assumptions and executes only two explicit arms on the same scenario/codebase/prompt:
+
+1. `control` profile
+2. `jig` profile
+
+Each arm can supply its own skills and optional `CLAUDE.md` via profile directories.
+The runner also captures richer telemetry (including context tokens, model usage map, tool-call breakdown, and raw init/result events).
+
 ## Schema
 
 Each entry in `experiments.jsonl` captures:
