@@ -1,10 +1,12 @@
-Control profile placeholder.
+Control profile for head-to-head experiments.
 
-Add control skills under:
+This profile contains checklist-only skills (no jig execution) so we can compare
+pure instruction quality against deterministic jig workflows.
 
-- `skills/<skill-name>/SKILL.md`
+Installed skills:
 
-Optional:
-
-- `CLAUDE.md` (already present)
-- `overlay/` for full sandbox overlay
+- `schema-migration-safety`
+- `view-contract-enforcer`
+- `query-layer-discipline`
+- `deterministic-service-test`
+- `structured-logging-contract`

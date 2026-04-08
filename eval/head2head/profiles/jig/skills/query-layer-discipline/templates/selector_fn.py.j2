@@ -1,0 +1,7 @@
+
+
+def {{ selector_name }}():
+    return (
+        {{ model_name }}.objects.active()
+        .select_related()
+    )

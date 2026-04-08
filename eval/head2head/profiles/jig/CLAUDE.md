@@ -1,4 +1,5 @@
 # Jig Profile
 
-Use the available skills in `.claude/skills`.
-Prefer skill workflows that call `jig` for deterministic code generation.
+Use available skills in `.claude/skills`.
+For named pattern tasks, prefer running `jig run ${CLAUDE_SKILL_DIR}/recipe.yaml --vars '{...}'`
+through the matching skill workflow instead of hand-writing boilerplate.

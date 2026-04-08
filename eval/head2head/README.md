@@ -4,6 +4,7 @@ Purpose: run a strict A/B comparison where the only intentional change is the sk
 
 Reference notes for upcoming skill work:
 - `DJANGO_PATTERN_PLAYBOOK.md` (captured 2026-04-08)
+- `HEAD2HEAD_SKILL_PAIRS.md` (active pair map)
 
 - Arm `control`: your control skill profile.
 - Arm `jig`: your jig-backed skill profile.

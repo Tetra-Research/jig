@@ -1,4 +1,5 @@
 # Control Profile
 
-Use only the control skills available in `.claude/skills`.
-Avoid calling `jig` unless a control skill explicitly requires it.
+Use only control skills from `.claude/skills`.
+These skills provide checklists and structure only.
+Do not run `jig` unless the prompt explicitly requires it.

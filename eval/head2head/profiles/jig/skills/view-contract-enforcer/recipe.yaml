@@ -1,0 +1,64 @@
+name: view-contract-enforcer
+description: Enforce view boundary contract shape with generated scaffolding
+
+variables:
+  view_name:
+    type: string
+    required: true
+  http_method:
+    type: string
+    required: true
+  request_schema_name:
+    type: string
+    required: true
+  response_schema_name:
+    type: string
+    required: true
+  service_symbol:
+    type: string
+    required: true
+  url_path:
+    type: string
+    required: true
+  url_name:
+    type: string
+    required: true
+  test_name:
+    type: string
+    required: true
+  test_url:
+    type: string
+    required: true
+
+files:
+  - template: templates/view_imports.py.j2
+    inject: views.py
+    after: '^from \.models import'
+    at: last
+    skip_if: 'from .schemas import {{ request_schema_name }}, {{ response_schema_name }}'
+
+  - template: templates/service_import.py.j2
+    inject: views.py
+    after: '^from \.models import'
+    at: last
+    skip_if: 'from .services import {{ service_symbol }}'
+
+  - template: templates/schema_contracts.py.j2
+    inject: schemas.py
+    append: true
+    skip_if: 'class {{ request_schema_name }}'
+
+  - template: templates/view_function.py.j2
+    inject: views.py
+    append: true
+    skip_if: 'def {{ view_name }}'
+
+  - template: templates/url_entry.py.j2
+    inject: urls.py
+    before: '^]'
+    skip_if: 'views.{{ view_name }}'
+
+  - template: templates/view_test.py.j2
+    inject: tests/test_views.py
+    append: true
+    skip_if: 'def {{ test_name }}'

@@ -1,0 +1,8 @@
+    logger.info(
+        "{{ event_namespace }}.done",
+        extra={
+            "method": "{{ function_name }}",
+            "step": "{{ step_name }}",
+            "entity_id": {{ entity_id_expr }},
+        },
+    )

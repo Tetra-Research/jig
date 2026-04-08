@@ -1,10 +1,12 @@
-Jig profile placeholder.
+Jig profile for head-to-head experiments.
 
-Add jig-backed skills under:
+This profile contains deterministic jig-backed skills for direct comparison
+against control checklist-only skills.
 
-- `skills/<skill-name>/SKILL.md`
+Installed skills:
 
-Optional:
-
-- `CLAUDE.md` (already present)
-- `overlay/` for full sandbox overlay
+- `schema-migration-safety`
+- `view-contract-enforcer`
+- `query-layer-discipline`
+- `deterministic-service-test`
+- `structured-logging-contract`

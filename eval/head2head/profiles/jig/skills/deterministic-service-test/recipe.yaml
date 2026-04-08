@@ -1,0 +1,21 @@
+name: deterministic-service-test
+description: Create deterministic pytest service tests
+
+variables:
+  service_symbol:
+    type: string
+    required: true
+  module_path:
+    type: string
+    required: true
+  create_method:
+    type: string
+    required: true
+  cancel_method:
+    type: string
+    required: true
+
+files:
+  - template: templates/service_test.py.j2
+    to: "tests/test_{{ service_symbol | snakecase }}.py"
+    skip_if_exists: false

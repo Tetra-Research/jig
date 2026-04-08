@@ -1,0 +1,13 @@
+
+
+class {{ queryset_name }}(models.QuerySet):
+    def active(self):
+        return self.filter(status="active")
+
+
+class {{ manager_name }}(models.Manager):
+    def get_queryset(self):
+        return {{ queryset_name }}(self.model, using=self._db)
+
+    def active(self):
+        return self.get_queryset().active()

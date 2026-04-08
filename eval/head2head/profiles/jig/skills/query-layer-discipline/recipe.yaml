@@ -1,0 +1,67 @@
+name: query-layer-discipline
+description: Introduce queryset, manager, and selector scaffolding for disciplined reads
+
+variables:
+  model_name:
+    type: string
+    required: true
+  queryset_name:
+    type: string
+    required: true
+  manager_name:
+    type: string
+    required: true
+  selector_name:
+    type: string
+    required: true
+  selector_file:
+    type: string
+    required: true
+  view_name:
+    type: string
+    required: true
+  models_file:
+    type: string
+    required: false
+    default: models.py
+  views_file:
+    type: string
+    required: false
+    default: views.py
+
+files:
+  - template: templates/queryset_manager.py.j2
+    inject: "{{ models_file }}"
+    before: "^class "
+    skip_if: "class {{ queryset_name }}"
+
+  - template: templates/manager_attr.py.j2
+    patch: "{{ models_file }}"
+    anchor:
+      pattern: "^class "
+      scope: class_body
+      position: before
+    skip_if: "objects = {{ manager_name }}()"
+
+  - template: templates/selectors_header.py.j2
+    to: "{{ selector_file }}"
+    skip_if_exists: true
+
+  - template: templates/selector_fn.py.j2
+    inject: "{{ selector_file }}"
+    append: true
+    skip_if: "def {{ selector_name }}"
+
+  - template: templates/views_import.py.j2
+    inject: "{{ views_file }}"
+    after: '^from \.models import'
+    at: last
+    skip_if: "from .{{ selector_file | replace('.py', '') }} import {{ selector_name }}"
+
+  - template: templates/selector_call.py.j2
+    patch: "{{ views_file }}"
+    anchor:
+      pattern: "^def "
+      scope: function_body
+      position: before
+    skip_if: "{{ selector_name }}("
