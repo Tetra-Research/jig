@@ -1,0 +1,46 @@
+name: h2h-structured-logging-contract
+description: Add stable start/done structured logging to a service function
+tier: easy
+category: brownfield-extension
+
+context: |
+  You are working on a Python service module and need stable structured logs.
+
+prompts:
+  directed: |
+    Use the structured-logging-contract skill.
+    target_file: services/core_service.py
+    function_name: create_record
+    event_namespace: core_service.create_record
+    step_name: validate_input
+    entity_id_expr: record_id
+  natural: |
+    Add consistent structured start and done logs to create_record.
+  ambient: |
+    Observability request: instrument create_record with stable structured log contract.
+
+expected_files_modified:
+  - services/core_service.py
+
+assertions:
+  - file: services/core_service.py
+    contains: "logger = logging.getLogger(__name__)"
+    weight: 0.8
+  - file: services/core_service.py
+    contains: "core_service.create_record.start"
+    weight: 1.0
+  - file: services/core_service.py
+    contains: "core_service.create_record.done"
+    weight: 1.0
+  - file: services/core_service.py
+    contains: '"entity_id": record_id'
+    weight: 0.8
+
+negative_assertions:
+  - any_file: true
+    not_contains: "SyntaxError"
+    description: "Output must be syntactically valid Python"
+
+tags: [head2head, logging, observability]
+estimated_jig_commands: 1
+max_jig_commands: 2

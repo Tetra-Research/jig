@@ -1,0 +1,54 @@
+name: h2h-schema-migration-safety
+description: Add a field using a rollout-safe two-step migration with backfill
+tier: medium
+category: brownfield-extension
+
+context: |
+  You are working on a Django-style Python project with migrations.
+
+prompts:
+  directed: |
+    Use the schema-migration-safety skill.
+    app_label: core
+    model_name: Entity
+    field_name: classification
+    field_type: models.CharField
+    add_field_kwargs: max_length=20, null=True
+    final_field_kwargs: max_length=20
+    previous_migration: 0007_auto_20260407_1200
+    add_migration_name: 0008_add_entity_classification
+    finalize_migration_name: 0009_enforce_entity_classification
+    backfill_value: "\"standard\""
+  natural: |
+    Add a classification field to Entity with a safe two-step migration rollout and backfill existing rows.
+  ambient: |
+    We need to add Entity.classification without a risky one-shot migration.
+    Please do this with rollout-safe migration steps and a backfill.
+
+expected_files_modified:
+  - models.py
+  - migrations/0008_add_entity_classification.py
+  - migrations/0009_enforce_entity_classification.py
+
+assertions:
+  - file: models.py
+    contains: "classification = models.CharField"
+    weight: 1.0
+  - file: migrations/0008_add_entity_classification.py
+    contains: "migrations.AddField"
+    weight: 1.0
+  - file: migrations/0008_add_entity_classification.py
+    contains: "migrations.RunPython"
+    weight: 0.9
+  - file: migrations/0009_enforce_entity_classification.py
+    contains: "migrations.AlterField"
+    weight: 1.0
+
+negative_assertions:
+  - any_file: true
+    not_contains: "SyntaxError"
+    description: "Output must be syntactically valid Python"
+
+tags: [head2head, migration, multi-file]
+estimated_jig_commands: 1
+max_jig_commands: 3

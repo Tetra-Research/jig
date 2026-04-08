@@ -1,0 +1,61 @@
+name: h2h-view-contract-enforcer
+description: Add a request/response-contract view with URL and test wiring
+tier: medium
+category: brownfield-extension
+
+context: |
+  You are working on a Django REST framework application.
+
+prompts:
+  directed: |
+    Use the view-contract-enforcer skill.
+    view_name: entity_summary
+    http_method: POST
+    request_schema_name: EntitySummaryRequest
+    response_schema_name: EntitySummaryResponse
+    service_symbol: build_entity_summary
+    url_path: entities/<int:pk>/summary/
+    url_name: entity-summary
+    test_name: test_entity_summary
+    test_url: /api/entities/1/summary/
+  natural: |
+    Add a POST entity summary view with request validation, response schema, route, and test.
+  ambient: |
+    API contract hardening request:
+    - Add a summary endpoint for an entity
+    - Validate request shape
+    - Use service handoff
+    - Return response schema
+    - Add URL route and test coverage
+
+expected_files_modified:
+  - views.py
+  - schemas.py
+  - urls.py
+  - tests/test_views.py
+
+assertions:
+  - file: views.py
+    contains: "def entity_summary"
+    weight: 1.0
+  - file: views.py
+    contains: "request_contract.is_valid(raise_exception=True)"
+    weight: 1.0
+  - file: schemas.py
+    contains: "class EntitySummaryRequest"
+    weight: 0.9
+  - file: urls.py
+    contains: "entity-summary"
+    weight: 0.8
+  - file: tests/test_views.py
+    contains: "def test_entity_summary"
+    weight: 0.9
+
+negative_assertions:
+  - any_file: true
+    not_contains: "SyntaxError"
+    description: "Output must be syntactically valid Python"
+
+tags: [head2head, view, contracts, multi-file]
+estimated_jig_commands: 1
+max_jig_commands: 4

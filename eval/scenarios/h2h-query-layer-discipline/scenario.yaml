@@ -1,0 +1,49 @@
+name: h2h-query-layer-discipline
+description: Introduce queryset manager and selector read path wiring
+tier: medium
+category: brownfield-extension
+
+context: |
+  You are working on a Django-style service and need cleaner read-path layering.
+
+prompts:
+  directed: |
+    Use the query-layer-discipline skill.
+    model_name: Entity
+    queryset_name: EntityQuerySet
+    manager_name: EntityManager
+    selector_name: select_active_entities
+    selector_file: selectors.py
+    view_name: entity_list
+  natural: |
+    Refactor reads into queryset/selector layers and call selectors from the view.
+  ambient: |
+    Query logic is drifting into views. Move reads to structured queryset + selector layers.
+
+expected_files_modified:
+  - models.py
+  - selectors.py
+  - views.py
+
+assertions:
+  - file: models.py
+    contains: "class EntityQuerySet"
+    weight: 1.0
+  - file: models.py
+    contains: "objects = EntityManager()"
+    weight: 1.0
+  - file: selectors.py
+    contains: "def select_active_entities"
+    weight: 1.0
+  - file: views.py
+    contains: "records = select_active_entities()"
+    weight: 0.8
+
+negative_assertions:
+  - any_file: true
+    not_contains: "SyntaxError"
+    description: "Output must be syntactically valid Python"
+
+tags: [head2head, query-layer, selectors]
+estimated_jig_commands: 1
+max_jig_commands: 3

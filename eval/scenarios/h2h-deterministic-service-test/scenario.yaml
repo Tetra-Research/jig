@@ -1,0 +1,42 @@
+name: h2h-deterministic-service-test
+description: Scaffold deterministic pytest tests for a service module
+tier: easy
+category: greenfield
+
+context: |
+  You are working on a Django-style Python codebase.
+
+prompts:
+  directed: |
+    Use the deterministic-service-test skill.
+    service_symbol: CoreService
+    module_path: services.core_service
+    create_method: create_record
+    cancel_method: cancel_record
+  natural: |
+    Add deterministic tests for CoreService create and cancel behavior.
+  ambient: |
+    CI requires deterministic service tests with stable inputs and explicit act sections.
+
+expected_files_modified:
+  - tests/test_core_service.py
+
+assertions:
+  - file: tests/test_core_service.py
+    contains: "# Act"
+    weight: 1.0
+  - file: tests/test_core_service.py
+    contains: "def test_create_record"
+    weight: 0.9
+  - file: tests/test_core_service.py
+    contains: "def test_cancel_record"
+    weight: 0.9
+
+negative_assertions:
+  - any_file: true
+    not_contains: "SyntaxError"
+    description: "Output must be syntactically valid Python"
+
+tags: [head2head, tests, deterministic]
+estimated_jig_commands: 1
+max_jig_commands: 2
