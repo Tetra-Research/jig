@@ -1,0 +1,12 @@
+You are working on a Django-style Python codebase.
+
+Use the deterministic-service-test skill.
+service_symbol: CoreService
+module_path: services.core_service
+create_method: create_record
+cancel_method: cancel_record
+
+Diagnostic requirement for this run:
+Before your first tool call, output exactly one line beginning with:
+HEAD2HEAD_THINKING: <what you plan to do first and why>
+Then continue with normal execution.

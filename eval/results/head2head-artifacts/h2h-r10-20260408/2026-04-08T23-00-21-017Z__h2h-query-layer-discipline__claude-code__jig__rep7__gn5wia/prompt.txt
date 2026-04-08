@@ -1,0 +1,14 @@
+You are working on a Django-style service and need cleaner read-path layering.
+
+Use the query-layer-discipline skill.
+model_name: Entity
+queryset_name: EntityQuerySet
+manager_name: EntityManager
+selector_name: select_active_entities
+selector_file: selectors.py
+view_name: entity_list
+
+Diagnostic requirement for this run:
+Before your first tool call, output exactly one line beginning with:
+HEAD2HEAD_THINKING: <what you plan to do first and why>
+Then continue with normal execution.

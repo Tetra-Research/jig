@@ -1,0 +1,13 @@
+You are working on a Python service module and need stable structured logs.
+
+Use the structured-logging-contract skill.
+target_file: services/core_service.py
+function_name: create_record
+event_namespace: core_service.create_record
+step_name: validate_input
+entity_id_expr: record_id
+
+Diagnostic requirement for this run:
+Before your first tool call, output exactly one line beginning with:
+HEAD2HEAD_THINKING: <what you plan to do first and why>
+Then continue with normal execution.
