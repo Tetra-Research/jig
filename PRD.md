@@ -75,7 +75,7 @@ variables:
   module:
     type: string
     required: true
-    description: "Dotted Python module path (e.g., hotels.services.booking)"
+    description: "Dotted Python module path (e.g., app.services.core_service)"
 
   class_name:
     type: string
@@ -187,15 +187,15 @@ variables:
   app:
     type: string
     required: true
-    description: "Django app name (e.g., hotels)"
+    description: "Django app name (e.g., sample_app)"
   model:
     type: string
     required: true
-    description: "Model class name (e.g., Reservation)"
+    description: "Model class name (e.g., Entity)"
   field_name:
     type: string
     required: true
-    description: "New field name (e.g., loyalty_tier)"
+    description: "New field name (e.g., classification)"
   field_type:
     type: string
     required: true
@@ -318,7 +318,7 @@ When a scope is large (like a whole class body), `find` narrows to a specific at
 
 ```yaml
 anchor:
-  pattern: "^class ReservationAdmin"
+  pattern: "^class EntityAdmin"
   scope: class_body
   find: "list_display"           # find the list_display line within the class
   position: before_close         # insert before the ] or ) that closes it
@@ -326,7 +326,7 @@ anchor:
 
 This finds:
 ```python
-class ReservationAdmin(admin.ModelAdmin):
+class EntityAdmin(admin.ModelAdmin):
     list_display = [
         "guest_name",
         "check_in",
@@ -406,11 +406,11 @@ When jig can't find an anchor or a scope doesn't parse cleanly, it fails gracefu
 ```json
 {
   "action": "error",
-  "path": "hotels/models/reservation.py",
+  "path": "sample_app/models/entity.py",
   "error": "scope_parse_failed",
-  "details": "class_body scope for pattern '^class Reservation\\(' could not determine end of class — indentation is inconsistent at line 45",
+  "details": "class_body scope for pattern '^class Entity\\(' could not determine end of class — indentation is inconsistent at line 45",
   "hint": "Use the LLM's Edit tool to manually insert the field at the appropriate location",
-  "rendered_content": "    loyalty_tier = models.CharField(max_length=50, null=True)"
+  "rendered_content": "    classification = models.CharField(max_length=50, null=True)"
 }
 ```
 
@@ -421,16 +421,16 @@ The key detail: **jig still renders the template and includes the rendered conte
 Here's how an LLM-driven skill uses patch recipes to manage the full lifecycle of adding a field:
 
 ```
-User: "Add a loyalty_tier field to the Reservation model"
+User: "Add a classification field to the Entity model"
 
 Claude:
-  1. Reads hotels/models/reservation.py → identifies it's a Django model
+  1. Reads sample_app/models/entity.py → identifies it's a Django model
   2. Reads the existing fields to understand patterns (CharField style, etc.)
   3. Constructs variables:
      {
-       "app": "hotels",
-       "model": "Reservation",
-       "field_name": "loyalty_tier",
+       "app": "sample_app",
+       "model": "Entity",
+       "field_name": "classification",
        "field_type": "CharField",
        "field_args": "max_length=50",
        "nullable": true
@@ -444,7 +444,7 @@ Claude:
   8. Done.
 ```
 
-The LLM's job was understanding the *intent* ("add loyalty_tier"), extracting the *variables* (type, nullability, app name), and calling jig. jig's job was the mechanical file-by-file insertion. Neither had to do the other's work.
+The LLM's job was understanding the *intent* ("add classification"), extracting the *variables* (type, nullability, app name), and calling jig. jig's job was the mechanical file-by-file insertion. Neither had to do the other's work.
 
 ---
 
@@ -496,8 +496,8 @@ Built-in filters for common code transformations:
 | `lower` | `BOOKING` | `booking` |
 | `capitalize` | `booking` | `Booking` |
 | `replace` | `a.b.c \| replace('.', '/')` | `a/b/c` |
-| `pluralize` | `hotel` | `hotels` |
-| `singularize` | `hotels` | `hotel` |
+| `pluralize` | `sample` | `sample_app` |
+| `singularize` | `sample_app` | `sample` |
 | `quote` | `hello` | `"hello"` |
 | `indent` | (multiline string) | Indents each line by N spaces: `\| indent(4)` |
 | `join` | `["a","b"] \| join(", ")` | `a, b` |
@@ -523,13 +523,13 @@ Built-in filters for common code transformations:
 ```bash
 # Basic usage — pass variables as JSON
 jig run ./templates/recipe.yaml \
-  --vars '{"module": "hotels.services.booking", "class_name": "BookingService", "methods": ["create", "cancel"]}'
+  --vars '{"module": "app.services.core_service", "class_name": "BookingService", "methods": ["create", "cancel"]}'
 
 # Variables from a JSON file
 jig run ./templates/recipe.yaml --vars-file context.json
 
 # Variables from stdin (piped from another command or LLM output)
-echo '{"module": "hotels.services"}' | jig run ./templates/recipe.yaml --vars-stdin
+echo '{"module": "app.services"}' | jig run ./templates/recipe.yaml --vars-stdin
 
 # Mixed: file + overrides
 jig run ./templates/recipe.yaml --vars-file defaults.json --vars '{"class_name": "PaymentService"}'
@@ -545,7 +545,7 @@ jig run ./templates/recipe.yaml --vars '...' --dry-run
 
 Output:
 ```
-[create] tests/hotels/services/test_booking_service.py (142 lines)
+[create] tests/app/services/test_core_service.py (142 lines)
 [inject] tests/conftest.py — after "^# fixtures" (3 lines)
 [skip]   tests/conftest.py — "BookingService" already present
 ```
@@ -1000,7 +1000,7 @@ Errors should be clear enough for an LLM to self-correct. Every error includes:
 Error: missing required variable "class_name"
   recipe: ./templates/recipe.yaml
   variable: class_name (type: string)
-  provided: {"module": "hotels.services"}
+  provided: {"module": "app.services"}
   hint: add "class_name" to your --vars JSON
 ```
 
@@ -1227,7 +1227,7 @@ A workflow chains multiple recipes together. This is the answer to "I want to ad
 ```bash
 # Run a full-stack field addition
 jig workflow django/add-field \
-  --vars '{"app": "hotels", "model": "Reservation", "field_name": "loyalty_tier", "field_type": "CharField", "field_args": "max_length=50", "nullable": true, "update_service": true, "update_view": false}'
+  --vars '{"app": "sample_app", "model": "Entity", "field_name": "classification", "field_type": "CharField", "field_args": "max_length=50", "nullable": true, "update_service": true, "update_view": false}'
 ```
 
 Workflows support:
@@ -1372,7 +1372,7 @@ The end state is:
 3. **Claude Code plugins** wrap libraries with LLM intelligence — the skill reads code and decides what to do, the recipe handles the mechanical work
 4. **Project overrides** customize libraries for your team's conventions — no forks, no divergence
 
-A new developer joins a Django team. They install the jig-django Claude Code plugin. Now they can say "add a field called loyalty_tier to Reservation" and get a consistent, team-compliant, multi-file change — without the LLM having to learn the team's patterns from scratch every time.
+A new developer joins a Django team. They install the jig-django Claude Code plugin. Now they can say "add a field called classification to Entity" and get a consistent, team-compliant, multi-file change — without the LLM having to learn the team's patterns from scratch every time.
 
 ---
 
@@ -1441,7 +1441,7 @@ The core `jig run` flow is one-directional: variables → template → files. Bu
 `jig scan` reverses the recipe. Instead of "given these variables, produce this file," it asks "given this file, what variables would have produced it?"
 
 ```bash
-jig scan django/model ./hotels/models/reservation.py
+jig scan django/model ./sample_app/models/entity.py
 ```
 
 Output:
@@ -1450,8 +1450,8 @@ Output:
   "recipe": "django/model/add-model",
   "confidence": 0.92,
   "variables": {
-    "app": "hotels",
-    "model": "Reservation",
+    "app": "sample_app",
+    "model": "Entity",
     "fields": [
       {"name": "guest_name", "type": "CharField", "args": "max_length=255"},
       {"name": "check_in", "type": "DateField", "args": ""},
@@ -1460,10 +1460,10 @@ Output:
       {"name": "total_amount", "type": "DecimalField", "args": "max_digits=10, decimal_places=2"}
     ],
     "mixins": ["TimeStampedModel", "SoftDeleteModel"],
-    "meta": {"ordering": ["-created_at"], "db_table": "hotels_reservation"}
+    "meta": {"ordering": ["-created_at"], "db_table": "sample_app_entity"}
   },
   "unrecognized": [
-    {"line": 34, "content": "objects = ReservationQuerySet.as_manager()", "note": "custom manager — not captured by recipe variables"}
+    {"line": 34, "content": "objects = EntityQuerySet.as_manager()", "note": "custom manager — not captured by recipe variables"}
   ]
 }
 ```
@@ -1482,7 +1482,7 @@ Scan is the bridge between "I have existing code" and "I want to extend it with 
 The workflow becomes:
 
 ```
-1. jig scan django/model ./hotels/models/reservation.py    → get current state as variables
+1. jig scan django/model ./sample_app/models/entity.py    → get current state as variables
 2. LLM modifies the variables (adds a field to the array)
 3. jig run django/model/add-field --vars '...'              → apply the change
 ```
@@ -1494,28 +1494,28 @@ Step 2 is where the LLM adds value — understanding user intent, choosing the r
 Scan also works at the directory level to discover what's in a project:
 
 ```bash
-jig scan django ./hotels/
+jig scan django ./sample_app/
 ```
 
 Output:
 ```json
 {
   "models": [
-    {"file": "models/reservation.py", "class": "Reservation", "fields": 12},
+    {"file": "models/entity.py", "class": "Entity", "fields": 12},
     {"file": "models/payment.py", "class": "Payment", "fields": 8},
     {"file": "models/guest.py", "class": "Guest", "fields": 15}
   ],
   "services": [
-    {"file": "services/reservation_service.py", "class": "ReservationService", "methods": 6},
+    {"file": "services/entity_service.py", "class": "EntityService", "methods": 6},
     {"file": "services/payment_service.py", "class": "PaymentService", "methods": 4}
   ],
   "views": [
-    {"file": "views/reservation_view.py", "class": "ReservationView", "endpoints": 5}
+    {"file": "views/entity_view.py", "class": "EntityView", "endpoints": 5}
   ],
   "coverage": {
-    "models_with_services": ["Reservation", "Payment"],
+    "models_with_services": ["Entity", "Payment"],
     "models_without_services": ["Guest"],
-    "models_with_admin": ["Reservation", "Guest"],
+    "models_with_admin": ["Entity", "Guest"],
     "models_without_admin": ["Payment"]
   }
 }
@@ -1532,8 +1532,8 @@ Creating recipes by hand is the highest-friction part of jig. `jig infer` dramat
 ```bash
 # Show jig what adding a field looks like
 jig infer \
-  --before hotels/models/reservation.py.before \
-  --after  hotels/models/reservation.py.after \
+  --before sample_app/models/entity.py.before \
+  --after  sample_app/models/entity.py.after \
   --name "model-field"
 ```
 
@@ -1547,7 +1547,7 @@ confidence: 0.87
 variables:
   field_name:
     type: string
-    inferred_from: "loyalty_tier"  # the actual value found in the diff
+    inferred_from: "classification"  # the actual value found in the diff
   field_type:
     type: string
     inferred_from: "CharField"
@@ -1577,9 +1577,9 @@ The more examples you give, the better the inference:
 
 ```bash
 jig infer \
-  --example hotels/models/reservation.py:before,after \
-  --example hotels/models/payment.py:before,after \
-  --example hotels/models/guest.py:before,after \
+  --example sample_app/models/entity.py:before,after \
+  --example sample_app/models/payment.py:before,after \
+  --example sample_app/models/guest.py:before,after \
   --name "model-field"
 ```
 
@@ -1628,23 +1628,23 @@ The expectation is that inferred recipes are 70-90% right. The last 10-30% is hu
 If jig knows the recipe for "how a model should look," it can verify that existing models conform. This is the audit direction — templates as structural lint rules.
 
 ```bash
-jig check django/model ./hotels/models/*.py
+jig check django/model ./sample_app/models/*.py
 ```
 
 Output:
 ```
-hotels/models/reservation.py
+sample_app/models/entity.py
   ✓ class structure matches model recipe
   ✓ has TimeStampedModel mixin
   ✓ has Meta class with ordering
   ✗ missing __str__ method (expected by convention)
 
-hotels/models/payment.py
+sample_app/models/payment.py
   ✓ class structure matches model recipe
   ✗ missing TimeStampedModel mixin (expected by convention)
-  ✗ missing admin registration in hotels/admin.py
+  ✗ missing admin registration in sample_app/admin.py
 
-hotels/models/legacy_rate.py
+sample_app/models/legacy_rate.py
   ~ partial match (confidence: 0.6)
   ✗ uses old-style CharField without explicit max_length
   ✗ missing factory in tests/factories.py
@@ -1657,29 +1657,29 @@ Summary: 3 models checked, 1 conformant, 2 with issues
 
 ```bash
 # Check a single file against a recipe
-jig check django/model ./hotels/models/reservation.py
+jig check django/model ./sample_app/models/entity.py
 
 # Check all models in a directory
-jig check django/model ./hotels/models/
+jig check django/model ./sample_app/models/
 
 # Check the full stack for a resource
-jig check django/scaffold-resource --resource Reservation --app hotels
+jig check django/scaffold-resource --resource Entity --app sample_app
 
 # Check everything the library knows about
-jig check django ./hotels/
+jig check django ./sample_app/
 ```
 
 #### Check Output for LLMs
 
 ```bash
-jig check django/model ./hotels/models/ --json
+jig check django/model ./sample_app/models/ --json
 ```
 
 ```json
 {
   "results": [
     {
-      "file": "hotels/models/reservation.py",
+      "file": "sample_app/models/entity.py",
       "recipe": "django/model/add-model",
       "conformant": true,
       "issues": [
@@ -1687,7 +1687,7 @@ jig check django/model ./hotels/models/ --json
       ]
     },
     {
-      "file": "hotels/models/payment.py",
+      "file": "sample_app/models/payment.py",
       "recipe": "django/model/add-model",
       "conformant": false,
       "issues": [
@@ -1702,7 +1702,7 @@ jig check django/model ./hotels/models/ --json
 The `fix_recipe` field is key — when an issue has a known recipe that would fix it, jig tells you. The LLM can read the check output and automatically run the fix recipes:
 
 ```
-1. jig check django ./hotels/ --json        → find conformance issues
+1. jig check django ./sample_app/ --json        → find conformance issues
 2. LLM reads issues, filters actionable ones
 3. jig run django/admin/add-admin --vars ... → fix the missing admin
 4. jig run django/model/add-str-method ...   → fix the missing __str__
@@ -1785,7 +1785,7 @@ steps:
 One command:
 ```bash
 jig workflow add-field-fullstack \
-  --vars '{"app":"hotels","model":"Reservation","field_name":"loyalty_tier","field_type":"CharField","field_args":"max_length=50","nullable":true,"ts_type":"string | null","show_in_table":true,"show_in_form":true}'
+  --vars '{"app":"sample_app","model":"Entity","field_name":"classification","field_type":"CharField","field_args":"max_length=50","nullable":true,"ts_type":"string | null","show_in_table":true,"show_in_form":true}'
 ```
 
 Touches: model, service, schema, admin, factory, tests (Django) + TypeScript interface, table component, form component (Vue). All from a single invocation with a single variables JSON.
@@ -1797,21 +1797,21 @@ Instead of hand-specifying variables, derive them from an existing schema defini
 ```bash
 # From an OpenAPI spec — generate all backend + frontend for a resource
 jig from-schema openapi ./api-spec.yaml \
-  --resource Reservation \
+  --resource Entity \
   --workflow scaffold-resource-fullstack
 
 # From a database table — reverse-engineer models from an existing DB
 jig from-schema sql --connection $DATABASE_URL \
-  --table reservations \
+  --table entities \
   --recipe django/model/add-model
 
 # From a protobuf definition
-jig from-schema proto ./reservation.proto \
+jig from-schema proto ./entity.proto \
   --recipe go/scaffold-handler
 
 # From a GraphQL schema
 jig from-schema graphql ./schema.graphql \
-  --type Reservation \
+  --type Entity \
   --workflow nextjs/scaffold-page
 ```
 
@@ -2342,17 +2342,17 @@ eval/
     add-field/
       scenario.yaml             # intent, expected outcome, scoring criteria
       codebase/                 # small fixture codebase (the "before" state)
-        hotels/
-          models/reservation.py
-          services/reservation_service.py
-          schemas/reservation.py
+        sample_app/
+          models/entity.py
+          services/entity_service.py
+          schemas/entity.py
           admin.py
           tests/factories.py
       expected/                 # the "after" state (ground truth)
-        hotels/
-          models/reservation.py
-          services/reservation_service.py
-          schemas/reservation.py
+        sample_app/
+          models/entity.py
+          services/entity_service.py
+          schemas/entity.py
           admin.py
           tests/factories.py
     add-endpoint/
@@ -2384,7 +2384,7 @@ A scenario is the unit of evaluation. It defines:
 
 1. **A small, self-contained codebase** — the fixture. Just enough code to be realistic (a Django app with 2-3 models, services, views). Small enough that an agent can read the relevant files within a single context window.
 
-2. **A natural language prompt** — the instruction given to the agent. Written the way a developer would actually phrase it: "Add a `loyalty_tier` CharField (max_length=50, nullable) to the Reservation model and propagate it through the stack."
+2. **A natural language prompt** — the instruction given to the agent. Written the way a developer would actually phrase it: "Add a `classification` CharField (max_length=50, nullable) to the Entity model and propagate it through the stack."
 
 3. **Expected outcomes** — what the codebase should look like after the agent is done. Both the files themselves (for diffing) and structural assertions (for flexible scoring).
 
@@ -2398,7 +2398,7 @@ category: brownfield-extension
 
 # The prompt given to the agent
 prompt: |
-  Add a `loyalty_tier` field to the Reservation model in the hotels app.
+  Add a `classification` field to the Entity model in the sample_app app.
   It should be a CharField with max_length=50 and nullable.
   Propagate the field through the service layer, request/response schemas,
   admin list_display, and the test factory.
@@ -2414,48 +2414,48 @@ context: |
 
 # Which files the agent is expected to modify
 expected_files_modified:
-  - hotels/models/reservation.py
-  - hotels/services/reservation_service.py
-  - hotels/schemas/reservation.py
-  - hotels/admin.py
-  - hotels/tests/factories.py
+  - sample_app/models/entity.py
+  - app/services/entity_service.py
+  - sample_app/schemas/entity.py
+  - sample_app/admin.py
+  - sample_app/tests/factories.py
 
 # Structural assertions (flexible scoring — order-independent, whitespace-tolerant)
 assertions:
-  - file: hotels/models/reservation.py
-    contains: "loyalty_tier = models.CharField(max_length=50, null=True)"
-    scope: "class Reservation"
+  - file: sample_app/models/entity.py
+    contains: "classification = models.CharField(max_length=50, null=True)"
+    scope: "class Entity"
     weight: 1.0
 
-  - file: hotels/services/reservation_service.py
-    contains: "loyalty_tier"
+  - file: app/services/entity_service.py
+    contains: "classification"
     scope: "def create("
     weight: 0.8
 
-  - file: hotels/schemas/reservation.py
-    contains: "loyalty_tier"
-    scope: "class ReservationCreateRequest"
+  - file: sample_app/schemas/entity.py
+    contains: "classification"
+    scope: "class EntityCreateRequest"
     weight: 0.8
 
-  - file: hotels/schemas/reservation.py
-    contains: "loyalty_tier"
-    scope: "class ReservationResponse"
+  - file: sample_app/schemas/entity.py
+    contains: "classification"
+    scope: "class EntityResponse"
     weight: 0.8
 
-  - file: hotels/admin.py
-    contains: "loyalty_tier"
+  - file: sample_app/admin.py
+    contains: "classification"
     scope: "list_display"
     weight: 0.6
 
-  - file: hotels/tests/factories.py
-    contains: "loyalty_tier"
-    scope: "class ReservationFactory"
+  - file: sample_app/tests/factories.py
+    contains: "classification"
+    scope: "class EntityFactory"
     weight: 0.6
 
 # Negative assertions (things that should NOT happen)
 negative_assertions:
-  - file: hotels/models/reservation.py
-    not_contains: "loyalty_tier.*loyalty_tier"    # no duplicate field
+  - file: sample_app/models/entity.py
+    not_contains: "classification.*classification"    # no duplicate field
     description: "Field should not be duplicated"
 
   - any_file:
@@ -2473,7 +2473,7 @@ max_jig_commands: 3         # acceptable if broken into individual recipes
 | Tier | Description | Example |
 |------|-------------|---------|
 | **easy** | Single file, single recipe, obvious variables | "Create a new test file for BookingService" |
-| **medium** | Multi-file, workflow or chained recipes, variable extraction from existing code | "Add a field to Reservation and propagate" |
+| **medium** | Multi-file, workflow or chained recipes, variable extraction from existing code | "Add a field to Entity and propagate" |
 | **hard** | Ambiguous intent, error recovery required, cross-library workflow | "Refactor the room pricing to support seasonal rates" |
 | **discovery** | Agent must find the right recipe without being told which one | "Make the Guest model admin-browsable" |
 | **error-recovery** | Scenario includes a deliberate obstacle (missing anchor, bad template) | "Add a field to a model with non-standard structure" |
@@ -2596,7 +2596,7 @@ function scoreFile(actual: string, expected: string): number {
 }
 ```
 
-This isn't just exact match — it handles the inherent variability of LLM output. The field might be `loyalty_tier = models.CharField(max_length=50, null=True)` or `loyalty_tier = models.CharField(null=True, max_length=50)`. Both are correct. Structural diff catches this; exact text diff doesn't.
+This isn't just exact match — it handles the inherent variability of LLM output. The field might be `classification = models.CharField(max_length=50, null=True)` or `classification = models.CharField(null=True, max_length=50)`. Both are correct. Structural diff catches this; exact text diff doesn't.
 
 #### 2. Assertion Pass Rate
 
@@ -2692,8 +2692,8 @@ Every trial appends one JSON line to `results/results.jsonl`:
     "total": 0.92
   },
   "assertions": [
-    {"assertion": "models/reservation.py contains loyalty_tier", "passed": true},
-    {"assertion": "admin.py contains loyalty_tier in list_display", "passed": false}
+    {"assertion": "models/entity.py contains classification", "passed": true},
+    {"assertion": "admin.py contains classification in list_display", "passed": false}
   ],
   "jig_invocations": [
     {"command": "jig workflow django/add-field", "vars": "{...}", "exit_code": 0}
@@ -2733,7 +2733,7 @@ The most important comparison: **with jig vs. without jig.**
 Every scenario is run in two modes:
 
 1. **`jig` mode** — the prompt tells the agent to use jig, the library is installed, recipes are available.
-2. **`baseline` mode** — the prompt gives the same intent ("add a loyalty_tier field to Reservation and propagate") but no mention of jig. The agent uses its native tools (Read, Edit, Write) to make the changes manually.
+2. **`baseline` mode** — the prompt gives the same intent ("add a classification field to Entity and propagate") but no mention of jig. The agent uses its native tools (Read, Edit, Write) to make the changes manually.
 
 This isolates jig's value. If agents score 0.95 with jig and 0.72 without jig on the same scenarios, that's a concrete measurement of what the tool provides. If agents score 0.95 both ways, jig isn't helping — back to the drawing board.
 

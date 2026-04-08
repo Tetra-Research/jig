@@ -1,5 +1,5 @@
 name: scaffold-test
-description: Create a test file for the BookingService using the create-test recipe
+description: Create a test file for the CoreService using the create-test recipe
 tier: easy
 category: greenfield
 
@@ -9,33 +9,33 @@ context: |
 prompts:
   directed: |
     Use the create-test skill to scaffold a test file.
-    service_name: BookingService
-    module_path: services.booking
+    service_name: CoreService
+    module_path: services.core_service
   natural: |
-    Create a test file for the BookingService located at services/booking.py.
+    Create a test file for the CoreService located at services/core_service.py.
   ambient: |
     CI is failing on this PR:
 
     ```
     FAIL: coverage check
-    services/booking.py — 0% coverage (no test file found)
+    services/core_service.py — 0% coverage (no test file found)
     Required: 80%
     ```
 
-    The BookingService at services/booking.py needs test coverage.
+    The CoreService at services/core_service.py needs test coverage.
     Please add tests for it.
 
 expected_files_modified:
-  - tests/test_booking_service.py
+  - tests/test_core_service.py
 
 assertions:
-  - file: tests/test_booking_service.py
-    contains: "class TestBookingService"
+  - file: tests/test_core_service.py
+    contains: "class TestCoreService"
     weight: 1.0
-  - file: tests/test_booking_service.py
+  - file: tests/test_core_service.py
     contains: "def test_"
     weight: 0.8
-  - file: tests/test_booking_service.py
+  - file: tests/test_core_service.py
     contains: "import"
     weight: 0.5
 

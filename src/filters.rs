@@ -168,16 +168,16 @@ mod tests {
 
     #[test]
     fn ac_3_10_pluralize() {
-        let ctx = minijinja::context! { word => "hotel" };
-        assert_eq!(render("{{ word | pluralize }}", &ctx), "hotels");
+        let ctx = minijinja::context! { word => "item" };
+        assert_eq!(render("{{ word | pluralize }}", &ctx), "items");
     }
 
     // ── AC-3.11: singularize ───────────────────────────────────
 
     #[test]
     fn ac_3_11_singularize() {
-        let ctx = minijinja::context! { word => "hotels" };
-        assert_eq!(render("{{ word | singularize }}", &ctx), "hotel");
+        let ctx = minijinja::context! { word => "items" };
+        assert_eq!(render("{{ word | singularize }}", &ctx), "item");
     }
 
     // ── AC-3.12: quote ─────────────────────────────────────────

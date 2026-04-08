@@ -1,5 +1,0 @@
-You are working on a Django application with models, admin, factories, and serializers.
-
-
-Add a loyalty_tier field (CharField, max_length=20, default="bronze") to the Reservation model.
-Propagate the field to admin.py (list_display), serializers.py (fields), and factories.py.

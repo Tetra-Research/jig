@@ -76,7 +76,7 @@ files:
 Run:
 
 ```bash
-jig run recipe.yaml --vars '{"module":"hotels.services.booking","class_name":"BookingService"}'
+jig run recipe.yaml --vars '{"module":"app.services.core_service","class_name":"CoreService"}'
 ```
 
 Same recipe + same variables + same file state yields the same output.

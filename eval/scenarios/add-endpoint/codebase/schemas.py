@@ -1,13 +1,13 @@
 from rest_framework import serializers
 
 
-class ReservationListSchema(serializers.Serializer):
+class EntityListSchema(serializers.Serializer):
     id = serializers.IntegerField()
-    guest = serializers.CharField()
+    display_name = serializers.CharField()
 
 
-class ReservationDetailSchema(serializers.Serializer):
+class EntityDetailSchema(serializers.Serializer):
     id = serializers.IntegerField()
-    guest = serializers.CharField()
-    room = serializers.IntegerField()
+    display_name = serializers.CharField()
+    unit = serializers.IntegerField()
     status = serializers.CharField()

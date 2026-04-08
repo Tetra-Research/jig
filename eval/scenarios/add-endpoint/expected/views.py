@@ -1,31 +1,31 @@
 from rest_framework.decorators import api_view
 from rest_framework.response import Response
-from .models import Reservation
+from .models import Entity
 
 
 @api_view(["GET"])
-def reservation_list(request):
-    reservations = Reservation.objects.all()
-    return Response([{"id": r.id, "guest": r.guest_name} for r in reservations])
+def entity_list(request):
+    entities = Entity.objects.all()
+    return Response([{"id": r.id, "display_name": r.display_name} for r in entities])
 
 
 @api_view(["GET"])
-def reservation_detail(request, pk):
-    reservation = Reservation.objects.get(pk=pk)
+def entity_detail(request, pk):
+    entity = Entity.objects.get(pk=pk)
     return Response({
-        "id": reservation.id,
-        "guest": reservation.guest_name,
-        "room": reservation.room_number,
-        "status": reservation.status,
+        "id": entity.id,
+        "display_name": entity.display_name,
+        "unit": entity.unit_number,
+        "status": entity.status,
     })
 
 
 @api_view(["GET"])
-def reservation_receipt(request, pk):
-    instance = Reservation.objects.get(pk=pk)
+def entity_summary(request, pk):
+    instance = Entity.objects.get(pk=pk)
     return Response({
         "id": instance.id,
-        "guest": instance.guest_name,
+        "display_name": instance.display_name,
         "total": "100.00",
         "currency": "USD",
     })

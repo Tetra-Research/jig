@@ -1,15 +1,15 @@
 from rest_framework import serializers
-from .models import Reservation
+from .models import Entity
 
 
-class ReservationSerializer(serializers.ModelSerializer):
+class EntitySerializer(serializers.ModelSerializer):
     class Meta:
-        model = Reservation
+        model = Entity
         fields = [
-            "loyalty_tier",
+            "classification",
             "id",
-            "guest_name",
-            "room_number",
+            "display_name",
+            "unit_number",
             "check_in",
             "check_out",
             "status",

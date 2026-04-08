@@ -1,4 +1,0 @@
-You are working on a codebase. Make the requested changes using your native Read, Edit, and Write tools. Do not use jig.
-
-Add a loyalty_tier field (CharField, max_length=20, default="bronze") to the Reservation model.
-Propagate the field to admin.py (list_display), serializers.py (fields), and factories.py.

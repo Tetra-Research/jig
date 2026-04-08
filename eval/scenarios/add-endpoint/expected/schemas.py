@@ -1,20 +1,20 @@
 from rest_framework import serializers
 
 
-class ReservationListSchema(serializers.Serializer):
+class EntityListSchema(serializers.Serializer):
     id = serializers.IntegerField()
-    guest = serializers.CharField()
+    display_name = serializers.CharField()
 
 
-class ReservationDetailSchema(serializers.Serializer):
+class EntityDetailSchema(serializers.Serializer):
     id = serializers.IntegerField()
-    guest = serializers.CharField()
-    room = serializers.IntegerField()
+    display_name = serializers.CharField()
+    unit = serializers.IntegerField()
     status = serializers.CharField()
 
 
-class ReceiptSchema(serializers.Serializer):
+class SummarySchema(serializers.Serializer):
     id = serializers.IntegerField()
-    guest = serializers.CharField()
+    display_name = serializers.CharField()
     total = serializers.DecimalField(max_digits=10, decimal_places=2)
     currency = serializers.CharField()

@@ -1,6 +1,0 @@
-You are working on a Django REST framework application.
-
-
-Use the add-view skill to add a new view function.
-view_name: reservation_receipt
-model_name: Reservation

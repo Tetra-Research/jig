@@ -10,8 +10,8 @@ expected_files_modified:
 
 assertions:
   - file: models.py
-    contains: "loyalty_tier"
-    scope: "class Reservation"
+    contains: "classification"
+    scope: "class Entity"
     weight: 2.0
   - file: models.py
     contains: "phone_number"

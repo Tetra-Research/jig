@@ -1,4 +1,0 @@
-You are working on a codebase. Make the requested changes using your native Read, Edit, and Write tools. Do not use jig.
-
-Add a new Permission model to the auth module.
-The model should have fields: name (CharField, max_length=100) and codename (CharField, max_length=100).

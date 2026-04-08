@@ -3,7 +3,7 @@ name: velocity
 description: Systematic DX improvement hunt — find friction, inconsistency, and missing abstractions across PRs, code, or tickets, then feed findings into /improve. Use when looking for ways to accelerate development or compound Claude Code's utility.
 allowed-tools: Read Write Edit Glob Grep Bash Agent WebFetch AskUserQuestion
 disable-model-invocation: true
-argument-hint: [scope — e.g. "my PRs", "backend/canary/guest", "STAY-1234"]
+argument-hint: [scope — e.g. "my PRs", "backend/module/component", "<ticket-id>"]
 ---
 
 # Velocity Hunt

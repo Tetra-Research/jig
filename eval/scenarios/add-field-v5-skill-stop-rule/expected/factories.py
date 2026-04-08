@@ -1,14 +1,14 @@
 import factory
-from .models import Reservation
+from .models import Entity
 
 
-class ReservationFactory(factory.django.DjangoModelFactory):
+class EntityFactory(factory.django.DjangoModelFactory):
     class Meta:
-        model = Reservation
+        model = Entity
 
-    guest_name = factory.Faker("name")
-    room_number = factory.Sequence(lambda n: 100 + n)
+    display_name = factory.Faker("name")
+    unit_number = factory.Sequence(lambda n: 100 + n)
     check_in = factory.Faker("date_time_this_year")
     check_out = factory.Faker("date_time_this_year")
     status = "confirmed"
-    loyalty_tier = "bronze"
+    classification = "standard"

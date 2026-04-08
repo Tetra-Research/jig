@@ -1,7 +1,7 @@
-class Reservation:
+class Entity:
     name = "test"
     status = "pending"
-    loyalty_tier = "gold"
+    classification = "gold"
 
 class Contact:
     email = "test@example.com"

@@ -181,27 +181,27 @@ await test("scoreAssertions: passes when contains string is found", () => {
   // Use expected/ dir as the workDir (it has the "after" state)
   const workDir = path.join(FIXTURES, "scoring", "expected");
   const results = scoreAssertions(scenario, workDir);
-  const loyaltyResult = results.find((r) => r.contains === "loyalty_tier");
-  assert.ok(loyaltyResult?.passed, "loyalty_tier should be found");
+  const loyaltyResult = results.find((r) => r.contains === "classification");
+  assert.ok(loyaltyResult?.passed, "classification should be found");
 });
 
 await test("scoreAssertions: fails when contains string is not found", () => {
   const scenario = loadScenario(path.join(FIXTURES, "scoring"));
-  // Use codebase/ as workDir (the "before" state — no loyalty_tier)
+  // Use codebase/ as workDir (the "before" state — no classification)
   const workDir = path.join(FIXTURES, "scoring", "codebase");
   const results = scoreAssertions(scenario, workDir);
-  const loyaltyResult = results.find((r) => r.contains === "loyalty_tier");
-  assert.ok(!loyaltyResult?.passed, "loyalty_tier should NOT be found in before state");
+  const loyaltyResult = results.find((r) => r.contains === "classification");
+  assert.ok(!loyaltyResult?.passed, "classification should NOT be found in before state");
 });
 
 await test("scoreAssertions: scope narrows search to class body", () => {
   const scenario = loadScenario(path.join(FIXTURES, "scoring"));
-  // The assertion has scope: "class Reservation" and checks for "loyalty_tier"
-  // In expected/models.py, loyalty_tier is inside class Reservation
+  // The assertion has scope: "class Entity" and checks for "classification"
+  // In expected/models.py, classification is inside class Entity
   const workDir = path.join(FIXTURES, "scoring", "expected");
   const results = scoreAssertions(scenario, workDir);
-  const scopedResult = results.find((r) => r.scope === "class Reservation");
-  assert.ok(scopedResult?.passed, "Should find loyalty_tier within class Reservation scope");
+  const scopedResult = results.find((r) => r.scope === "class Entity");
+  assert.ok(scopedResult?.passed, "Should find classification within class Entity scope");
 });
 
 await test("scoreAssertions: missing file marks assertion as failed", () => {

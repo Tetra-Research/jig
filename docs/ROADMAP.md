@@ -185,7 +185,7 @@ jig-django/
   ...
 ```
 
-**What this unlocks:** The full vision — a developer says "add a loyalty_tier field to Reservation" and gets a consistent, multi-file, team-compliant change. The skill handles the intelligence (reading code, extracting variables), jig handles the mechanics (rendering, patching).
+**What this unlocks:** The full vision — a developer says "add a classification field to Entity" and gets a consistent, multi-file, team-compliant change. The skill handles the intelligence (reading code, extracting variables), jig handles the mechanics (rendering, patching).
 
 **Open questions for SPEC:**
 - Does the jig plugin provide the MCP server, or is it registered separately?
@@ -206,13 +206,13 @@ Reverse operations that close the loop: instead of variables → files, go files
 
 *`jig scan`:*
 - Reverse a recipe: given an existing file, extract the variables that would have produced it
-- File-level scan: `jig scan django/model ./hotels/models/reservation.py`
-- Directory-level scan: `jig scan django ./hotels/` — project map showing coverage
+- File-level scan: `jig scan django/model ./sample_app/models/entity.py`
+- Directory-level scan: `jig scan django ./sample_app/` — project map showing coverage
 - Output: JSON with `variables`, `confidence`, `unrecognized` (lines the recipe can't explain)
 - Enables the workflow: scan → LLM modifies variables → run recipe
 
 *`jig check`:*
-- Conformance verification: `jig check django/model ./hotels/models/*.py`
+- Conformance verification: `jig check django/model ./sample_app/models/*.py`
 - Issue reporting with severity levels (error, warn)
 - `fix_recipe` references: when an issue has a known recipe fix, jig tells you
 - Directory-level checking across all library concerns

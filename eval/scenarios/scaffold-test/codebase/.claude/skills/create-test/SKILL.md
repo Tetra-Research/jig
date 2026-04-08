@@ -15,8 +15,8 @@ jig run ${CLAUDE_SKILL_DIR}/recipe.yaml --vars '{"service_name": "<ServiceName>"
 
 ## Variables
 
-- **service_name**: Name of the service class (e.g. `BookingService`)
-- **module_path**: Python module path to the service (e.g. `services.booking`)
+- **service_name**: Name of the service class (e.g. `CoreService`)
+- **module_path**: Python module path to the service (e.g. `services.core_service`)
 
 Extract these from the user's request or by inspecting the source file.
 

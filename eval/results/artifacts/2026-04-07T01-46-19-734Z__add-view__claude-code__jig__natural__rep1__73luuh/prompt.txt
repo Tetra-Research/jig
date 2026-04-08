@@ -1,5 +1,0 @@
-You are working on a Django REST framework application.
-
-
-Add a GET view called reservation_receipt that takes a pk and returns receipt
-details for a Reservation.

@@ -5,11 +5,11 @@ variables:
   service_name:
     type: string
     required: true
-    description: "Name of the service class (e.g., BookingService)"
+    description: "Name of the service class (e.g., CoreService)"
   module_path:
     type: string
     required: true
-    description: "Module path to the service (e.g., services.booking)"
+    description: "Module path to the service (e.g., services.core_service)"
 
 files:
   - template: templates/test.py.j2

@@ -1,4 +1,4 @@
-class Reservation:
+class Entity:
     name = "test"
     status = "pending"
 

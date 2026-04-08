@@ -2,6 +2,9 @@
 
 Purpose: run a strict A/B comparison where the only intentional change is the skill profile.
 
+Reference notes for upcoming skill work:
+- `DJANGO_PATTERN_PLAYBOOK.md` (captured 2026-04-08)
+
 - Arm `control`: your control skill profile.
 - Arm `jig`: your jig-backed skill profile.
 - Same scenario codebase, same prompt, same agent, same rep index.

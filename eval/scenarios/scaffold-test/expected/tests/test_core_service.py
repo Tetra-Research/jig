@@ -1,12 +1,12 @@
 import pytest
-from {{ module_path }} import {{ service_name }}
+from services.core_service import CoreService
 
 
-class Test{{ service_name }}:
-    """Tests for {{ service_name }}."""
+class TestCoreService:
+    """Tests for CoreService."""
 
     def setup_method(self):
-        self.service = {{ service_name }}()
+        self.service = CoreService()
 
     def test_create_record(self):
         result = self.service.create_record(

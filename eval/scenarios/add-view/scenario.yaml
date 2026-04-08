@@ -1,5 +1,5 @@
 name: add-view
-description: Add a receipt view function to an existing views.py using the add-view recipe
+description: Add a summary view function to an existing views.py using the add-view recipe
 tier: easy
 category: brownfield-extension
 
@@ -9,23 +9,23 @@ context: |
 prompts:
   directed: |
     Use the add-view skill to add a new view function.
-    view_name: reservation_receipt
-    model_name: Reservation
+    view_name: entity_summary
+    model_name: Entity
   natural: |
-    Add a GET view called reservation_receipt that takes a pk and returns receipt
-    details for a Reservation.
+    Add a GET view called entity_summary that takes a pk and returns summary
+    details for an Entity.
   ambient: |
     Here's the updated API spec from the product team:
 
-    ## Reservations API
+    ## Entities API
 
     ### Existing endpoints
-    - GET /api/reservations/ — List all reservations
-    - GET /api/reservations/:id/ — Reservation detail
+    - GET /api/entities/ — List all entities
+    - GET /api/entities/:id/ — Entity detail
 
     ### New endpoints needed
-    - GET /api/reservations/:id/receipt/ — Receipt details for a reservation.
-      Takes a pk parameter and returns receipt data for the given Reservation.
+    - GET /api/entities/:id/summary/ — Summary details for an entity.
+      Takes a pk parameter and returns summary data for the given Entity.
 
     Please implement the new endpoint.
 
@@ -34,15 +34,15 @@ expected_files_modified:
 
 assertions:
   - file: views.py
-    contains: "def reservation_receipt"
+    contains: "def entity_summary"
     weight: 1.0
   - file: views.py
     contains: "@api_view"
-    scope: "def reservation_receipt"
+    scope: "def entity_summary"
     weight: 0.5
   - file: views.py
-    contains: "Reservation.objects.get"
-    scope: "def reservation_receipt"
+    contains: "Entity.objects.get"
+    scope: "def entity_summary"
     weight: 0.5
 
 negative_assertions:

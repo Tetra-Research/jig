@@ -1,5 +1,5 @@
 name: add-endpoint
-description: Add a GET /api/reservations/:id/receipt endpoint with view, URL, schema, and test
+description: Add a GET /api/entities/:id/summary endpoint with view, URL, schema, and test
 tier: medium
 category: brownfield-extension
 
@@ -9,26 +9,26 @@ context: |
 prompts:
   directed: |
     Use the add-endpoint skill to add a new endpoint.
-    view_name: reservation_receipt
-    url_path: reservations/<int:pk>/receipt/
-    url_name: reservation-receipt
-    schema_name: ReceiptSchema
-    model_name: Reservation
+    view_name: entity_summary
+    url_path: entities/<int:pk>/summary/
+    url_name: entity-summary
+    schema_name: SummarySchema
+    model_name: Entity
   natural: |
-    Add a GET /api/reservations/<id>/receipt endpoint that returns receipt details.
-    The view should be named reservation_receipt, the URL should be at
-    reservations/<int:pk>/receipt/, and there should be a test for it.
+    Add a GET /api/entities/<id>/summary endpoint that returns summary details.
+    The view should be named entity_summary, the URL should be at
+    entities/<int:pk>/summary/, and there should be a test for it.
   ambient: |
-    ## JIRA-1234: Receipt endpoint for reservations
+    ## Feature request: summary endpoint for entities
 
     **Acceptance criteria:**
-    - GET /api/reservations/:id/receipt returns receipt data for a reservation
-    - View function: reservation_receipt
-    - URL: reservations/<int:pk>/receipt/
-    - Response schema class with id, guest, total, currency fields
+    - GET /api/entities/:id/summary returns summary data for an entity
+    - View function: entity_summary
+    - URL: entities/<int:pk>/summary/
+    - Response schema class with id, display_name, total, currency fields
     - Unit test covering the happy path
 
-    Please implement this ticket.
+    Please implement this change.
 
 expected_files_modified:
   - views.py
@@ -38,16 +38,16 @@ expected_files_modified:
 
 assertions:
   - file: views.py
-    contains: "def reservation_receipt"
+    contains: "def entity_summary"
     weight: 1.0
   - file: urls.py
-    contains: "receipt"
+    contains: "summary"
     weight: 1.0
   - file: schemas.py
-    contains: "ReceiptSchema"
+    contains: "SummarySchema"
     weight: 0.8
   - file: tests/test_views.py
-    contains: "def test_reservation_receipt"
+    contains: "def test_entity_summary"
     weight: 0.8
 
 negative_assertions:
