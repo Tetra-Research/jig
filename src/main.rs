@@ -1,6 +1,8 @@
+mod agent;
 mod error;
 mod filters;
 mod library;
+mod notice;
 mod operations;
 mod output;
 mod prepare;
@@ -15,6 +17,7 @@ use std::process;
 
 use clap::{Parser, Subcommand};
 
+use crate::agent::AgentKind;
 use crate::error::JigError;
 use crate::prepare::prepare_operations;
 use crate::recipe::Recipe;
@@ -117,6 +120,11 @@ enum Commands {
         #[command(subcommand)]
         action: LibraryAction,
     },
+    /// Install bundled agent skills into a project
+    Agent {
+        #[command(subcommand)]
+        action: AgentAction,
+    },
 }
 
 #[derive(Subcommand)]
@@ -163,6 +171,51 @@ enum LibraryAction {
     },
 }
 
+#[derive(Subcommand)]
+enum AgentAction {
+    /// Install bundled Jig skills for an agent
+    Install {
+        /// Agent to install for. If omitted, jig infers it from the target repo.
+        #[arg(value_enum)]
+        agent: Option<AgentKind>,
+        /// Target project root. Defaults to the current base dir.
+        #[arg(long)]
+        to: Option<PathBuf>,
+        /// Replace existing jig-managed installs
+        #[arg(long)]
+        force: bool,
+    },
+    /// Replace an existing Jig-managed install with the current bundled skills
+    Update {
+        /// Agent to update. If omitted, jig infers it from the target repo.
+        #[arg(value_enum)]
+        agent: Option<AgentKind>,
+        /// Target project root. Defaults to the current base dir.
+        #[arg(long)]
+        to: Option<PathBuf>,
+    },
+    /// Remove Jig-managed skills for an agent
+    Remove {
+        /// Agent to remove. If omitted, jig infers it from the target repo.
+        #[arg(value_enum)]
+        agent: Option<AgentKind>,
+        /// Target project root. Defaults to the current base dir.
+        #[arg(long)]
+        to: Option<PathBuf>,
+    },
+    /// List bundled agent skills
+    List,
+    /// Inspect agent markers and installed Jig skills
+    Doctor {
+        /// Agent to inspect. If omitted, report detected agents.
+        #[arg(value_enum)]
+        agent: Option<AgentKind>,
+        /// Target project root. Defaults to the current base dir.
+        #[arg(long)]
+        to: Option<PathBuf>,
+    },
+}
+
 fn main() {
     let cli = Cli::parse();
     let result = run(cli);
@@ -182,8 +235,8 @@ fn run(cli: Cli) -> Result<i32, JigError> {
         .map(|p| p.to_path_buf())
         .unwrap_or_else(|| std::env::current_dir().unwrap_or_else(|_| PathBuf::from(".")));
     let inline_vars_owned = cli.vars.clone().or(cli.json_args.clone());
-
-    match cli.command {
+    let should_emit_update_notice = command_eligible_for_update_notice(&cli.command);
+    let result = match cli.command {
         Commands::Validate { recipe } => {
             let resolved = resolve_recipe_or_library(&recipe, &base_dir);
             cmd_validate(
@@ -245,7 +298,23 @@ fn run(cli: Cli) -> Result<i32, JigError> {
             codex,
         } => cmd_list(skills, claude, codex, &base_dir, cli.json, cli.quiet),
         Commands::Library { action } => cmd_library(action, &base_dir, cli.json, cli.quiet),
+        Commands::Agent { action } => cmd_agent(action, &base_dir, cli.json, cli.quiet),
+    };
+
+    if result.is_ok() {
+        notice::maybe_emit_local_update_notice(
+            &base_dir,
+            cli.json,
+            cli.quiet,
+            should_emit_update_notice,
+        );
     }
+
+    result
+}
+
+fn command_eligible_for_update_notice(command: &Commands) -> bool {
+    !matches!(command, Commands::Agent { .. })
 }
 
 /// Result of resolving a recipe path — either a filesystem path or a library recipe.
@@ -1556,6 +1625,251 @@ fn cmd_library(
                                 let steps_info = format!("{} steps", wf.steps.len());
                                 eprintln!("  {} ({steps_info}){desc}", wf.name);
                             }
+                        }
+                    }
+                }
+            }
+            Ok(0)
+        }
+    }
+}
+
+fn cmd_agent(
+    action: AgentAction,
+    base_dir: &std::path::Path,
+    force_json: bool,
+    quiet: bool,
+) -> Result<i32, JigError> {
+    let mode = output::detect_mode(force_json);
+
+    match action {
+        AgentAction::Install { agent, to, force } => {
+            let installed = agent::install(
+                agent::InstallRequest {
+                    agent,
+                    target_root: to,
+                    force,
+                },
+                base_dir,
+            )?;
+            match mode {
+                output::OutputMode::Json => {
+                    let json = serde_json::json!({
+                        "action": "install",
+                        "agent": installed.agent,
+                        "target_root": installed.target_root.display().to_string(),
+                        "install_base": installed.install_base.display().to_string(),
+                        "inferred_agent": installed.inferred_agent,
+                        "installed_skills": installed.installed_skills,
+                    });
+                    println!("{}", serde_json::to_string_pretty(&json).unwrap());
+                }
+                output::OutputMode::Human => {
+                    if !quiet {
+                        let inferred = if installed.inferred_agent {
+                            " (agent inferred)"
+                        } else {
+                            ""
+                        };
+                        eprintln!(
+                            "Installed {} bundled skills into {}{}",
+                            installed.agent,
+                            installed.install_base.display(),
+                            inferred
+                        );
+                        if !installed.installed_skills.is_empty() {
+                            eprintln!(
+                                "  Skills: {}",
+                                installed
+                                    .installed_skills
+                                    .iter()
+                                    .map(|skill| skill.name.as_str())
+                                    .collect::<Vec<_>>()
+                                    .join(", ")
+                            );
+                        }
+                    }
+                }
+            }
+            Ok(0)
+        }
+        AgentAction::Update { agent, to } => {
+            let updated = agent::update(
+                agent::TargetRequest {
+                    agent,
+                    target_root: to,
+                },
+                base_dir,
+            )?;
+            match mode {
+                output::OutputMode::Json => {
+                    let json = serde_json::json!({
+                        "action": "update",
+                        "agent": updated.agent,
+                        "target_root": updated.target_root.display().to_string(),
+                        "install_base": updated.install_base.display().to_string(),
+                        "inferred_agent": updated.inferred_agent,
+                        "removed_skills": updated.removed_skills,
+                        "installed_skills": updated.installed_skills,
+                    });
+                    println!("{}", serde_json::to_string_pretty(&json).unwrap());
+                }
+                output::OutputMode::Human => {
+                    if !quiet {
+                        let inferred = if updated.inferred_agent {
+                            " (agent inferred)"
+                        } else {
+                            ""
+                        };
+                        eprintln!(
+                            "Updated {} bundled skills in {}{}",
+                            updated.agent,
+                            updated.install_base.display(),
+                            inferred
+                        );
+                        if !updated.installed_skills.is_empty() {
+                            eprintln!(
+                                "  Installed: {}",
+                                updated
+                                    .installed_skills
+                                    .iter()
+                                    .map(|skill| skill.name.as_str())
+                                    .collect::<Vec<_>>()
+                                    .join(", ")
+                            );
+                        }
+                        if !updated.removed_skills.is_empty() {
+                            eprintln!(
+                                "  Replaced: {}",
+                                updated
+                                    .removed_skills
+                                    .iter()
+                                    .map(|skill| skill.name.as_str())
+                                    .collect::<Vec<_>>()
+                                    .join(", ")
+                            );
+                        }
+                    }
+                }
+            }
+            Ok(0)
+        }
+        AgentAction::Remove { agent, to } => {
+            let removed = agent::remove(
+                agent::TargetRequest {
+                    agent,
+                    target_root: to,
+                },
+                base_dir,
+            )?;
+            match mode {
+                output::OutputMode::Json => {
+                    let json = serde_json::json!({
+                        "action": "remove",
+                        "agent": removed.agent,
+                        "target_root": removed.target_root.display().to_string(),
+                        "install_base": removed.install_base.display().to_string(),
+                        "inferred_agent": removed.inferred_agent,
+                        "removed_skills": removed.removed_skills,
+                    });
+                    println!("{}", serde_json::to_string_pretty(&json).unwrap());
+                }
+                output::OutputMode::Human => {
+                    if !quiet {
+                        let inferred = if removed.inferred_agent {
+                            " (agent inferred)"
+                        } else {
+                            ""
+                        };
+                        eprintln!(
+                            "Removed {} Jig-managed skills from {}{}",
+                            removed.agent,
+                            removed.install_base.display(),
+                            inferred
+                        );
+                        if !removed.removed_skills.is_empty() {
+                            eprintln!(
+                                "  Removed: {}",
+                                removed
+                                    .removed_skills
+                                    .iter()
+                                    .map(|skill| skill.name.as_str())
+                                    .collect::<Vec<_>>()
+                                    .join(", ")
+                            );
+                        }
+                    }
+                }
+            }
+            Ok(0)
+        }
+        AgentAction::List => {
+            let bundled_skills = agent::bundled_skills();
+            match mode {
+                output::OutputMode::Json => {
+                    let json = serde_json::json!({
+                        "agents": ["claude", "codex", "opencode"],
+                        "bundled_skills": bundled_skills,
+                    });
+                    println!("{}", serde_json::to_string_pretty(&json).unwrap());
+                }
+                output::OutputMode::Human => {
+                    if !quiet {
+                        eprintln!("Supported agents: claude, codex, opencode");
+                        eprintln!("Bundled skills:");
+                        for skill in bundled_skills {
+                            eprintln!("  {}", skill.name);
+                        }
+                    }
+                }
+            }
+            Ok(0)
+        }
+        AgentAction::Doctor { agent, to } => {
+            let report = agent::doctor(agent, to, base_dir)?;
+            match mode {
+                output::OutputMode::Json => {
+                    println!("{}", serde_json::to_string_pretty(&report).unwrap());
+                }
+                output::OutputMode::Human => {
+                    if !quiet {
+                        if report.detected_agents.is_empty() {
+                            eprintln!("Detected agents: none");
+                        } else {
+                            eprintln!(
+                                "Detected agents: {}",
+                                report
+                                    .detected_agents
+                                    .iter()
+                                    .map(ToString::to_string)
+                                    .collect::<Vec<_>>()
+                                    .join(", ")
+                            );
+                        }
+                        for status in report.statuses {
+                            let state = if !status.managed_install_present {
+                                "not installed".to_string()
+                            } else if status.up_to_date {
+                                format!("up to date (v{})", status.current_bundle_version)
+                            } else {
+                                let installed_versions = if status.installed_versions.is_empty() {
+                                    "unknown".to_string()
+                                } else {
+                                    status.installed_versions.join(", ")
+                                };
+                                format!(
+                                    "needs update (installed {}, bundled {})",
+                                    installed_versions, status.current_bundle_version
+                                )
+                            };
+                            eprintln!(
+                                "  {} -> {} (markers: {}, installed: {}, status: {})",
+                                status.agent,
+                                status.install_base.display(),
+                                if status.markers_present { "yes" } else { "no" },
+                                status.installed_skills.len(),
+                                state,
+                            );
                         }
                     }
                 }

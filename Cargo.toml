@@ -12,6 +12,7 @@ path = "src/main.rs"
 [dependencies]
 clap = { version = "4", features = ["derive"] }
 heck = "0.5"
+include_dir = "0.7"
 indexmap = { version = "2", features = ["serde"] }
 minijinja = "2"
 pluralizer = "0.4"
