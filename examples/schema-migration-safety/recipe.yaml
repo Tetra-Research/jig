@@ -1,0 +1,55 @@
+name: schema-migration-safety
+description: Generate safe two-step migration rollout and patch model field
+
+variables:
+  app_label:
+    type: string
+    required: true
+  model_name:
+    type: string
+    required: true
+  field_name:
+    type: string
+    required: true
+  field_type:
+    type: string
+    required: true
+  add_field_kwargs:
+    type: string
+    required: true
+  final_field_kwargs:
+    type: string
+    required: true
+  previous_migration:
+    type: string
+    required: true
+  add_migration_name:
+    type: string
+    required: true
+  finalize_migration_name:
+    type: string
+    required: true
+  backfill_value:
+    type: string
+    required: true
+  model_file:
+    type: string
+    required: false
+    default: models.py
+
+files:
+  - template: templates/model_field.py.j2
+    patch: "{{ model_file }}"
+    anchor:
+      pattern: "^class {{ model_name | regex_escape }}\\("
+      scope: class_body
+      position: after_last_field
+    skip_if: "{{ field_name }} ="
+
+  - template: templates/migration_add.py.j2
+    to: "migrations/{{ add_migration_name }}.py"
+    skip_if_exists: false
+
+  - template: templates/migration_finalize.py.j2
+    to: "migrations/{{ finalize_migration_name }}.py"
+    skip_if_exists: false

@@ -1,0 +1,6 @@
+{
+  "service_symbol": "CoreService",
+  "module_path": "services.core_service",
+  "create_method": "create_record",
+  "cancel_method": "cancel_record"
+}

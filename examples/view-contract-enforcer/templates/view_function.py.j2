@@ -1,0 +1,11 @@
+
+
+@api_view(["{{ http_method | upper }}"])
+def {{ view_name }}(request, pk):
+    request_contract = {{ request_schema_name }}(data=request.data)
+    request_contract.is_valid(raise_exception=True)
+    payload = request_contract.validated_data
+
+    result = {{ service_symbol }}(pk=pk, payload=payload)
+    response_contract = {{ response_schema_name }}(result)
+    return Response(response_contract.data, status=200)

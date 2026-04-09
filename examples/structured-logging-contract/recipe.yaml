@@ -1,0 +1,39 @@
+name: structured-logging-contract
+description: Add standardized start/end structured log statements to a function
+
+variables:
+  target_file:
+    type: string
+    required: true
+  function_name:
+    type: string
+    required: true
+  event_namespace:
+    type: string
+    required: true
+  step_name:
+    type: string
+    required: true
+  entity_id_expr:
+    type: string
+    required: true
+
+files:
+  - template: templates/logger_setup.py.j2
+    inject: "{{ target_file }}"
+    after: '^(from|import) '
+    at: last
+    skip_if: 'logger = logging.getLogger('
+
+  - template: templates/log_start.py.j2
+    patch: "{{ target_file }}"
+    anchor:
+      pattern: "^def {{ function_name | regex_escape }}\\("
+      scope: function_body
+      position: before
+    skip_if: '"{{ event_namespace }}.start"'
+
+  - template: templates/log_done.py.j2
+    inject: "{{ target_file }}"
+    before: "^\\s+return \\{$"
+    skip_if: '"{{ event_namespace }}.done"'

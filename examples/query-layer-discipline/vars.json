@@ -1,0 +1,8 @@
+{
+  "model_name": "Entity",
+  "queryset_name": "EntityQuerySet",
+  "manager_name": "EntityManager",
+  "selector_name": "select_active_entities",
+  "selector_file": "selectors.py",
+  "view_name": "entity_list"
+}

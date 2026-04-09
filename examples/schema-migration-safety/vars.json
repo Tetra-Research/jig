@@ -1,0 +1,12 @@
+{
+  "app_label": "core",
+  "model_name": "Entity",
+  "field_name": "classification",
+  "field_type": "models.CharField",
+  "add_field_kwargs": "max_length=20, null=True",
+  "final_field_kwargs": "max_length=20",
+  "previous_migration": "0007_auto_20260407_1200",
+  "add_migration_name": "0008_add_entity_classification",
+  "finalize_migration_name": "0009_enforce_entity_classification",
+  "backfill_value": "\"standard\""
+}

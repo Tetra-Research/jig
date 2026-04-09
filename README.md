@@ -81,6 +81,25 @@ jig run recipe.yaml --vars '{"module":"app.services.core_service","class_name":"
 
 Same recipe + same variables + same file state yields the same output.
 
+## Examples
+
+The repo now includes self-contained examples under [`examples/`](examples/README.md).
+
+Current example set:
+
+- [`add-service-test`](examples/add-service-test/README.md)
+- [`structured-logging-contract`](examples/structured-logging-contract/README.md)
+- [`view-contract-enforcer`](examples/view-contract-enforcer/README.md)
+- [`query-layer-discipline`](examples/query-layer-discipline/README.md)
+- [`schema-migration-safety`](examples/schema-migration-safety/README.md)
+
+Each example includes:
+
+- a runnable `recipe.yaml`
+- a concrete `vars.json`
+- `before/` and `after/` file trees
+- the templates used by the recipe
+
 ## Skill-Local by Design
 
 You can colocate `jig` assets with the skill that calls them:
@@ -114,92 +133,93 @@ This keeps automation close to the workflow context instead of forcing one centr
 - The installer refuses non-official repos unless `JIG_ALLOW_UNOFFICIAL_REPO=1` is set.
 - Public source remains buildable by anyone; this protects release authenticity, not install exclusivity.
 
-## Eval Results and Parseability
+## Evaluation
 
-Eval harness lives in `eval/` and writes JSONL results.
+The preferred evaluation path is the dedicated head-to-head runner in [`eval/head2head/`](eval/head2head/README.md).
 
-Scoring and efficiency model:
+This runner compares two explicit arms on the same scenario:
 
-| Item | Definition |
-|---|---|
-| Primary score | `total = assertion_score * negative_score` |
-| Assertion score | `assertion_score = passed_weight / total_weight` |
-| Negative score | `1.0` if all negative assertions pass, else `0.0` |
-| Secondary diagnostics | `file_score`, `jig_used`, `jig_correct` (tracked, not multiplied into `total`) |
-| Total token accounting | `tokens_used = input_tokens + output_tokens + cache_creation_input_tokens + cache_read_input_tokens` |
-| Efficiency fields | `tokens_used`, `cost_usd`, `duration_ms` per trial |
+- `control`: plain-language skill spec
+- `jig`: recipe/template-backed skill
 
-Control-group snapshot (2026-04-06):
+The current head-to-head pair set is documented in [`eval/head2head/HEAD2HEAD_SKILL_PAIRS.md`](eval/head2head/HEAD2HEAD_SKILL_PAIRS.md) and focuses on routine backend patterns:
 
-`add-view`, natural prompt, shared `CLAUDE.md`, `n=1` per arm:
+- deterministic service tests
+- query-layer discipline
+- rollout-safe schema migrations
+- structured logging contracts
+- view request/response contracts
 
-| Metric | Baseline Control | Jig Treatment | Delta vs Control |
-|---|---:|---:|---:|
-| Score (`total`) | `1.000` | `1.000` | `0.0%` |
-| Input tokens | `N/A (legacy row)` | `N/A (legacy row)` | `N/A` |
-| Output tokens | `N/A (legacy row)` | `N/A (legacy row)` | `N/A` |
-| Total tokens | `317,608` | `241,702` | `-23.9%` |
-| Input-side cost | `N/A (legacy row)` | `N/A (legacy row)` | `N/A` |
-| Output-side cost | `N/A (legacy row)` | `N/A (legacy row)` | `N/A` |
-| Total cost | `$0.8279` | `$0.6505` | `-21.4%` |
-| Duration | `84.0s` | `66.2s` | `-21.3%` |
+Per trial, the head-to-head runner captures:
 
-Additional controls:
+- correctness score and file-score diagnostics
+- duration
+- tool-call counts
+- input, output, cache, context, and total token usage
+- cost
+- raw init/result events
+- optional thinking text when enabled
 
-| Control | Trials | Mean Score | Jig Usage | Input Tokens | Output Tokens | Total Tokens | Input-Side Cost | Output-Side Cost | Mean Total Cost | Mean Duration |
-|---|---:|---:|---:|---:|---:|---:|---:|---:|---:|---:|
-| Strict no-jig control (`add-view`, natural, `--mode baseline --claude-md none`) | 1 | `1.000` | `0%` | `N/A (legacy row)` | `N/A (legacy row)` | `162,530` | `N/A` | `N/A` | `$0.4746` | `50.0s` |
-| Full baseline sweep (`exp-004`, 7 scenarios, `--mode baseline --claude-md none`) | 7 | `0.730` | `0%` | `N/A (aggregate summary)` | `N/A (aggregate summary)` | `N/A (aggregate summary)` | `N/A` | `N/A` | `$0.36` | `37.4s` |
+### Current Result Snapshot
 
-Cost-priority note: output-token reductions are usually more valuable than input-token reductions. Current baseline control archives are legacy shape and expose only total tokens + total cost, so input/output token and cost splits are not yet available for control-group deltas.
+Current replicated head-to-head baseline:
 
-Readiness/CI-safe mode (default strict schema checks):
+- run: [`eval/results/head2head-pairs-r25-20260409.jsonl`](eval/results/head2head-pairs-r25-20260409.jsonl)
+- scope: `5 scenarios x 3 reps x 2 arms = 30 trials`
+- outcome: both arms passed all `15/15` scenario/rep pairs
 
-```bash
-cd eval
-npx tsx harness/run.ts --schema-mode strict
-```
+Aggregate jig deltas versus control across the full run:
 
-Exploratory mixed-archive analysis:
+- score delta: `0.000`
+- total tokens: `-1,463,345`
+- total cost: `-$4.0582`
+- total duration: `-193,621 ms`
+- tool calls: `-85`
 
-```bash
-cd eval
-npx tsx experiments/analyze-gradient.ts \
-  --results results/archive/results-mixed-schema-20260406T114302.jsonl \
-  --schema-mode compat
-```
+Average per pair:
 
-Thorough discovery-matrix sweep (parallel sharded workers, plus optional sequential-vs-parallel control):
+- about `97.6k` fewer tokens
+- about `$0.27` cheaper
+- about `12.9s` faster
+- about `5.7` fewer tool calls
 
-```bash
-cd eval
-REPS=1 AGENT=claude-code JOBS=8 SCHEMA_MODE=strict bash experiments/run-discovery-matrix.sh
-REPS=1 AGENT=claude-code JOBS=8 INCLUDE_PARALLEL_CONTROL=1 SCHEMA_MODE=strict bash experiments/run-discovery-matrix.sh
-```
+Read we can defend today:
 
-Split mixed archives into schema-homogeneous files:
+- for `4/5` routine backend patterns, jig was cheaper and faster at equal correctness
+- `structured-logging-contract` remained the honest exception: correctness parity, but neutral-to-worse efficiency in some runs
+- the current claim is intentionally narrow: `jig` helps most on routine, shape-constrained backend edits
+
+Relevant review notes:
+
+- adversarial harness review: [`eval/results/head2head-r11-20260409-adversarial-review.md`](eval/results/head2head-r11-20260409-adversarial-review.md)
+- structured-logging multi-run review: [`eval/results/head2head-structured-logging-r20-r24-review-20260409.md`](eval/results/head2head-structured-logging-r20-r24-review-20260409.md)
+
+Run the head-to-head suite:
 
 ```bash
 cd eval
-npx tsx experiments/split-results-by-schema.ts \
-  --input results/archive/results-mixed-schema-20260406T114302.jsonl \
-  --out-dir results/archive
+npx tsx head2head/run.ts \
+  --scenario h2h-deterministic-service-test,h2h-query-layer-discipline,h2h-schema-migration-safety,h2h-structured-logging-contract,h2h-view-contract-enforcer \
+  --reps 3 \
+  --control-profile head2head/profiles/control \
+  --jig-profile head2head/profiles/jig \
+  --prompt-source directed \
+  --thinking-mode
 ```
-
-More detail: [`eval/experiments/README.md`](eval/experiments/README.md).
-Control-group reference synthesis: [`eval/experiments/README.md#control-group-reference-current-takeaways-as-of-2026-04-06`](eval/experiments/README.md#control-group-reference-current-takeaways-as-of-2026-04-06).
 
 ## Docs Map
 
+- Public example index: [`examples/README.md`](examples/README.md)
 - Product requirements document: [`PRD.md`](PRD.md)
 - System architecture: [`docs/ARCHITECTURE.md`](docs/ARCHITECTURE.md)
 - Invariants/constraints: [`docs/INVARIANTS.md`](docs/INVARIANTS.md)
 - Roadmap and milestone status: [`docs/ROADMAP.md`](docs/ROADMAP.md)
 - Manual release runbook: [`docs/RELEASE-MANUAL.md`](docs/RELEASE-MANUAL.md)
+- Public site scaffold: [`site/README.md`](site/README.md)
 - Workstream/autopilot archive pointer: [`docs/workstreams/README.md`](docs/workstreams/README.md)
 
 ## Status
 
 - Current project phase: v0.5 manual distribution path active.
 - Validation baseline: `cargo test`, `cargo fmt --check`, and `cargo clippy -D warnings` passing.
-- Eval harness unit/integration checks passing via `npx tsx eval/harness/test.ts`.
+- Eval checks passing via `npx tsx eval/harness/test.ts` and `npx tsx eval/head2head/test.ts`.

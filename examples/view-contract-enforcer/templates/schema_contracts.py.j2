@@ -1,0 +1,9 @@
+
+
+class {{ request_schema_name }}(serializers.Serializer):
+    correlation_id = serializers.CharField(required=False, allow_blank=True)
+
+
+class {{ response_schema_name }}(serializers.Serializer):
+    id = serializers.IntegerField()
+    status = serializers.CharField()
