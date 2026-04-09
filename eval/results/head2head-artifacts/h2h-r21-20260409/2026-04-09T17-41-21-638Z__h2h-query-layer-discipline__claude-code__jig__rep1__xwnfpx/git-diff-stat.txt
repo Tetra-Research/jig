@@ -1,0 +1,4 @@
+ models.py    | 14 ++++++++++++++
+ selectors.py |  8 ++++++++
+ views.py     |  2 ++
+ 3 files changed, 24 insertions(+)
