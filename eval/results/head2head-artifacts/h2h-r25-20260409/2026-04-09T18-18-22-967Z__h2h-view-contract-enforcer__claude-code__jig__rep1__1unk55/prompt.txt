@@ -1,0 +1,17 @@
+You are working on a Django REST framework application.
+
+Use the view-contract-enforcer skill.
+view_name: entity_summary
+http_method: POST
+request_schema_name: EntitySummaryRequest
+response_schema_name: EntitySummaryResponse
+service_symbol: build_entity_summary
+url_path: entities/<int:pk>/summary/
+url_name: entity-summary
+test_name: test_entity_summary
+test_url: /api/entities/1/summary/
+
+Diagnostic requirement for this run:
+Before your first tool call, output exactly one line beginning with:
+HEAD2HEAD_THINKING: <what you plan to do first and why>
+Then continue with normal execution.

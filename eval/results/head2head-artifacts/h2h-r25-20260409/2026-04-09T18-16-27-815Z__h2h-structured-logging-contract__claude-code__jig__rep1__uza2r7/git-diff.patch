@@ -1,0 +1,32 @@
+diff --git a/services/core_service.py b/services/core_service.py
+index 48a3e2e..2b01a73 100644
+--- a/services/core_service.py
++++ b/services/core_service.py
+@@ -1,8 +1,27 @@
+ from datetime import datetime
++import logging
++
++logger = logging.getLogger(__name__)
+ 
+ 
+ def create_record(record_id):
++    logger.info(
++        "core_service.create_record.start",
++        extra={
++            "method": "create_record",
++            "step": "validate_input",
++            "entity_id": record_id,
++        },
++    )
+     timestamp = datetime.utcnow().isoformat()
++    logger.info(
++        "core_service.create_record.done",
++        extra={
++            "method": "create_record",
++            "step": "validate_input",
++            "entity_id": record_id,
++        },
++    )
+     return {
+         "id": record_id,
+         "created_at": timestamp,

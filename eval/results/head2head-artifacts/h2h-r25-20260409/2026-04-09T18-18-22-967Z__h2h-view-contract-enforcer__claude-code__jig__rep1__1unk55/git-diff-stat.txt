@@ -1,0 +1,5 @@
+ schemas.py          |  9 +++++++++
+ tests/test_views.py |  8 ++++++++
+ urls.py             |  1 +
+ views.py            | 13 +++++++++++++
+ 4 files changed, 31 insertions(+)

@@ -1,0 +1,4 @@
+ migrations/0008_add_entity_classification.py     | 25 ++++++++++++++++++++++++
+ migrations/0009_enforce_entity_classification.py | 15 ++++++++++++++
+ models.py                                        |  1 +
+ 3 files changed, 41 insertions(+)
