@@ -186,7 +186,16 @@ fn run(cli: Cli) -> Result<i32, JigError> {
     match cli.command {
         Commands::Validate { recipe } => {
             let resolved = resolve_recipe_or_library(&recipe, &base_dir);
-            cmd_validate(&resolved.path, cli.json)
+            cmd_validate(
+                &resolved.path,
+                inline_vars_owned.as_deref(),
+                cli.vars_file.as_deref(),
+                cli.vars_stdin,
+                cli.json,
+                &base_dir,
+                resolved.library_name.as_deref(),
+                resolved.recipe_path.as_deref(),
+            )
         }
         Commands::Vars { recipe } => {
             let resolved = resolve_recipe_or_library(&recipe, &base_dir);
@@ -335,12 +344,36 @@ fn resolve_library_conventions(
     Ok(serde_json::Value::Object(rendered))
 }
 
-fn cmd_validate(path: &std::path::Path, json: bool) -> Result<i32, JigError> {
+struct SelectorValidationReport {
+    mode: &'static str,
+    deferred_fields: Vec<String>,
+    validated_with_vars: bool,
+}
+
+fn cmd_validate(
+    path: &std::path::Path,
+    inline_vars: Option<&str>,
+    vars_file: Option<&std::path::Path>,
+    vars_stdin: bool,
+    json: bool,
+    project_dir: &std::path::Path,
+    library_name: Option<&str>,
+    library_recipe_path: Option<&str>,
+) -> Result<i32, JigError> {
     match workflow::detect_file_type(path)? {
         workflow::FileType::Recipe => {
             let recipe = Recipe::load(path)?;
+            let selector_validation = validate_recipe_for_validate(
+                &recipe,
+                inline_vars,
+                vars_file,
+                vars_stdin,
+                project_dir,
+                library_name,
+                library_recipe_path,
+            )?;
             if json {
-                let output = build_validate_json(&recipe);
+                let output = build_validate_json(&recipe, &selector_validation);
                 println!("{}", serde_json::to_string_pretty(&output).unwrap());
             } else {
                 eprintln!("Recipe is valid: {}", path.display());
@@ -352,12 +385,20 @@ fn cmd_validate(path: &std::path::Path, json: bool) -> Result<i32, JigError> {
                 }
                 let op_types = summarize_op_types(&recipe);
                 eprintln!("  Operations: {} ({})", recipe.files.len(), op_types);
-                let deferred_selector_fields = recipe.deferred_selector_fields();
-                if !deferred_selector_fields.is_empty() {
-                    eprintln!(
-                        "  Selector validation: deferred for {} templated field(s)",
-                        deferred_selector_fields.len()
-                    );
+                match (
+                    selector_validation.mode,
+                    selector_validation.validated_with_vars,
+                ) {
+                    ("deferred", _) => {
+                        eprintln!(
+                            "  Selector validation: deferred for {} templated field(s)",
+                            selector_validation.deferred_fields.len()
+                        );
+                    }
+                    ("complete", true) => {
+                        eprintln!("  Selector validation: complete with provided vars");
+                    }
+                    _ => {}
                 }
             }
         }
@@ -673,13 +714,7 @@ fn cmd_run(
     // 3. Create recipe-aware environment and render ALL templates upfront (exit 2 on failure).
     // For library recipes, check .jig/overrides/<library>/<recipe-path>/ (AC-7.1).
     // Template paths like "templates/model.rs.j2" are resolved relative to this dir.
-    let override_dir = match (library_name, library_recipe_path) {
-        (Some(lib), Some(rp)) => {
-            let d = project_dir.join(".jig/overrides").join(lib).join(rp);
-            if d.is_dir() { Some(d) } else { None }
-        }
-        _ => None,
-    };
+    let override_dir = resolve_override_dir(project_dir, library_name, library_recipe_path);
     let env = match renderer::create_recipe_env_with_overrides(&recipe, override_dir.as_deref()) {
         Ok(e) => e,
         Err(e) => return handle_early_error(e),
@@ -1530,9 +1565,55 @@ fn cmd_library(
     }
 }
 
-fn build_validate_json(recipe: &Recipe) -> serde_json::Value {
-    let vars = variables::vars_json(&recipe.variables);
+fn validate_recipe_for_validate(
+    recipe: &Recipe,
+    inline_vars: Option<&str>,
+    vars_file: Option<&std::path::Path>,
+    vars_stdin: bool,
+    project_dir: &std::path::Path,
+    library_name: Option<&str>,
+    library_recipe_path: Option<&str>,
+) -> Result<SelectorValidationReport, JigError> {
     let deferred_selector_fields = recipe.deferred_selector_fields();
+    let has_var_inputs = inline_vars.is_some() || vars_file.is_some() || vars_stdin;
+
+    if !has_var_inputs {
+        return Ok(SelectorValidationReport {
+            mode: if deferred_selector_fields.is_empty() {
+                "complete"
+            } else {
+                "deferred"
+            },
+            deferred_fields: deferred_selector_fields,
+            validated_with_vars: false,
+        });
+    }
+
+    let provided = variables::collect_vars(inline_vars, vars_file, vars_stdin)?;
+    let mut vars = variables::validate_variables(&recipe.variables, &provided)?;
+    if let Some(lib_name) = library_name {
+        let conventions = resolve_library_conventions(lib_name, &vars, project_dir)?;
+        if let Some(obj) = vars.as_object_mut() {
+            obj.insert("conventions".to_string(), conventions);
+        }
+    }
+
+    let override_dir = resolve_override_dir(project_dir, library_name, library_recipe_path);
+    let env = renderer::create_recipe_env_with_overrides(recipe, override_dir.as_deref())?;
+    prepare_operations(recipe, &env, &vars)?;
+
+    Ok(SelectorValidationReport {
+        mode: "complete",
+        deferred_fields: deferred_selector_fields,
+        validated_with_vars: true,
+    })
+}
+
+fn build_validate_json(
+    recipe: &Recipe,
+    selector_validation: &SelectorValidationReport,
+) -> serde_json::Value {
+    let vars = variables::vars_json(&recipe.variables);
 
     let ops: Vec<serde_json::Value> = recipe
         .files
@@ -1568,10 +1649,25 @@ fn build_validate_json(recipe: &Recipe) -> serde_json::Value {
         "variables": vars,
         "operations": ops,
         "selector_validation": {
-            "mode": if deferred_selector_fields.is_empty() { "complete" } else { "deferred" },
-            "deferred_fields": deferred_selector_fields,
+            "mode": selector_validation.mode,
+            "deferred_fields": selector_validation.deferred_fields,
+            "validated_with_vars": selector_validation.validated_with_vars,
         },
     })
+}
+
+fn resolve_override_dir(
+    project_dir: &std::path::Path,
+    library_name: Option<&str>,
+    library_recipe_path: Option<&str>,
+) -> Option<PathBuf> {
+    match (library_name, library_recipe_path) {
+        (Some(lib), Some(rp)) => {
+            let d = project_dir.join(".jig/overrides").join(lib).join(rp);
+            if d.is_dir() { Some(d) } else { None }
+        }
+        _ => None,
+    }
 }
 
 fn summarize_op_types(recipe: &Recipe) -> String {
@@ -1627,12 +1723,25 @@ mod tests {
         (dir, recipe_path)
     }
 
+    fn validate_recipe(path: &std::path::Path, json: bool) -> Result<i32, JigError> {
+        cmd_validate(
+            path,
+            None,
+            None,
+            false,
+            json,
+            path.parent().unwrap(),
+            None,
+            None,
+        )
+    }
+
     /// AC-7.1: jig validate parses recipe and reports validity
     #[test]
     fn ac_7_1_validate_command_valid() {
         let yaml = "name: test\nvariables:\n  name:\n    type: string\n    required: true\nfiles:\n  - template: t.j2\n    to: out.rs\n";
         let (_dir, path) = setup_recipe(yaml, &["t.j2"]);
-        let result = cmd_validate(&path, false);
+        let result = validate_recipe(&path, false);
         assert_eq!(result.unwrap(), 0);
     }
 
@@ -1642,11 +1751,22 @@ mod tests {
         let yaml = "name: test\nvariables:\n  name:\n    type: string\nfiles:\n  - template: t.j2\n    to: out.rs\n";
         let (_dir, path) = setup_recipe(yaml, &["t.j2"]);
         let recipe = Recipe::load(&path).unwrap();
-        let json = build_validate_json(&recipe);
+        let selector_validation = validate_recipe_for_validate(
+            &recipe,
+            None,
+            None,
+            false,
+            path.parent().unwrap(),
+            None,
+            None,
+        )
+        .unwrap();
+        let json = build_validate_json(&recipe, &selector_validation);
         assert_eq!(json["valid"], true);
         assert!(json["variables"]["name"].is_object());
         assert_eq!(json["operations"][0]["type"], "create");
         assert_eq!(json["selector_validation"]["mode"], "complete");
+        assert_eq!(json["selector_validation"]["validated_with_vars"], false);
     }
 
     /// AC-7.1: jig validate exits 1 for invalid recipe
@@ -1654,7 +1774,7 @@ mod tests {
     fn ac_7_1_validate_command_invalid() {
         let yaml = "bad yaml [";
         let (_dir, path) = setup_recipe(yaml, &[]);
-        let err = cmd_validate(&path, false).unwrap_err();
+        let err = validate_recipe(&path, false).unwrap_err();
         assert_eq!(err.exit_code(), 1);
     }
 
@@ -1727,7 +1847,7 @@ mod tests {
     fn ac_7_6_json_flag_exists() {
         let yaml = "files: []\n";
         let (_dir, path) = setup_recipe(yaml, &[]);
-        let result = cmd_validate(&path, true);
+        let result = validate_recipe(&path, true);
         assert_eq!(result.unwrap(), 0);
     }
 
@@ -1781,7 +1901,7 @@ mod tests {
     fn ac_n5_2_recipe_validation_first() {
         let yaml = "invalid: [yaml: broken";
         let (_dir, path) = setup_recipe(yaml, &[]);
-        let err = cmd_validate(&path, false).unwrap_err();
+        let err = validate_recipe(&path, false).unwrap_err();
         assert_eq!(err.exit_code(), 1);
     }
 
@@ -1791,7 +1911,17 @@ mod tests {
         let yaml = "variables:\n  name:\n    type: string\n  count:\n    type: number\nfiles:\n  - template: a.j2\n    to: out_a.rs\n  - template: b.j2\n    inject: target.rs\n    append: true\n";
         let (_dir, path) = setup_recipe(yaml, &["a.j2", "b.j2"]);
         let recipe = Recipe::load(&path).unwrap();
-        let json = build_validate_json(&recipe);
+        let selector_validation = validate_recipe_for_validate(
+            &recipe,
+            None,
+            None,
+            false,
+            path.parent().unwrap(),
+            None,
+            None,
+        )
+        .unwrap();
+        let json = build_validate_json(&recipe, &selector_validation);
         assert!(json["variables"]["name"].is_object());
         assert!(json["variables"]["count"].is_object());
         assert_eq!(json["operations"][0]["type"], "create");
@@ -1819,8 +1949,19 @@ files:
 "#;
         let (_dir, path) = setup_recipe(yaml, &["t.j2", "p.j2"]);
         let recipe = Recipe::load(&path).unwrap();
-        let json = build_validate_json(&recipe);
+        let selector_validation = validate_recipe_for_validate(
+            &recipe,
+            None,
+            None,
+            false,
+            path.parent().unwrap(),
+            None,
+            None,
+        )
+        .unwrap();
+        let json = build_validate_json(&recipe, &selector_validation);
         assert_eq!(json["selector_validation"]["mode"], "deferred");
+        assert_eq!(json["selector_validation"]["validated_with_vars"], false);
         assert_eq!(
             json["selector_validation"]["deferred_fields"][0],
             "files[0].before"
@@ -1828,6 +1969,83 @@ files:
         assert_eq!(
             json["selector_validation"]["deferred_fields"][1],
             "files[1].anchor.find"
+        );
+    }
+
+    #[test]
+    fn validate_with_vars_completes_selector_validation() {
+        let yaml = r#"
+variables:
+  model_name:
+    type: string
+    required: true
+  member_name:
+    type: string
+    required: true
+files:
+  - template: p.j2
+    patch: target.py
+    anchor:
+      pattern: "^class {{ model_name | regex_escape }}:"
+      scope: class_body
+      find: "{{ member_name }}"
+"#;
+        let (_dir, path) = setup_recipe(yaml, &["p.j2"]);
+        let recipe = Recipe::load(&path).unwrap();
+        let selector_validation = validate_recipe_for_validate(
+            &recipe,
+            Some(r#"{"model_name":"EntityAdmin","member_name":"list_display"}"#),
+            None,
+            false,
+            path.parent().unwrap(),
+            None,
+            None,
+        )
+        .unwrap();
+        let json = build_validate_json(&recipe, &selector_validation);
+        assert_eq!(json["selector_validation"]["mode"], "complete");
+        assert_eq!(json["selector_validation"]["validated_with_vars"], true);
+        assert_eq!(
+            json["selector_validation"]["deferred_fields"][0],
+            "files[0].anchor.pattern"
+        );
+        assert_eq!(
+            json["selector_validation"]["deferred_fields"][1],
+            "files[0].anchor.find"
+        );
+    }
+
+    #[test]
+    fn validate_with_vars_reports_invalid_rendered_selector() {
+        let yaml = r#"
+variables:
+  model_name:
+    type: string
+    required: true
+files:
+  - template: p.j2
+    patch: target.py
+    anchor:
+      pattern: "^class {{ model_name }}:"
+      scope: class_body
+"#;
+        let (_dir, path) = setup_recipe(yaml, &["p.j2"]);
+        let err = cmd_validate(
+            &path,
+            Some(r#"{"model_name":"User["}"#),
+            None,
+            false,
+            false,
+            path.parent().unwrap(),
+            None,
+            None,
+        )
+        .unwrap_err();
+        assert_eq!(err.exit_code(), 2);
+        assert!(
+            err.structured_error()
+                .what
+                .contains("invalid rendered selector regex")
         );
     }
 

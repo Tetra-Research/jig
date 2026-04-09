@@ -544,6 +544,7 @@ fn convert_file_op(raw: RawFileOp, index: usize, source: &Path) -> Result<FileOp
         validate_regex(&anchor_pattern, "anchor.pattern", index, source)?;
         let scope = parse_scope_type(raw_anchor.scope.as_deref(), index, source)?;
         let position = parse_position(raw_anchor.position.as_deref(), index, source)?;
+        let find = validate_anchor_find(raw_anchor.find, index, source)?;
 
         Ok(FileOp::Patch {
             template,
@@ -551,7 +552,7 @@ fn convert_file_op(raw: RawFileOp, index: usize, source: &Path) -> Result<FileOp
             anchor: Anchor {
                 pattern: anchor_pattern,
                 scope,
-                find: raw_anchor.find,
+                find,
                 position,
             },
             skip_if: raw.skip_if,
@@ -652,6 +653,22 @@ fn validate_regex(pattern: &str, field: &str, index: usize, source: &Path) -> Re
         )
     })?;
     Ok(())
+}
+
+fn validate_anchor_find(
+    find: Option<String>,
+    index: usize,
+    source: &Path,
+) -> Result<Option<String>, JigError> {
+    match find {
+        Some(value) if !has_template_syntax(&value) && value.trim().is_empty() => Err(recipe_err(
+            "empty find string in 'anchor.find' field",
+            &format!("files[{index}] in {}", source.display()),
+            "an empty find string cannot narrow placement within the matched scope",
+            "provide a non-empty find string, or remove 'anchor.find' if narrowing is not needed",
+        )),
+        other => Ok(other),
+    }
 }
 
 pub fn has_template_syntax(value: &str) -> bool {
@@ -1071,6 +1088,23 @@ files:
         let err = Recipe::load(&path).unwrap_err();
         assert_eq!(err.exit_code(), 1);
         assert!(err.structured_error().what.contains("invalid regex"));
+    }
+
+    #[test]
+    fn empty_literal_anchor_find_fails_at_load_time() {
+        let yaml = r#"
+files:
+  - template: tmpl.j2
+    patch: "target.py"
+    anchor:
+      pattern: "^class User:"
+      scope: class_body
+      find: "   "
+"#;
+        let (_dir, path) = setup_recipe(yaml, &["tmpl.j2"]);
+        let err = Recipe::load(&path).unwrap_err();
+        assert_eq!(err.exit_code(), 1);
+        assert!(err.structured_error().what.contains("empty find string"));
     }
 
     /// All four fallback variants parse correctly.
