@@ -2,7 +2,7 @@ use heck::{ToKebabCase, ToLowerCamelCase, ToSnakeCase, ToUpperCamelCase};
 use minijinja::Environment;
 use minijinja::value::Kwargs;
 
-/// Register all 13 built-in filters on the given Environment.
+/// Register all built-in filters on the given Environment.
 pub fn register_all(env: &mut Environment) {
     env.add_filter("snakecase", filter_snakecase);
     env.add_filter("camelcase", filter_camelcase);
@@ -17,6 +17,7 @@ pub fn register_all(env: &mut Environment) {
     env.add_filter("quote", filter_quote);
     env.add_filter("indent", filter_indent);
     env.add_filter("join", filter_join);
+    env.add_filter("regex_escape", filter_regex_escape);
 }
 
 fn filter_snakecase(value: String) -> String {
@@ -110,6 +111,10 @@ fn filter_join(value: Vec<minijinja::Value>, separator: String) -> String {
         .map(|v| v.to_string())
         .collect::<Vec<_>>()
         .join(&separator)
+}
+
+fn filter_regex_escape(value: String) -> String {
+    regex::escape(&value)
 }
 
 // ── Tests ──────────────────────────────────────────────────────────
@@ -210,6 +215,15 @@ mod tests {
     fn ac_3_14_join() {
         let ctx = minijinja::context! { items => vec!["a", "b", "c"] };
         assert_eq!(render("{{ items | join(\", \") }}", &ctx), "a, b, c");
+    }
+
+    #[test]
+    fn regex_escape_filter() {
+        let ctx = minijinja::context! { value => "User[Legacy]+" };
+        assert_eq!(
+            render("{{ value | regex_escape }}", &ctx),
+            "User\\[Legacy\\]\\+"
+        );
     }
 
     // ── AC-3.4: All 13 filters registered ──────────────────────

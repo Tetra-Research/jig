@@ -7,7 +7,7 @@ use std::collections::HashMap;
 use std::path::{Path, PathBuf};
 
 use crate::error::{JigError, StructuredError};
-use crate::recipe::FileOp;
+use crate::recipe::{Anchor, FileOp, InjectMode, ReplaceSpec};
 
 // ── Execution context ─────────────────────────────────────────────
 
@@ -115,12 +115,16 @@ impl OpResult {
 // ── Dispatch ──────────────────────────────────────────────────────
 
 /// Pre-rendered operation ready for execution.
+#[derive(Debug)]
 pub struct PreparedOp {
     pub file_op: FileOp,
     pub rendered_content: String,
     pub rendered_path: String,
     /// For inject: rendered skip_if string (if any).
     pub rendered_skip_if: Option<String>,
+    pub rendered_inject_mode: Option<InjectMode>,
+    pub rendered_replace_spec: Option<ReplaceSpec>,
+    pub rendered_anchor: Option<Anchor>,
 }
 
 /// Execute a single prepared operation.
@@ -141,14 +145,14 @@ pub fn execute_operation(
             &prepared.rendered_path,
             &prepared.rendered_content,
             prepared.rendered_skip_if.as_deref(),
-            mode,
+            prepared.rendered_inject_mode.as_ref().unwrap_or(mode),
             ctx,
             verbose,
         ),
         FileOp::Replace { spec, fallback, .. } => replace::execute(
             &prepared.rendered_path,
             &prepared.rendered_content,
-            spec,
+            prepared.rendered_replace_spec.as_ref().unwrap_or(spec),
             fallback,
             ctx,
             verbose,
@@ -157,7 +161,7 @@ pub fn execute_operation(
             &prepared.rendered_path,
             &prepared.rendered_content,
             prepared.rendered_skip_if.as_deref(),
-            anchor,
+            prepared.rendered_anchor.as_ref().unwrap_or(anchor),
             ctx,
             verbose,
         ),

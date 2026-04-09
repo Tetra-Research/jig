@@ -562,58 +562,12 @@ pub fn run_recipe(
     verbose: bool,
 ) -> Result<Vec<OpResult>, (JigError, Vec<OpResult>)> {
     use crate::operations;
-    use crate::recipe::FileOp;
+    use crate::prepare::prepare_operations;
 
     // Create recipe-aware environment.
     let env = renderer::create_recipe_env(recipe).map_err(|e| (e, vec![]))?;
 
-    // Render ALL templates and paths upfront.
-    let mut prepared_ops = Vec::with_capacity(recipe.files.len());
-    for (i, file_op) in recipe.files.iter().enumerate() {
-        let rendered_content =
-            renderer::render_template(&env, file_op.template(), vars).map_err(|e| (e, vec![]))?;
-
-        let rendered_path = match file_op {
-            FileOp::Create { to, .. } => {
-                renderer::render_path_template(&env, to, vars, &format!("files[{}].to", i))
-            }
-            FileOp::Inject { inject, .. } => {
-                renderer::render_path_template(&env, inject, vars, &format!("files[{}].inject", i))
-            }
-            FileOp::Replace { replace, .. } => renderer::render_path_template(
-                &env,
-                replace,
-                vars,
-                &format!("files[{}].replace", i),
-            ),
-            FileOp::Patch { patch, .. } => {
-                renderer::render_path_template(&env, patch, vars, &format!("files[{}].patch", i))
-            }
-        }
-        .map_err(|e| (e, vec![]))?;
-
-        let rendered_skip_if = match file_op {
-            FileOp::Inject {
-                skip_if: Some(expr),
-                ..
-            }
-            | FileOp::Patch {
-                skip_if: Some(expr),
-                ..
-            } => Some(
-                renderer::render_path_template(&env, expr, vars, &format!("files[{}].skip_if", i))
-                    .map_err(|e| (e, vec![]))?,
-            ),
-            _ => None,
-        };
-
-        prepared_ops.push(operations::PreparedOp {
-            file_op: file_op.clone(),
-            rendered_content,
-            rendered_path,
-            rendered_skip_if,
-        });
-    }
+    let prepared_ops = prepare_operations(recipe, &env, vars).map_err(|e| (e, vec![]))?;
 
     // Execute operations in order, fail-fast.
     let mut results = Vec::with_capacity(prepared_ops.len());

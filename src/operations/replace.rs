@@ -184,8 +184,8 @@ fn match_between(
     end_pattern: &str,
     target: &std::path::Path,
 ) -> MatchResult {
-    let start_re = Regex::new(start_pattern).expect("regex validated at parse time");
-    let end_re = Regex::new(end_pattern).expect("regex validated at parse time");
+    let start_re = Regex::new(start_pattern).expect("regex validated during preparation");
+    let end_re = Regex::new(end_pattern).expect("regex validated during preparation");
 
     // Find first line matching start.
     let start_idx = match lines.iter().position(|line| start_re.is_match(line)) {

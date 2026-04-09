@@ -137,7 +137,7 @@ fn inject_after_before(
     is_after: bool,
     target: &std::path::Path,
 ) -> Result<(String, String), OpResult> {
-    let re = Regex::new(pattern).expect("regex was validated at parse time");
+    let re = Regex::new(pattern).expect("regex was validated during preparation");
 
     let lines: Vec<&str> = file_content.lines().collect();
     let matching_indices: Vec<usize> = lines

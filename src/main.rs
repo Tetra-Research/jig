@@ -3,6 +3,7 @@ mod filters;
 mod library;
 mod operations;
 mod output;
+mod prepare;
 mod recipe;
 mod renderer;
 mod scope;
@@ -15,6 +16,7 @@ use std::process;
 use clap::{Parser, Subcommand};
 
 use crate::error::JigError;
+use crate::prepare::prepare_operations;
 use crate::recipe::Recipe;
 
 #[derive(Parser)]
@@ -350,6 +352,13 @@ fn cmd_validate(path: &std::path::Path, json: bool) -> Result<i32, JigError> {
                 }
                 let op_types = summarize_op_types(&recipe);
                 eprintln!("  Operations: {} ({})", recipe.files.len(), op_types);
+                let deferred_selector_fields = recipe.deferred_selector_fields();
+                if !deferred_selector_fields.is_empty() {
+                    eprintln!(
+                        "  Selector validation: deferred for {} templated field(s)",
+                        deferred_selector_fields.len()
+                    );
+                }
             }
         }
         workflow::FileType::Workflow => {
@@ -676,87 +685,10 @@ fn cmd_run(
         Err(e) => return handle_early_error(e),
     };
 
-    let mut prepared_ops = Vec::with_capacity(recipe.files.len());
-    for (i, file_op) in recipe.files.iter().enumerate() {
-        // Render the template content.
-        let rendered_content = match renderer::render_template(&env, file_op.template(), &vars) {
-            Ok(c) => c,
-            Err(e) => return handle_early_error(e),
-        };
-
-        // Render templated path fields.
-        let rendered_path = match file_op {
-            recipe::FileOp::Create { to, .. } => {
-                match renderer::render_path_template(&env, to, &vars, &format!("files[{}].to", i)) {
-                    Ok(p) => p,
-                    Err(e) => return handle_early_error(e),
-                }
-            }
-            recipe::FileOp::Inject { inject, .. } => {
-                match renderer::render_path_template(
-                    &env,
-                    inject,
-                    &vars,
-                    &format!("files[{}].inject", i),
-                ) {
-                    Ok(p) => p,
-                    Err(e) => return handle_early_error(e),
-                }
-            }
-            recipe::FileOp::Replace { replace, .. } => {
-                match renderer::render_path_template(
-                    &env,
-                    replace,
-                    &vars,
-                    &format!("files[{}].replace", i),
-                ) {
-                    Ok(p) => p,
-                    Err(e) => return handle_early_error(e),
-                }
-            }
-            recipe::FileOp::Patch { patch, .. } => {
-                match renderer::render_path_template(
-                    &env,
-                    patch,
-                    &vars,
-                    &format!("files[{}].patch", i),
-                ) {
-                    Ok(p) => p,
-                    Err(e) => return handle_early_error(e),
-                }
-            }
-        };
-
-        // Render skip_if for inject and patch operations.
-        let rendered_skip_if = match file_op {
-            recipe::FileOp::Inject {
-                skip_if: Some(skip_if_expr),
-                ..
-            }
-            | recipe::FileOp::Patch {
-                skip_if: Some(skip_if_expr),
-                ..
-            } => {
-                match renderer::render_path_template(
-                    &env,
-                    skip_if_expr,
-                    &vars,
-                    &format!("files[{}].skip_if", i),
-                ) {
-                    Ok(s) => Some(s),
-                    Err(e) => return handle_early_error(e),
-                }
-            }
-            _ => None,
-        };
-
-        prepared_ops.push(operations::PreparedOp {
-            file_op: file_op.clone(),
-            rendered_content,
-            rendered_path,
-            rendered_skip_if,
-        });
-    }
+    let prepared_ops = match prepare_operations(&recipe, &env, &vars) {
+        Ok(ops) => ops,
+        Err(e) => return handle_early_error(e),
+    };
 
     // 4. Validate base_dir exists (AC-4.10). Done after rendering to respect
     // pipeline stage ordering: recipe(1) → variables(4) → rendering(2) → file ops(3) (AC-N5.2).
@@ -1600,6 +1532,7 @@ fn cmd_library(
 
 fn build_validate_json(recipe: &Recipe) -> serde_json::Value {
     let vars = variables::vars_json(&recipe.variables);
+    let deferred_selector_fields = recipe.deferred_selector_fields();
 
     let ops: Vec<serde_json::Value> = recipe
         .files
@@ -1634,6 +1567,10 @@ fn build_validate_json(recipe: &Recipe) -> serde_json::Value {
         "description": recipe.description,
         "variables": vars,
         "operations": ops,
+        "selector_validation": {
+            "mode": if deferred_selector_fields.is_empty() { "complete" } else { "deferred" },
+            "deferred_fields": deferred_selector_fields,
+        },
     })
 }
 
@@ -1709,6 +1646,7 @@ mod tests {
         assert_eq!(json["valid"], true);
         assert!(json["variables"]["name"].is_object());
         assert_eq!(json["operations"][0]["type"], "create");
+        assert_eq!(json["selector_validation"]["mode"], "complete");
     }
 
     /// AC-7.1: jig validate exits 1 for invalid recipe
@@ -1809,7 +1747,10 @@ mod tests {
     fn ac_7_6_json_args_flag_parses() {
         use clap::Parser;
         let parsed = Cli::try_parse_from(["jig", "--json-args", "{}", "render", "template.j2"]);
-        assert!(parsed.is_ok(), "--json-args should be accepted as a global option");
+        assert!(
+            parsed.is_ok(),
+            "--json-args should be accepted as a global option"
+        );
     }
 
     #[test]
@@ -1855,6 +1796,39 @@ mod tests {
         assert!(json["variables"]["count"].is_object());
         assert_eq!(json["operations"][0]["type"], "create");
         assert_eq!(json["operations"][1]["type"], "inject");
+    }
+
+    #[test]
+    fn validate_json_marks_deferred_selector_fields() {
+        let yaml = r#"
+variables:
+  function_name:
+    type: string
+  member_name:
+    type: string
+files:
+  - template: t.j2
+    inject: target.py
+    before: "^def {{ function_name | regex_escape }}\\("
+  - template: p.j2
+    patch: target.py
+    anchor:
+      pattern: "^class Example:"
+      scope: class_body
+      find: "{{ member_name }}"
+"#;
+        let (_dir, path) = setup_recipe(yaml, &["t.j2", "p.j2"]);
+        let recipe = Recipe::load(&path).unwrap();
+        let json = build_validate_json(&recipe);
+        assert_eq!(json["selector_validation"]["mode"], "deferred");
+        assert_eq!(
+            json["selector_validation"]["deferred_fields"][0],
+            "files[0].before"
+        );
+        assert_eq!(
+            json["selector_validation"]["deferred_fields"][1],
+            "files[1].anchor.find"
+        );
     }
 
     /// AC-7.3: render with --vars-file
@@ -1962,6 +1936,189 @@ files:
         assert_eq!(result.unwrap(), 0);
         let content = fs::read_to_string(out_dir.join("greetings/booking_service.txt")).unwrap();
         assert_eq!(content, "Hello BookingService!");
+    }
+
+    #[test]
+    fn run_supports_templated_patch_anchor_patterns() {
+        let yaml = r#"
+variables:
+  model_name:
+    type: string
+    required: true
+files:
+  - template: manager.j2
+    patch: "models.py"
+    anchor:
+      pattern: "^class {{ model_name | regex_escape }}:"
+      scope: class_body
+      position: before_close
+"#;
+        let (dir, recipe_path) =
+            setup_run_recipe(yaml, &[("manager.j2", "    objects = EntityManager()\n")]);
+        let out_dir = dir.path().join("output");
+        fs::create_dir_all(&out_dir).unwrap();
+        fs::write(out_dir.join("models.py"), "class Entity:\n    pass\n").unwrap();
+
+        let result = run_recipe(
+            &recipe_path,
+            r#"{"model_name": "Entity"}"#,
+            &out_dir,
+            false,
+            false,
+            false,
+        );
+
+        assert_eq!(result.unwrap(), 0);
+        let content = fs::read_to_string(out_dir.join("models.py")).unwrap();
+        assert!(content.contains("objects = EntityManager()"));
+    }
+
+    #[test]
+    fn run_supports_templated_patch_anchor_find() {
+        let yaml = r#"
+variables:
+  model_name:
+    type: string
+    required: true
+  member_name:
+    type: string
+    required: true
+files:
+  - template: field.j2
+    patch: "admin.py"
+    anchor:
+      pattern: "^class {{ model_name | regex_escape }}:"
+      scope: class_body
+      find: "{{ member_name }}"
+      position: before_close
+"#;
+        let (dir, recipe_path) = setup_run_recipe(yaml, &[("field.j2", "        'status',\n")]);
+        let out_dir = dir.path().join("output");
+        fs::create_dir_all(&out_dir).unwrap();
+        fs::write(
+            out_dir.join("admin.py"),
+            "class EntityAdmin:\n    list_display = [\n        'name',\n    ]\n",
+        )
+        .unwrap();
+
+        let result = run_recipe(
+            &recipe_path,
+            r#"{"model_name": "EntityAdmin", "member_name": "list_display"}"#,
+            &out_dir,
+            false,
+            false,
+            false,
+        );
+
+        assert_eq!(result.unwrap(), 0);
+        let content = fs::read_to_string(out_dir.join("admin.py")).unwrap();
+        assert!(content.contains("        'status',"));
+    }
+
+    #[test]
+    fn run_supports_templated_inject_selectors() {
+        let yaml = r#"
+variables:
+  function_name:
+    type: string
+    required: true
+files:
+  - template: log.j2
+    inject: "service.py"
+    before: "^def {{ function_name | regex_escape }}\\("
+"#;
+        let (dir, recipe_path) = setup_run_recipe(yaml, &[("log.j2", "# inserted\n")]);
+        let out_dir = dir.path().join("output");
+        fs::create_dir_all(&out_dir).unwrap();
+        fs::write(
+            out_dir.join("service.py"),
+            "def create_record(entity_id):\n    return entity_id\n",
+        )
+        .unwrap();
+
+        let result = run_recipe(
+            &recipe_path,
+            r#"{"function_name": "create_record"}"#,
+            &out_dir,
+            false,
+            false,
+            false,
+        );
+
+        assert_eq!(result.unwrap(), 0);
+        let content = fs::read_to_string(out_dir.join("service.py")).unwrap();
+        assert!(content.starts_with("# inserted\ndef create_record"));
+    }
+
+    #[test]
+    fn run_supports_templated_replace_between_selectors() {
+        let yaml = r#"
+variables:
+  section_name:
+    type: string
+    required: true
+files:
+  - template: block.j2
+    replace: "notes.txt"
+    between:
+      start: "^# START {{ section_name | regex_escape }}$"
+      end: "^# END {{ section_name | regex_escape }}$"
+"#;
+        let (dir, recipe_path) = setup_run_recipe(yaml, &[("block.j2", "new line\n")]);
+        let out_dir = dir.path().join("output");
+        fs::create_dir_all(&out_dir).unwrap();
+        fs::write(
+            out_dir.join("notes.txt"),
+            "# START entities\nold line\n# END entities\n",
+        )
+        .unwrap();
+
+        let result = run_recipe(
+            &recipe_path,
+            r#"{"section_name": "entities"}"#,
+            &out_dir,
+            false,
+            false,
+            false,
+        );
+
+        assert_eq!(result.unwrap(), 0);
+        let content = fs::read_to_string(out_dir.join("notes.txt")).unwrap();
+        assert!(content.contains("new line"));
+        assert!(!content.contains("old line"));
+    }
+
+    #[test]
+    fn run_reports_invalid_rendered_selector_regexes() {
+        let yaml = r#"
+variables:
+  model_name:
+    type: string
+    required: true
+files:
+  - template: manager.j2
+    patch: "models.py"
+    anchor:
+      pattern: "^class {{ model_name }}:"
+      scope: class_body
+"#;
+        let (dir, recipe_path) =
+            setup_run_recipe(yaml, &[("manager.j2", "    objects = EntityManager()\n")]);
+        let out_dir = dir.path().join("output");
+        fs::create_dir_all(&out_dir).unwrap();
+        fs::write(out_dir.join("models.py"), "class User[:\n    pass\n").unwrap();
+
+        let code = run_recipe(
+            &recipe_path,
+            r#"{"model_name": "User["}"#,
+            &out_dir,
+            false,
+            false,
+            false,
+        )
+        .unwrap();
+
+        assert_eq!(code, 2);
     }
 
     // ── AC-4.1 + AC-4.2: Create writes rendered content with templated path ──

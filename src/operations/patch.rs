@@ -57,7 +57,7 @@ pub fn execute(
     let lines: Vec<&str> = file_content.lines().collect();
 
     // Find anchor line.
-    let anchor_re = Regex::new(&anchor.pattern).expect("regex validated at parse time");
+    let anchor_re = Regex::new(&anchor.pattern).expect("regex validated during preparation");
     let anchor_line = match lines.iter().position(|line| anchor_re.is_match(line)) {
         Some(idx) => idx,
         None => {

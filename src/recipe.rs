@@ -326,6 +326,47 @@ impl Recipe {
     pub fn resolve_template(&self, template: &str) -> PathBuf {
         self.recipe_dir.join(template)
     }
+
+    pub fn deferred_selector_fields(&self) -> Vec<String> {
+        let mut fields = Vec::new();
+        for (i, op) in self.files.iter().enumerate() {
+            match op {
+                FileOp::Inject { mode, .. } => match mode {
+                    InjectMode::After { pattern, .. } if has_template_syntax(pattern) => {
+                        fields.push(format!("files[{i}].after"));
+                    }
+                    InjectMode::Before { pattern, .. } if has_template_syntax(pattern) => {
+                        fields.push(format!("files[{i}].before"));
+                    }
+                    _ => {}
+                },
+                FileOp::Replace { spec, .. } => match spec {
+                    ReplaceSpec::Between { start, end } => {
+                        if has_template_syntax(start) {
+                            fields.push(format!("files[{i}].between.start"));
+                        }
+                        if has_template_syntax(end) {
+                            fields.push(format!("files[{i}].between.end"));
+                        }
+                    }
+                    ReplaceSpec::Pattern(pattern) if has_template_syntax(pattern) => {
+                        fields.push(format!("files[{i}].pattern"));
+                    }
+                    _ => {}
+                },
+                FileOp::Patch { anchor, .. } => {
+                    if has_template_syntax(&anchor.pattern) {
+                        fields.push(format!("files[{i}].anchor.pattern"));
+                    }
+                    if anchor.find.as_deref().is_some_and(has_template_syntax) {
+                        fields.push(format!("files[{i}].anchor.find"));
+                    }
+                }
+                _ => {}
+            }
+        }
+        fields
+    }
 }
 
 /// Convert a raw file op into a typed FileOp, validating structure.
@@ -599,6 +640,9 @@ fn validate_regex(pattern: &str, field: &str, index: usize, source: &Path) -> Re
             "provide a non-empty regex pattern",
         ));
     }
+    if has_template_syntax(pattern) {
+        return Ok(());
+    }
     regex::Regex::new(pattern).map_err(|e| {
         recipe_err(
             &format!("invalid regex in '{field}' field"),
@@ -608,6 +652,10 @@ fn validate_regex(pattern: &str, field: &str, index: usize, source: &Path) -> Re
         )
     })?;
     Ok(())
+}
+
+pub fn has_template_syntax(value: &str) -> bool {
+    value.contains("{{") || value.contains("{%") || value.contains("{#")
 }
 
 fn parse_fallback(value: Option<&str>, index: usize, source: &Path) -> Result<Fallback, JigError> {
@@ -969,6 +1017,60 @@ files:
             }
             _ => panic!("expected Replace op"),
         }
+    }
+
+    #[test]
+    fn templated_selector_fields_parse_without_literal_regex_validation() {
+        let yaml = r#"
+variables:
+  model_name:
+    type: string
+  marker_name:
+    type: string
+  member_name:
+    type: string
+files:
+  - template: inject.j2
+    inject: "target.py"
+    before: "^def {{ model_name | regex_escape }}\\("
+  - template: replace.j2
+    replace: "target.py"
+    between:
+      start: "^# START {{ marker_name | regex_escape }}$"
+      end: "^# END {{ marker_name | regex_escape }}$"
+  - template: patch.j2
+    patch: "target.py"
+    anchor:
+      pattern: "^class {{ model_name | regex_escape }}:"
+      scope: class_body
+      find: "{{ member_name }}"
+"#;
+        let (_dir, path) = setup_recipe(yaml, &["inject.j2", "replace.j2", "patch.j2"]);
+        let recipe = Recipe::load(&path).unwrap();
+        assert_eq!(
+            recipe.deferred_selector_fields(),
+            vec![
+                "files[0].before".to_string(),
+                "files[1].between.start".to_string(),
+                "files[1].between.end".to_string(),
+                "files[2].anchor.pattern".to_string(),
+                "files[2].anchor.find".to_string(),
+            ]
+        );
+    }
+
+    #[test]
+    fn invalid_literal_regex_still_fails_at_load_time() {
+        let yaml = r#"
+files:
+  - template: tmpl.j2
+    inject: "target.py"
+    before: "["
+"#;
+        let (_dir, path) = setup_recipe(yaml, &["tmpl.j2"]);
+        let err = Recipe::load(&path).unwrap_err();
+        assert_eq!(err.exit_code(), 1);
+        assert!(err.structured_error().what.contains("invalid regex"));
     }
 
     /// All four fallback variants parse correctly.

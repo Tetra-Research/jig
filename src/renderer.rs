@@ -100,7 +100,7 @@ pub fn render_string(
 /// Render a template string and return a Jinja2 template expression result.
 /// Used for rendering path templates like `to` and `inject` fields.
 #[allow(dead_code)] // Used in later phases (jig run)
-pub fn render_path_template(
+pub fn render_inline_template(
     env: &Environment,
     template_expr: &str,
     vars: &Value,
@@ -108,6 +108,18 @@ pub fn render_path_template(
 ) -> Result<String, JigError> {
     env.render_str(template_expr, vars)
         .map_err(|e| convert_render_error(&e, context_desc, template_expr, vars))
+}
+
+/// Render a template string and return a Jinja2 template expression result.
+/// Used for rendering path templates like `to` and `inject` fields.
+#[allow(dead_code)] // Used in later phases (jig run)
+pub fn render_path_template(
+    env: &Environment,
+    template_expr: &str,
+    vars: &Value,
+    context_desc: &str,
+) -> Result<String, JigError> {
+    render_inline_template(env, template_expr, vars, context_desc)
 }
 
 // ── Error conversion ───────────────────────────────────────────────
