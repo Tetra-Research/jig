@@ -14,7 +14,46 @@ The runner writes:
 
 - Trial rows: `results/head2head-results.jsonl` (`schema_version=head2head_v1`)
 - Pair rows: `results/head2head-pairs.jsonl` (`schema_version=head2head_pair_v1`)
-- Per-trial artifacts: `results/head2head-artifacts/...`
+- Per-trial artifacts: `results/head2head-artifacts/...` including prompt/stdout/stderr plus `git diff`, changed-file manifests, and changed-file snapshots
+
+## Execution Model
+
+Current behavior:
+
+- The runner is serial today.
+- It executes one trial at a time.
+- A full run is `scenario_count x reps x 2 arms`.
+- With the current `h2h-*` set, a default full run is `5 scenarios x 1 rep x 2 arms = 10 trials`.
+
+Why this is safe to parallelize:
+
+- Each trial uses its own temp sandbox.
+- Each trial writes artifacts into its own unique directory.
+- Each agent invocation is an isolated child process.
+
+The practical bottlenecks are not local filesystem conflicts. They are provider-side throughput, rate limits, and experiment noise from running too many comparisons at once.
+
+## Parallelism Notes
+
+Planned direction:
+
+- Add bounded concurrency rather than unbounded `Promise.all(...)`.
+- Parallelize at the `scenario x rep` pair level first.
+- Keep control and jig arms sequential within a pair by default.
+- Optionally allow concurrent arms inside a pair when speed matters more than experimental cleanliness.
+
+Recommended future flags:
+
+- `--max-parallel-pairs <n>`: run up to `n` scenario/rep pairs at once.
+- `--pair-mode sequential|concurrent`: choose whether control/jig inside a pair run one after the other or at the same time.
+- `--shuffle-pairs`: reduce fixed ordering bias across long runs.
+- retry controls for transient provider failures or timeouts.
+
+Recommended default when this is implemented:
+
+- Use a small bounded pool such as `2-4` parallel pairs.
+- Default to `--pair-mode sequential` for cleaner A/B comparisons.
+- Treat higher concurrency as a throughput optimization, not a scientifically neutral change.
 
 ## Profile Format
 

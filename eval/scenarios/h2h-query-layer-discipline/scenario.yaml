@@ -31,12 +31,18 @@ assertions:
     weight: 1.0
   - file: models.py
     contains: "objects = EntityManager()"
+    scope: "class Entity"
     weight: 1.0
+  - file: models.py
+    contains: "def active(self)"
+    scope: "class EntityManager"
+    weight: 0.8
   - file: selectors.py
     contains: "def select_active_entities"
     weight: 1.0
   - file: views.py
     contains: "records = select_active_entities()"
+    scope: "def entity_list"
     weight: 0.8
 
 negative_assertions:

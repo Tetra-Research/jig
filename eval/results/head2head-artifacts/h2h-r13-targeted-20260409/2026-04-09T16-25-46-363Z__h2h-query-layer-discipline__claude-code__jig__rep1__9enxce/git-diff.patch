@@ -1,0 +1,51 @@
+diff --git a/models.py b/models.py
+index e25bed8..9d7361a 100644
+--- a/models.py
++++ b/models.py
+@@ -1,6 +1,20 @@
+ from django.db import models
+ 
+ 
++class EntityQuerySet(models.QuerySet):
++    def active(self):
++        return self.filter(status="active")
++
++
++class EntityManager(models.Manager):
++    def get_queryset(self):
++        return EntityQuerySet(self.model, using=self._db)
++
++    def active(self):
++        return self.get_queryset().active()
++
++
+ class Entity(models.Model):
++    objects = EntityManager()
+     status = models.CharField(max_length=20)
+     display_name = models.CharField(max_length=255)
+diff --git a/selectors.py b/selectors.py
+new file mode 100644
+index 0000000..55c1532
+--- /dev/null
++++ b/selectors.py
+@@ -0,0 +1,8 @@
++from .models import Entity
++
++
++def select_active_entities():
++    return (
++        Entity.objects.active()
++        .select_related()
++    )
+diff --git a/views.py b/views.py
+index a43dba2..c11607d 100644
+--- a/views.py
++++ b/views.py
+@@ -1,5 +1,7 @@
+ from .models import Entity
++from .selectors import select_active_entities
+ 
+ 
+ def entity_list(request):
++    records = select_active_entities()
+     return {"results": []}

@@ -27,13 +27,18 @@ assertions:
     contains: "logger = logging.getLogger(__name__)"
     weight: 0.8
   - file: services/core_service.py
-    contains: "core_service.create_record.start"
-    weight: 1.0
+    ordered_contains:
+      - "core_service.create_record.start"
+      - "timestamp = datetime.utcnow().isoformat()"
+      - "core_service.create_record.done"
+      - "return"
+    scope: "def create_record"
+    weight: 1.4
   - file: services/core_service.py
-    contains: "core_service.create_record.done"
-    weight: 1.0
-  - file: services/core_service.py
-    contains: '"entity_id": record_id'
+    ordered_contains:
+      - '"entity_id": record_id'
+      - '"entity_id": record_id'
+    scope: "def create_record"
     weight: 0.8
 
 negative_assertions:

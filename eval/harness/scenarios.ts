@@ -14,12 +14,19 @@ export function loadScenario(dir: string): Scenario {
   const parsed = parseYaml(raw) as Record<string, unknown>;
 
   const assertions = ((parsed.assertions as Array<Record<string, unknown>>) ?? []).map(
-    (a): Assertion => ({
-      file: a.file as string,
-      contains: a.contains as string,
-      scope: a.scope as string | undefined,
-      weight: (a.weight as number) ?? 1.0,
-    })
+    (a): Assertion => {
+      const orderedContains = Array.isArray(a.ordered_contains)
+        ? a.ordered_contains.filter((value): value is string => typeof value === "string")
+        : undefined;
+
+      return {
+        file: a.file as string,
+        contains: (a.contains as string | undefined) ?? orderedContains?.join(" -> ") ?? "",
+        ordered_contains: orderedContains,
+        scope: a.scope as string | undefined,
+        weight: (a.weight as number) ?? 1.0,
+      };
+    }
   );
 
   const negativeAssertions = ((parsed.negative_assertions as Array<Record<string, unknown>>) ?? []).map(
@@ -144,6 +151,26 @@ export function validateScenario(scenario: Scenario): ValidationError[] {
   // Check assertion files exist in codebase/ or expected/
   if (scenario.assertions) {
     for (const assertion of scenario.assertions) {
+      const orderedOnlyFallback =
+        !!assertion.ordered_contains &&
+        assertion.ordered_contains.length > 0 &&
+        assertion.contains === assertion.ordered_contains.join(" -> ");
+
+      if (!assertion.contains && (!assertion.ordered_contains || assertion.ordered_contains.length === 0)) {
+        errors.push({
+          field: "assertions[]",
+          message: `Assertion for "${assertion.file}" must define contains or ordered_contains`,
+          scenarioPath: sp,
+        });
+      }
+      if (assertion.contains && assertion.ordered_contains && assertion.ordered_contains.length > 0 && !orderedOnlyFallback) {
+        errors.push({
+          field: "assertions[]",
+          message: `Assertion for "${assertion.file}" cannot define both contains and ordered_contains`,
+          scenarioPath: sp,
+        });
+      }
+
       const inCodebase = fs.existsSync(path.join(codebaseDir, assertion.file));
       const inExpected = fs.existsSync(path.join(expectedDir, assertion.file));
       if (!inCodebase && !inExpected) {

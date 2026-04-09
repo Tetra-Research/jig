@@ -2,6 +2,7 @@ import fs from "node:fs";
 import path from "node:path";
 import type { AgentArtifactPaths } from "../harness/types.ts";
 import type { HeadToHeadArm } from "./types.ts";
+import { writeWorkspaceArtifacts } from "../lib/workspace-artifacts.ts";
 
 interface WriteHeadToHeadArtifactsInput {
   artifactsRoot: string;
@@ -12,6 +13,7 @@ interface WriteHeadToHeadArtifactsInput {
   prompt: string;
   stdout: string;
   stderr: string;
+  workDir: string;
 }
 
 function slug(input: string): string {
@@ -57,5 +59,6 @@ export function writeHeadToHeadArtifacts(input: WriteHeadToHeadArtifactsInput): 
     stdout: stdoutPath,
     stderr: stderrPath,
     combined: combinedPath,
+    ...writeWorkspaceArtifacts(dir, input.workDir),
   };
 }

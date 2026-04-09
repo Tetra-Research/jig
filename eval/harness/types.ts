@@ -23,6 +23,7 @@ export interface Scenario {
 export interface Assertion {
   file: string;
   contains: string;
+  ordered_contains?: string[];
   scope?: string;
   weight: number;
 }
@@ -77,6 +78,7 @@ export interface TrialScore {
 export interface AssertionResult {
   file: string;
   contains: string;
+  ordered_contains?: string[];
   scope?: string;
   passed: boolean;
   weight: number;
@@ -102,6 +104,11 @@ export interface AgentArtifactPaths {
   stdout: string;
   stderr: string;
   combined: string;
+  git_status?: string;
+  diff_stat?: string;
+  diff_patch?: string;
+  changed_files_manifest?: string;
+  workspace_snapshot_dir?: string;
 }
 
 // ── Results ──

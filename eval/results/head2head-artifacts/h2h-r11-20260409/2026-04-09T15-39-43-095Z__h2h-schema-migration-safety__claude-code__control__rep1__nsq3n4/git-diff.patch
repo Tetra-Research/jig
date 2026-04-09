@@ -1,0 +1,61 @@
+diff --git a/migrations/0008_add_entity_classification.py b/migrations/0008_add_entity_classification.py
+new file mode 100644
+index 0000000..f68ad59
+--- /dev/null
++++ b/migrations/0008_add_entity_classification.py
+@@ -0,0 +1,25 @@
++from django.db import migrations, models
++
++
++def backfill_classification(apps, schema_editor):
++    model_cls = apps.get_model("core", "Entity")
++    db_alias = schema_editor.connection.alias
++    for row in model_cls.objects.using(db_alias).all().only("id", "classification"):
++        if row.classification is None or row.classification == "":
++            row.classification = "standard"
++            row.save(update_fields=["classification"])
++
++
++class Migration(migrations.Migration):
++    dependencies = [
++        ("core", "0007_auto_20260407_1200"),
++    ]
++
++    operations = [
++        migrations.AddField(
++            model_name="Entity",
++            name="classification",
++            field=models.CharField(max_length=20, null=True),
++        ),
++        migrations.RunPython(backfill_classification, migrations.RunPython.noop),
++    ]
+diff --git a/migrations/0009_enforce_entity_classification.py b/migrations/0009_enforce_entity_classification.py
+new file mode 100644
+index 0000000..a8343ee
+--- /dev/null
++++ b/migrations/0009_enforce_entity_classification.py
+@@ -0,0 +1,15 @@
++from django.db import migrations, models
++
++
++class Migration(migrations.Migration):
++    dependencies = [
++        ("core", "0008_add_entity_classification"),
++    ]
++
++    operations = [
++        migrations.AlterField(
++            model_name="Entity",
++            name="classification",
++            field=models.CharField(max_length=20),
++        ),
++    ]
+diff --git a/models.py b/models.py
+index ca4f5e0..ce8379a 100644
+--- a/models.py
++++ b/models.py
+@@ -3,3 +3,4 @@ from django.db import models
+ 
+ class Entity(models.Model):
+     name = models.CharField(max_length=255)
++    classification = models.CharField(max_length=20)

@@ -1,0 +1,41 @@
+diff --git a/tests/test_core_service.py b/tests/test_core_service.py
+new file mode 100644
+index 0000000..a679bf4
+--- /dev/null
++++ b/tests/test_core_service.py
+@@ -0,0 +1,35 @@
++from datetime import datetime
++from unittest.mock import create_autospec
++
++import pytest
++
++from services.core_service import CoreService
++
++
++@pytest.fixture
++def fixed_check_in():
++    return datetime(2024, 1, 1, 12, 0, 0)
++
++
++def test_create_record_returns_confirmed_status(fixed_check_in):
++    service = CoreService()
++    notifier = create_autospec(object, spec_set=True)
++
++    # Act
++    result = service.create_record(
++        display_name="Alice",
++        check_in=fixed_check_in,
++        check_out=datetime(2024, 1, 3, 12, 0, 0),
++    )
++
++    assert result["status"] == "confirmed"
++    assert notifier.mock_calls == []
++
++
++def test_cancel_record_returns_cancelled_status():
++    service = CoreService()
++
++    # Act
++    result = service.cancel_record(record_id="abc-123")
++
++    assert result["status"] == "cancelled"

@@ -294,6 +294,7 @@ for (const scenario of scenarios) {
                 prompt,
                 stdout: agentResult.stdout,
                 stderr: agentResult.stderr,
+                workDir: sandbox.workDir,
               });
               console.error(`  [debug] artifacts=${artifactPaths.dir}`);
             } catch (err) {

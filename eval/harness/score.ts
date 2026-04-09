@@ -22,7 +22,9 @@ export function scoreAssertions(scenario: Scenario, workDir: string): AssertionR
       content = extractScope(content, assertion.scope);
     }
 
-    const passed = content.includes(assertion.contains);
+    const passed = assertion.ordered_contains
+      ? containsInOrder(content, assertion.ordered_contains)
+      : content.includes(assertion.contains);
     return { ...assertion, passed };
   });
 }
@@ -307,3 +309,12 @@ function escapeRegex(s: string): string {
   return s.replace(/[.*+?^${}()|[\]\\]/g, "\\$&");
 }
 
+function containsInOrder(content: string, snippets: string[]): boolean {
+  let cursor = 0;
+  for (const snippet of snippets) {
+    const index = content.indexOf(snippet, cursor);
+    if (index === -1) return false;
+    cursor = index + snippet.length;
+  }
+  return true;
+}

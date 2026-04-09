@@ -1,6 +1,7 @@
 import fs from "node:fs";
 import path from "node:path";
 import type { AgentArtifactPaths, PromptTier } from "./types.ts";
+import { writeWorkspaceArtifacts } from "../lib/workspace-artifacts.ts";
 
 interface WriteAgentArtifactsInput {
   artifactsRoot: string;
@@ -12,6 +13,7 @@ interface WriteAgentArtifactsInput {
   prompt: string;
   stdout: string;
   stderr: string;
+  workDir: string;
 }
 
 function slug(input: string): string {
@@ -58,5 +60,6 @@ export function writeAgentArtifacts(input: WriteAgentArtifactsInput): AgentArtif
     stdout: stdoutPath,
     stderr: stderrPath,
     combined: combinedPath,
+    ...writeWorkspaceArtifacts(dir, input.workDir),
   };
 }

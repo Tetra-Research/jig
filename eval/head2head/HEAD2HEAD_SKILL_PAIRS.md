@@ -2,6 +2,11 @@
 
 Canonical pair map for control-vs-jig comparisons.
 
+Control and jig pairs must define the same target output contract.
+The only intended difference is delivery mechanism:
+- Control: plain-language execution spec
+- Jig: recipe/template execution
+
 ## Pair Set
 
 1. `schema-migration-safety`
@@ -39,3 +44,4 @@ Canonical pair map for control-vs-jig comparisons.
 - Use the same scenario and prompt for both arms.
 - In directed prompts, name one skill from this list explicitly.
 - Keep variable names identical across arms to isolate implementation effects.
+- Control skills should specify the same identifiers, file targets, and output shape as the jig-backed path without embedding literal templates.

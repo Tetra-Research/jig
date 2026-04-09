@@ -2,6 +2,7 @@ import assert from "node:assert";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
+import { execSync } from "node:child_process";
 import { fileURLToPath } from "node:url";
 import { loadScenario, loadAllScenarios, validateScenario } from "./scenarios.ts";
 import { scoreAssertions, scoreNegativeAssertions, scoreJigUsage, computeTrialScore } from "./score.ts";
@@ -9,6 +10,7 @@ import { normalizeFile } from "../lib/normalize.ts";
 import { fileScore, aggregateFileScore } from "../lib/diff.ts";
 import { writeTrialResult, readResults, ResultSchemaError } from "./results.ts";
 import { createSandbox } from "../lib/sandbox.ts";
+import { writeWorkspaceArtifacts } from "../lib/workspace-artifacts.ts";
 import { loadAgentConfigs, getAgentByName, invokeAgent } from "./agents.ts";
 import { transformPromptForBaseline } from "./baseline.ts";
 import { generateReport, generateMetricsOnly, aggregate } from "./report.ts";
@@ -55,6 +57,39 @@ await test("loadScenario: loads valid scenario with all fields", () => {
   assert.strictEqual(s.estimated_jig_commands, 1);
   assert.strictEqual(s.max_jig_commands, 2);
   assert.ok(path.isAbsolute(s.scenarioDir));
+});
+
+await test("loadScenario: loads ordered_contains assertions", () => {
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "jig-scenario-"));
+  try {
+    fs.mkdirSync(path.join(tmpDir, "codebase"));
+    fs.mkdirSync(path.join(tmpDir, "expected"));
+    fs.writeFileSync(path.join(tmpDir, "codebase", "hello.py"), "def greet():\n    pass\n");
+    fs.writeFileSync(path.join(tmpDir, "expected", "hello.py"), "def greet():\n    return 'hi'\n");
+    fs.writeFileSync(
+      path.join(tmpDir, "scenario.yaml"),
+      [
+        "name: ordered-assertion",
+        "description: ordered assertion test",
+        "tier: easy",
+        "category: test",
+        "prompt: hi",
+        "expected_files_modified:",
+        "  - hello.py",
+        "assertions:",
+        "  - file: hello.py",
+        "    ordered_contains:",
+        "      - def greet",
+        "      - return",
+      ].join("\n")
+    );
+
+    const scenario = loadScenario(tmpDir);
+    assert.deepStrictEqual(scenario.assertions[0].ordered_contains, ["def greet", "return"]);
+    assert.strictEqual(scenario.assertions[0].contains, "def greet -> return");
+  } finally {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  }
 });
 
 await test("loadScenario: defaults weight to 1.0 when not specified", () => {
@@ -111,6 +146,38 @@ await test("validateScenario: reports ALL errors, not just first", () => {
   assert.ok(errors.length >= 2, `Expected at least 2 errors, got ${errors.length}`);
 });
 
+await test("validateScenario: ordered_contains-only assertion is valid", () => {
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "jig-scenario-"));
+  try {
+    fs.mkdirSync(path.join(tmpDir, "codebase"));
+    fs.mkdirSync(path.join(tmpDir, "expected"));
+    fs.writeFileSync(path.join(tmpDir, "codebase", "hello.py"), "def greet():\n    pass\n");
+    fs.writeFileSync(path.join(tmpDir, "expected", "hello.py"), "def greet():\n    return 'hi'\n");
+    fs.writeFileSync(
+      path.join(tmpDir, "scenario.yaml"),
+      [
+        "name: ordered-assertion",
+        "description: ordered assertion test",
+        "tier: easy",
+        "category: test",
+        "prompt: hi",
+        "expected_files_modified:",
+        "  - hello.py",
+        "assertions:",
+        "  - file: hello.py",
+        "    ordered_contains:",
+        "      - def greet",
+        "      - return",
+      ].join("\n")
+    );
+
+    const errors = validateScenario(loadScenario(tmpDir));
+    assert.deepStrictEqual(errors, []);
+  } finally {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  }
+});
+
 // ── Normalize tests ──
 
 console.log("\n--- normalize.ts ---");
@@ -144,10 +211,14 @@ await test("fileScore: identical after normalization returns 1.0", () => {
   assert.strictEqual(score, 1.0);
 });
 
-await test("fileScore: different files return Jaccard similarity", () => {
+await test("fileScore: different files return ordered line similarity", () => {
   const score = fileScore("line1\nline2\nline3\n", "line1\nline2\nline4\n");
-  // intersection = {line1, line2} = 2, union = {line1, line2, line3, line4} = 4
-  assert.strictEqual(score, 0.5);
+  assert.strictEqual(score, 2 / 3);
+});
+
+await test("fileScore: line reordering is penalized", () => {
+  const score = fileScore("line1\nline3\nline2\n", "line1\nline2\nline3\n");
+  assert.strictEqual(score, 2 / 3);
 });
 
 await test("fileScore: completely different files return 0", () => {
@@ -221,6 +292,52 @@ await test("scoreAssertions: weights are preserved", () => {
   const results = scoreAssertions(scenario, workDir);
   const weighted = results.find((r) => r.weight === 2.0);
   assert.ok(weighted, "Should preserve weight=2.0");
+});
+
+await test("scoreAssertions: ordered_contains enforces sequence within scope", () => {
+  const scenario: Scenario = {
+    name: "ordered",
+    description: "ordered scoring",
+    tier: "easy",
+    category: "test",
+    prompt: "test",
+    prompts: {},
+    context: undefined,
+    expected_files_modified: ["service.py"],
+    assertions: [
+      {
+        file: "service.py",
+        contains: "start -> done -> return",
+        ordered_contains: ["start", "done", "return"],
+        scope: "def run",
+        weight: 1.0,
+      },
+    ],
+    negative_assertions: undefined,
+    tags: [],
+    estimated_jig_commands: undefined,
+    max_jig_commands: undefined,
+    scenarioDir: FIXTURES,
+  };
+
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "jig-test-"));
+  try {
+    fs.writeFileSync(
+      path.join(tmpDir, "service.py"),
+      [
+        "def run():",
+        "    print('start')",
+        "    return 1",
+        "    print('done')",
+        "",
+      ].join("\n")
+    );
+
+    const results = scoreAssertions(scenario, tmpDir);
+    assert.ok(!results[0].passed, "done after return should fail ordered assertion");
+  } finally {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
+  }
 });
 
 await test("scoreNegativeAssertions: passes when not_contains is absent", () => {
@@ -438,6 +555,45 @@ await test("writeTrialResult + readResults: preserves agent_artifacts paths", ()
     assert.strictEqual(read.results[0].agent_artifacts?.combined, "/tmp/artifacts/run-1/combined.log");
   } finally {
     try { fs.unlinkSync(tmpFile); } catch {}
+  }
+});
+
+await test("writeWorkspaceArtifacts: captures diff metadata and changed file snapshots", () => {
+  const tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), "jig-artifacts-"));
+  const artifactsDir = path.join(tmpDir, "artifacts");
+  try {
+    fs.writeFileSync(path.join(tmpDir, "tracked.txt"), "before\n");
+    execSync("git init", { cwd: tmpDir, stdio: "pipe" });
+    execSync("git add tracked.txt", { cwd: tmpDir, stdio: "pipe" });
+    execSync('git commit -m "initial"', {
+      cwd: tmpDir,
+      stdio: "pipe",
+      env: {
+        ...process.env,
+        GIT_AUTHOR_NAME: "jig-test",
+        GIT_AUTHOR_EMAIL: "test@jig",
+        GIT_COMMITTER_NAME: "jig-test",
+        GIT_COMMITTER_EMAIL: "test@jig",
+      },
+    });
+
+    fs.writeFileSync(path.join(tmpDir, "tracked.txt"), "after\n");
+    fs.writeFileSync(path.join(tmpDir, "new.txt"), "new file\n");
+
+    const out = writeWorkspaceArtifacts(artifactsDir, tmpDir);
+    assert.ok(out.git_status && fs.existsSync(out.git_status));
+    assert.ok(out.diff_stat && fs.existsSync(out.diff_stat));
+    assert.ok(out.diff_patch && fs.existsSync(out.diff_patch));
+    assert.ok(out.changed_files_manifest && fs.existsSync(out.changed_files_manifest));
+    assert.ok(out.workspace_snapshot_dir && fs.existsSync(out.workspace_snapshot_dir));
+
+    const manifest = fs.readFileSync(out.changed_files_manifest!, "utf-8");
+    assert.ok(manifest.includes("tracked.txt"));
+    assert.ok(manifest.includes("new.txt"));
+    assert.ok(fs.existsSync(path.join(out.workspace_snapshot_dir!, "tracked.txt")));
+    assert.ok(fs.existsSync(path.join(out.workspace_snapshot_dir!, "new.txt")));
+  } finally {
+    fs.rmSync(tmpDir, { recursive: true, force: true });
   }
 });
 

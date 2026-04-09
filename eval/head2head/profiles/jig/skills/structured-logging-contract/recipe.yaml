@@ -28,15 +28,12 @@ files:
   - template: templates/log_start.py.j2
     patch: "{{ target_file }}"
     anchor:
-      pattern: "^def "
+      pattern: "^def create_record\\("
       scope: function_body
       position: before
     skip_if: '"{{ event_namespace }}.start"'
 
   - template: templates/log_done.py.j2
-    patch: "{{ target_file }}"
-    anchor:
-      pattern: "^def "
-      scope: function_body
-      position: before_close
+    inject: "{{ target_file }}"
+    before: "^\\s+return \\{$"
     skip_if: '"{{ event_namespace }}.done"'

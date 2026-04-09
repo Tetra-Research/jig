@@ -1,0 +1,68 @@
+diff --git a/schemas.py b/schemas.py
+index c4239f9..db079d3 100644
+--- a/schemas.py
++++ b/schemas.py
+@@ -3,3 +3,12 @@ from rest_framework import serializers
+ 
+ class EntityDetailResponse(serializers.Serializer):
+     id = serializers.IntegerField()
++
++
++class EntitySummaryRequest(serializers.Serializer):
++    correlation_id = serializers.CharField(required=False, allow_blank=True)
++
++
++class EntitySummaryResponse(serializers.Serializer):
++    id = serializers.IntegerField()
++    status = serializers.CharField()
+diff --git a/tests/test_views.py b/tests/test_views.py
+index 7cad734..d55f254 100644
+--- a/tests/test_views.py
++++ b/tests/test_views.py
+@@ -2,4 +2,10 @@ from django.test import TestCase
+ 
+ 
+ class TestViews(TestCase):
+-    pass
++    def test_entity_summary(self):
++        response = self.client.post(
++            "/api/entities/1/summary/",
++            data={"correlation_id": "h2h"},
++            content_type="application/json",
++        )
++        self.assertIn(response.status_code, [200, 400, 401, 404])
+diff --git a/urls.py b/urls.py
+index 8b78349..e6d0eb3 100644
+--- a/urls.py
++++ b/urls.py
+@@ -4,4 +4,5 @@ from . import views
+ 
+ urlpatterns = [
+     path("api/entities/<int:pk>/", views.entity_detail, name="entity-detail"),
++    path("api/entities/<int:pk>/summary/", views.entity_summary, name="entity-summary"),
+ ]
+diff --git a/views.py b/views.py
+index 4f89e2a..b7b83d6 100644
+--- a/views.py
++++ b/views.py
+@@ -2,8 +2,20 @@ from rest_framework.decorators import api_view
+ from rest_framework.response import Response
+ 
+ from .models import Entity
++from .schemas import EntitySummaryRequest, EntitySummaryResponse
++from .services import build_entity_summary
+ 
+ 
+ @api_view(["GET"])
+ def entity_detail(request, pk):
+     return Response({"id": pk}, status=200)
++
++
++@api_view(["POST"])
++def entity_summary(request, pk):
++    request_contract = EntitySummaryRequest(data=request.data)
++    request_contract.is_valid(raise_exception=True)
++    payload = request_contract.validated_data
++    result = build_entity_summary(pk=pk, payload=payload)
++    response_contract = EntitySummaryResponse(result)
++    return Response(response_contract.data, status=200)
