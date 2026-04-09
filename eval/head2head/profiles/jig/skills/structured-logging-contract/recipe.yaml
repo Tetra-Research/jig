@@ -28,7 +28,7 @@ files:
   - template: templates/log_start.py.j2
     patch: "{{ target_file }}"
     anchor:
-      pattern: "^def create_record\\("
+      pattern: "^def {{ function_name | regex_escape }}\\("
       scope: function_body
       position: before
     skip_if: '"{{ event_namespace }}.start"'

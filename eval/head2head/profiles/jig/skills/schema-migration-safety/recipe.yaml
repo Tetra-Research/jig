@@ -41,7 +41,7 @@ files:
   - template: templates/model_field.py.j2
     patch: "{{ model_file }}"
     anchor:
-      pattern: "^class "
+      pattern: "^class {{ model_name | regex_escape }}\\("
       scope: class_body
       position: after_last_field
     skip_if: "{{ field_name }} ="

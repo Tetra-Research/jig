@@ -32,5 +32,5 @@ jig run ${CLAUDE_SKILL_DIR:-.claude/skills/query-layer-discipline}/recipe.yaml -
 If jig fails, use rendered snippets from stderr as manual patch guidance.
 
 Notes:
-- This eval skill currently targets `class Entity` in `models.py` and `def entity_list` in `views.py`.
-- Keep the provided symbol values aligned with that contract; `jig 0.1.0` does not template regex anchor fields.
+- The recipe now targets the rendered `model_name` and `view_name` selectors directly.
+- `regex_escape` is applied inside regex-bearing anchors so symbol values are treated literally.

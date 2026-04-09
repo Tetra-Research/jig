@@ -38,7 +38,7 @@ files:
   - template: templates/manager_attr.py.j2
     patch: "{{ models_file }}"
     anchor:
-      pattern: "^class Entity\\("
+      pattern: "^class {{ model_name | regex_escape }}\\("
       scope: class_body
       position: before
     skip_if: "objects = {{ manager_name }}()"
@@ -61,7 +61,7 @@ files:
   - template: templates/selector_call.py.j2
     patch: "{{ views_file }}"
     anchor:
-      pattern: "^def entity_list\\("
+      pattern: "^def {{ view_name | regex_escape }}\\("
       scope: function_body
       position: before
     skip_if: "{{ selector_name }}("

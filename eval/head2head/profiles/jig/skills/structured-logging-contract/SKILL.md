@@ -28,5 +28,5 @@ jig run ${CLAUDE_SKILL_DIR:-.claude/skills/structured-logging-contract}/recipe.y
 ```
 
 Notes:
-- This eval skill currently targets `def create_record` in `services/core_service.py`.
-- The `.done` event is inserted immediately before the `return {` line in that function.
+- The recipe now targets the rendered `function_name` anchor directly.
+- The `.done` event is inserted immediately before the `return {` line via a direct `before` selector.

@@ -41,5 +41,5 @@ jig run ${CLAUDE_SKILL_DIR}/recipe.yaml --vars '{
 
 - Migration 1 adds nullable field + backfill.
 - Migration 2 enforces final constraints.
-- `model_file` patching targets the first class in the file. Keep one primary model per file for this recipe.
+- `model_file` patching targets the rendered `model_name` class anchor directly.
 - If jig fails, use rendered output from stderr and apply manually.
