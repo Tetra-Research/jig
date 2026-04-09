@@ -1,0 +1,10 @@
+
+export async function {{ update_handler_name }}(req: Request, res: Response) {
+  const payload = {{ update_schema_name }}.parse(req.body);
+
+  res.json({
+    ok: true,
+    projectId: req.params.projectId,
+    payload,
+  });
+}

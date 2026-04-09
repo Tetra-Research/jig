@@ -19,6 +19,13 @@ Each example is intended to be understandable on its own and includes:
 4. [`query-layer-discipline`](/Users/tylerobriant/code/tetra/jig/examples/query-layer-discipline)
 5. [`schema-migration-safety`](/Users/tylerobriant/code/tetra/jig/examples/schema-migration-safety)
 
+## TypeScript Example Index
+
+1. [`typescript-create-model`](/Users/tylerobriant/code/tetra/jig/examples/typescript-create-model)
+2. [`typescript-update-model`](/Users/tylerobriant/code/tetra/jig/examples/typescript-update-model)
+3. [`typescript-create-endpoint-workflow`](/Users/tylerobriant/code/tetra/jig/examples/typescript-create-endpoint-workflow)
+4. [`typescript-update-endpoint-workflow`](/Users/tylerobriant/code/tetra/jig/examples/typescript-update-endpoint-workflow)
+
 ## Common Conventions
 
 - `before/` contains the input file state
@@ -28,4 +35,3 @@ Each example is intended to be understandable on its own and includes:
 - `templates/` holds the rendered fragments or files used by the recipe
 
 These examples are product examples, not eval fixtures.
-

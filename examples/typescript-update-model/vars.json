@@ -1,0 +1,6 @@
+{
+  "target_file": "src/models/project.ts",
+  "schema_symbol": "projectSchema",
+  "field_name": "status",
+  "field_schema": "z.enum([\"draft\", \"active\", \"archived\"])"
+}

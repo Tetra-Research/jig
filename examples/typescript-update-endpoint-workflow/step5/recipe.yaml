@@ -1,0 +1,16 @@
+name: update-endpoint-route
+description: Add the update route registration
+
+variables:
+  update_handler_name:
+    type: string
+    required: true
+  route_path:
+    type: string
+    required: true
+
+files:
+  - template: templates/route_append.ts.j2
+    inject: src/routes/index.ts
+    before: '^\];$'
+    skip_if: 'router.put("{{ route_path }}", {{ update_handler_name }})'

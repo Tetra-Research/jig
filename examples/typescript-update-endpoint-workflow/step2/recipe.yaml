@@ -1,0 +1,17 @@
+name: update-endpoint-import
+description: Import the update schema into the existing handler file
+
+variables:
+  route_dir:
+    type: string
+    required: true
+  update_schema_name:
+    type: string
+    required: true
+
+files:
+  - template: templates/handler_import.ts.j2
+    inject: "src/routes/{{ route_dir | kebabcase }}/handler.ts"
+    after: '^import '
+    at: last
+    skip_if: 'import { {{ update_schema_name }} } from "./schema";'

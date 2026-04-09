@@ -1,0 +1,6 @@
+{
+  "route_dir": "projects",
+  "update_schema_name": "updateProjectSchema",
+  "update_handler_name": "updateProjectHandler",
+  "route_path": "/projects/:projectId"
+}

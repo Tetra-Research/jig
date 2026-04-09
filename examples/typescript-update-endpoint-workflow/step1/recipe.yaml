@@ -1,0 +1,16 @@
+name: update-endpoint-schema
+description: Add the update schema to an existing route schema file
+
+variables:
+  route_dir:
+    type: string
+    required: true
+  update_schema_name:
+    type: string
+    required: true
+
+files:
+  - template: templates/schema_append.ts.j2
+    inject: "src/routes/{{ route_dir | kebabcase }}/schema.ts"
+    append: true
+    skip_if: 'export const {{ update_schema_name }}'

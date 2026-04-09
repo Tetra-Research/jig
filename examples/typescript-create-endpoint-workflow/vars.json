@@ -1,0 +1,7 @@
+{
+  "route_name": "projects",
+  "route_path": "/projects",
+  "request_schema_name": "createProjectSchema",
+  "handler_name": "createProjectHandler",
+  "success_message": "project created"
+}

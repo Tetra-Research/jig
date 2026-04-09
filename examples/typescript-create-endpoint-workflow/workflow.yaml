@@ -1,0 +1,25 @@
+name: typescript-create-endpoint-workflow
+description: Create a new endpoint stack and wire it into the router
+
+variables:
+  route_name:
+    type: string
+    required: true
+  route_path:
+    type: string
+    required: true
+  request_schema_name:
+    type: string
+    required: true
+  handler_name:
+    type: string
+    required: true
+  success_message:
+    type: string
+    required: true
+
+steps:
+  - recipe: step1/recipe.yaml
+  - recipe: step2/recipe.yaml
+  - recipe: step3/recipe.yaml
+  - recipe: step4/recipe.yaml

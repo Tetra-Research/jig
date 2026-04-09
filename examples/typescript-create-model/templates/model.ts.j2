@@ -1,0 +1,9 @@
+import { z } from "zod";
+
+export const {{ model_name | camelcase }}Schema = z.object({
+  id: z.string().uuid(),
+  name: z.string().min(1),
+  createdAt: z.string().datetime(),
+});
+
+export type {{ model_name | pascalcase }} = z.infer<typeof {{ model_name | camelcase }}Schema>;

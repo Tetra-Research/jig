@@ -1,0 +1,17 @@
+name: update-endpoint-route-import
+description: Import the update handler into the router file
+
+variables:
+  route_dir:
+    type: string
+    required: true
+  update_handler_name:
+    type: string
+    required: true
+
+files:
+  - template: templates/route_import.ts.j2
+    inject: src/routes/index.ts
+    after: '^import '
+    at: last
+    skip_if: 'import { {{ update_handler_name }} } from "./{{ route_dir | kebabcase }}/handler";'

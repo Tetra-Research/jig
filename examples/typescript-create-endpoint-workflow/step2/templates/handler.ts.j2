@@ -1,0 +1,12 @@
+import type { Request, Response } from "express";
+import { {{ request_schema_name }} } from "./schema";
+
+export async function {{ handler_name }}(req: Request, res: Response) {
+  const payload = {{ request_schema_name }}.parse(req.body);
+
+  res.status(201).json({
+    ok: true,
+    message: "{{ success_message }}",
+    payload,
+  });
+}

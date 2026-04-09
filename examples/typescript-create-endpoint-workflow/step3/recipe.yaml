@@ -1,0 +1,17 @@
+name: create-endpoint-import
+description: Add the new endpoint import to the router
+
+variables:
+  route_name:
+    type: string
+    required: true
+  handler_name:
+    type: string
+    required: true
+
+files:
+  - template: templates/route_import.ts.j2
+    inject: src/routes/index.ts
+    after: '^import '
+    at: last
+    skip_if: 'from "./{{ route_name | kebabcase }}/handler"'

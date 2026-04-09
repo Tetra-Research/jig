@@ -1,0 +1,19 @@
+name: update-endpoint-handler
+description: Add the update handler to the existing handler file
+
+variables:
+  route_dir:
+    type: string
+    required: true
+  update_schema_name:
+    type: string
+    required: true
+  update_handler_name:
+    type: string
+    required: true
+
+files:
+  - template: templates/handler_append.ts.j2
+    inject: "src/routes/{{ route_dir | kebabcase }}/handler.ts"
+    append: true
+    skip_if: 'export async function {{ update_handler_name }}'

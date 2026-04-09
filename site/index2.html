@@ -1,0 +1,2740 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1" />
+    <title>jig - hero study</title>
+    <style>
+      :root {
+        --bg: #f3efe6;
+        --bg-deep: #ece5d7;
+        --panel: rgba(255, 252, 246, 0.88);
+        --panel-strong: rgba(255, 252, 246, 0.96);
+        --ink: #1f1d1a;
+        --muted: #615b53;
+        --line: rgba(31, 29, 26, 0.12);
+        --brand: #186b57;
+        --brand-deep: #0f5646;
+        --brand-soft: rgba(24, 107, 87, 0.12);
+        --gold: #b98f2d;
+        --shadow: 0 24px 48px rgba(31, 29, 26, 0.08);
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        color: var(--ink);
+        font-family: "Iowan Old Style", "Palatino Linotype", "Book Antiqua", Palatino, serif;
+        background:
+          radial-gradient(circle at top center, rgba(24, 107, 87, 0.08), transparent 28rem),
+          radial-gradient(circle at 15% 10%, rgba(185, 143, 45, 0.1), transparent 24rem),
+          linear-gradient(180deg, var(--bg) 0%, #f7f2e8 100%);
+      }
+
+      a {
+        color: inherit;
+        text-decoration: none;
+      }
+
+      code,
+      pre,
+      .mono {
+        font-family: "Menlo", "Monaco", "SFMono-Regular", monospace;
+      }
+
+      .page {
+        padding: 0 3rem 5rem;
+      }
+
+      .shell {
+        max-width: 1280px;
+        margin: 0 auto;
+      }
+
+      .topbar {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 2rem;
+        min-height: 4.25rem;
+        padding: 1rem 0;
+      }
+
+      .brand {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.9rem;
+      }
+
+      .brand-mark {
+        display: inline-grid;
+        place-items: center;
+        width: 2.8rem;
+        height: 2.8rem;
+        border-radius: 0.95rem;
+        background: linear-gradient(180deg, rgba(24, 107, 87, 0.15), rgba(24, 107, 87, 0.05));
+        border: 1px solid rgba(24, 107, 87, 0.15);
+        color: var(--brand);
+        box-shadow: 0 14px 32px rgba(24, 107, 87, 0.12);
+      }
+
+      .brand-mark svg {
+        width: 1.5rem;
+        height: 1.5rem;
+      }
+
+      .brand-copy {
+        display: grid;
+        gap: 0.08rem;
+      }
+
+      .brand-copy strong {
+        font-family: "Menlo", "Monaco", monospace;
+        font-size: 1rem;
+        letter-spacing: 0.18em;
+        text-transform: uppercase;
+        color: var(--brand);
+      }
+
+      .brand-copy span {
+        color: var(--muted);
+        font-size: 0.92rem;
+      }
+
+      .nav {
+        display: flex;
+        align-items: center;
+        gap: 1.3rem;
+        color: var(--muted);
+        font-size: 0.96rem;
+      }
+
+      .nav a:hover {
+        color: var(--ink);
+      }
+
+      .hero {
+        position: relative;
+        display: grid;
+        grid-template-columns: minmax(0, 700px) minmax(360px, 500px);
+        justify-content: space-between;
+        gap: 2.25rem;
+        padding: 4.8rem 0 5.5rem;
+      }
+
+      .hero-copy {
+        max-width: 700px;
+        min-width: 0;
+      }
+
+      .pill {
+        display: inline-flex;
+        align-items: center;
+        gap: 0.4rem;
+        padding: 0.4rem 0.9rem;
+        border-radius: 999px;
+        border: 1px solid rgba(31, 29, 26, 0.12);
+        background: rgba(255, 255, 255, 0.55);
+        color: var(--muted);
+        font-size: 0.92rem;
+      }
+
+      h1 {
+        margin: 1rem 0 1rem;
+        font-size: 28pt;
+        line-height: 1.04;
+        letter-spacing: -0.038em;
+      }
+
+      h1 .accent {
+        color: inherit;
+        text-decoration-line: underline;
+        text-decoration-color: rgba(24, 107, 87, 0.38);
+        text-decoration-thickness: 0.11em;
+        text-underline-offset: 0.12em;
+      }
+
+      #typer {
+        display: inline-block;
+        color: var(--brand);
+      }
+
+      .blink {
+        font-weight: 400;
+        color: var(--brand);
+      }
+
+      .hero-line-2 {
+        display: inline-block;
+        margin-top: 0.08em;
+      }
+
+      .lede {
+        max-width: 38rem;
+        margin: 0 0 1.6rem;
+        font-size: 1.12rem;
+        line-height: 1.62;
+        color: var(--muted);
+      }
+
+      .install-title {
+        margin: 0 0 0.65rem;
+        font-size: 1.45rem;
+      }
+
+      .install-switcher {
+        display: flex;
+        align-items: center;
+        gap: 0.75rem;
+        margin-bottom: -2px;
+        position: relative;
+        z-index: 2;
+      }
+
+      .switch {
+        padding: 0.5rem 0.9rem;
+        border-radius: 0.8rem 0.8rem 0 0;
+        border: 1px solid rgba(31, 29, 26, 0.12);
+        background: rgba(255, 255, 255, 0.4);
+        color: var(--muted);
+        font-size: 0.94rem;
+      }
+
+      .switch.active {
+        background: var(--brand);
+        border-color: var(--brand);
+        border-bottom-color: transparent;
+        color: #f8f4ea;
+        box-shadow: 0 -1px 0 rgba(24, 107, 87, 0.12);
+      }
+
+      .install-link {
+        color: var(--muted);
+        font-size: 0.9rem;
+      }
+
+      .install-box {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 1rem;
+        padding: 1rem 1.1rem;
+        border: 2px solid rgba(24, 107, 87, 0.28);
+        border-radius: 0 1rem 1rem 1rem;
+        background: var(--panel-strong);
+        box-shadow: var(--shadow);
+        position: relative;
+        z-index: 1;
+      }
+
+      .install-box code {
+        font-size: 1.05rem;
+        white-space: nowrap;
+        overflow-x: auto;
+      }
+
+      .copy {
+        flex: 0 0 auto;
+        display: inline-grid;
+        place-items: center;
+        width: 2.2rem;
+        height: 2.2rem;
+        border-radius: 0.7rem;
+        border: 1px solid var(--line);
+        background: rgba(255, 255, 255, 0.55);
+        color: var(--muted);
+      }
+
+      .used-with {
+        margin-top: 1.35rem;
+      }
+
+      .used-with-label {
+        margin-bottom: 0.65rem;
+        color: var(--muted);
+        font-size: 0.76rem;
+        letter-spacing: 0.16em;
+        text-transform: uppercase;
+        font-family: "Menlo", "Monaco", monospace;
+      }
+
+      .used-with-row {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.7rem;
+      }
+
+      .used-pill {
+        padding: 0.5rem 0.75rem;
+        border-radius: 999px;
+        background: rgba(255, 255, 255, 0.45);
+        border: 1px solid rgba(31, 29, 26, 0.1);
+        color: var(--muted);
+        font-size: 0.94rem;
+      }
+
+      .hero-panel {
+        padding: 1.1rem;
+        border: 1px solid var(--line);
+        border-radius: 1.4rem;
+        background: linear-gradient(180deg, var(--panel-strong), rgba(245, 239, 228, 0.95));
+        box-shadow: var(--shadow);
+        min-width: 0;
+      }
+
+      .panel-tabs {
+        display: grid;
+        grid-template-columns: repeat(4, minmax(0, 1fr));
+        gap: 0.45rem;
+        margin-bottom: 1rem;
+      }
+
+      .tab {
+        appearance: none;
+        padding: 0.72rem 0.6rem;
+        border: 1px solid rgba(31, 29, 26, 0.1);
+        border-radius: 0.9rem;
+        background: rgba(255, 255, 255, 0.42);
+        color: var(--muted);
+        text-align: center;
+        font-size: 0.9rem;
+        font-family: inherit;
+        white-space: nowrap;
+        cursor: pointer;
+        transition:
+          background 180ms ease,
+          color 180ms ease,
+          border-color 180ms ease,
+          box-shadow 180ms ease,
+          transform 180ms ease;
+      }
+
+      .tab:hover {
+        color: var(--ink);
+        border-color: rgba(24, 107, 87, 0.18);
+      }
+
+      .tab.active {
+        background: rgba(24, 107, 87, 0.12);
+        border-color: rgba(24, 107, 87, 0.28);
+        color: var(--brand-deep);
+        box-shadow: inset 0 0 0 1px rgba(24, 107, 87, 0.1);
+        transform: translateY(-1px);
+      }
+
+      .panel-title {
+        margin: 0 0 0.3rem;
+        font-size: 1.9rem;
+        letter-spacing: -0.04em;
+      }
+
+      .panel-subtitle {
+        margin: 0 0 1rem;
+        color: var(--muted);
+        font-size: 0.96rem;
+      }
+
+      .panel-saved {
+        display: inline-flex;
+        align-items: baseline;
+        gap: 0.45rem;
+        margin: 0 0 0.5rem;
+      }
+
+      .panel-saved-value {
+        font-size: 3rem;
+        line-height: 0.9;
+        letter-spacing: -0.06em;
+        color: var(--brand-deep);
+      }
+
+      .panel-saved-label {
+        color: var(--muted);
+        font-size: 0.98rem;
+      }
+
+      .chart {
+        padding: 1rem;
+        border-radius: 1rem;
+        background: rgba(255, 255, 255, 0.62);
+        border: 1px solid rgba(31, 29, 26, 0.08);
+      }
+
+      .chart-summary {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 1rem;
+        margin-bottom: 1rem;
+        padding-bottom: 0.9rem;
+        border-bottom: 1px solid rgba(31, 29, 26, 0.08);
+      }
+
+      .chart-summary-label {
+        color: var(--muted);
+        font-size: 0.9rem;
+      }
+
+      .chart-summary-value {
+        color: var(--brand-deep);
+        font-size: 1.4rem;
+        letter-spacing: -0.04em;
+      }
+
+      .bar-row {
+        display: grid;
+        grid-template-columns: 5.5rem 1fr 4.5rem;
+        align-items: end;
+        gap: 0.75rem;
+        margin-bottom: 1rem;
+      }
+
+      .bar-row:last-child {
+        margin-bottom: 0;
+      }
+
+      .bar-label {
+        color: var(--ink);
+        font-size: 0.95rem;
+      }
+
+      .bar-track {
+        display: flex;
+        align-items: center;
+        height: 2rem;
+        border-radius: 0.35rem;
+        background: rgba(31, 29, 26, 0.08);
+        overflow: hidden;
+      }
+
+      .bar-fill {
+        height: 100%;
+        background: linear-gradient(90deg, rgba(24, 107, 87, 0.72), rgba(24, 107, 87, 0.48));
+        transition: width 420ms ease;
+      }
+
+      .bar-fill.alt {
+        background: rgba(31, 29, 26, 0.22);
+      }
+
+      .bar-value {
+        color: var(--muted);
+        font-size: 0.9rem;
+        text-align: right;
+      }
+
+      .panel-foot {
+        margin-top: 0.9rem;
+        color: var(--muted);
+        font-size: 0.9rem;
+        text-align: center;
+      }
+
+      .panel-proof-link {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        margin-top: 1rem;
+        width: 100%;
+        padding: 0.2rem 0;
+        color: var(--muted);
+        font-size: 0.92rem;
+        text-align: center;
+      }
+
+      .panel-proof-link:hover {
+        color: var(--ink);
+      }
+
+      .moves {
+        padding: 0 0 5rem;
+      }
+
+      .moves-head {
+        max-width: 48rem;
+        margin-bottom: 1.5rem;
+      }
+
+      .section-kicker {
+        margin: 0 0 0.6rem;
+        color: var(--muted);
+        font-size: 0.82rem;
+        letter-spacing: 0.16em;
+        text-transform: uppercase;
+        font-family: "Menlo", "Monaco", monospace;
+      }
+
+      .moves-head h2 {
+        margin: 0 0 0.75rem;
+        font-size: 2.55rem;
+        line-height: 1.02;
+        letter-spacing: -0.045em;
+      }
+
+      .moves-head p {
+        margin: 0;
+        max-width: 44rem;
+        color: var(--muted);
+        font-size: 1.05rem;
+        line-height: 1.65;
+      }
+
+      .moves-buttons {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.6rem;
+        margin-bottom: 1.05rem;
+      }
+
+      .moves-button,
+      .state-pill,
+      .run-button {
+        appearance: none;
+        border: 1px solid rgba(31, 29, 26, 0.1);
+        font-family: inherit;
+        cursor: pointer;
+        transition:
+          background 180ms ease,
+          color 180ms ease,
+          border-color 180ms ease,
+          transform 180ms ease,
+          box-shadow 180ms ease;
+      }
+
+      .moves-button,
+      .state-pill {
+        background: rgba(255, 255, 255, 0.48);
+        color: var(--muted);
+        border-radius: 0.8rem;
+      }
+
+      .moves-button {
+        padding: 0.7rem 0.95rem;
+        font-size: 0.95rem;
+      }
+
+      .moves-button:hover,
+      .state-pill:hover {
+        color: var(--ink);
+        border-color: rgba(24, 107, 87, 0.18);
+      }
+
+      .moves-button.active,
+      .state-pill.active {
+        background: rgba(24, 107, 87, 0.12);
+        border-color: rgba(24, 107, 87, 0.28);
+        color: var(--brand-deep);
+        box-shadow: inset 0 0 0 1px rgba(24, 107, 87, 0.1);
+      }
+
+      .moves-demo {
+        display: grid;
+        grid-template-columns: repeat(2, minmax(0, 1fr));
+        gap: 1.15rem;
+        align-items: stretch;
+      }
+
+      .demo-panel {
+        display: flex;
+        flex-direction: column;
+        padding: 1.15rem;
+        border: 1px solid var(--line);
+        border-radius: 1.4rem;
+        background: linear-gradient(180deg, var(--panel-strong), rgba(245, 239, 228, 0.95));
+        box-shadow: var(--shadow);
+        min-height: 43rem;
+      }
+
+      .demo-panel-head {
+        display: grid;
+        align-content: start;
+        min-height: 10.75rem;
+      }
+
+      .demo-panel h3 {
+        margin: 0.2rem 0 0.65rem;
+        font-size: 1.85rem;
+        letter-spacing: -0.04em;
+      }
+
+      .moves-kind {
+        color: var(--muted);
+        font-size: 0.82rem;
+        letter-spacing: 0.16em;
+        text-transform: uppercase;
+        font-family: "Menlo", "Monaco", monospace;
+      }
+
+      .moves-copy,
+      .preview-copy {
+        margin: 0 0 1rem;
+        color: var(--muted);
+        font-size: 1rem;
+        line-height: 1.65;
+      }
+
+      .moves-chips {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 0.55rem;
+        margin-bottom: 1rem;
+      }
+
+      .moves-chip {
+        padding: 0.42rem 0.72rem;
+        border-radius: 999px;
+        border: 1px solid rgba(31, 29, 26, 0.1);
+        background: rgba(255, 255, 255, 0.5);
+        color: var(--muted);
+        font-size: 0.88rem;
+      }
+
+      .demo-stack {
+        display: grid;
+        gap: 0.8rem;
+        min-height: 0;
+        flex: 1;
+      }
+
+      .source-browser {
+        display: grid;
+        overflow: hidden;
+        border-radius: 1rem;
+        border: 1px solid rgba(31, 29, 26, 0.16);
+        background: #23252c;
+        min-height: 0;
+        max-height: 30.5rem;
+        flex: 1;
+      }
+
+      .source-browser-bar {
+        display: flex;
+        justify-content: flex-start;
+        align-items: center;
+        gap: 1rem;
+        padding: 0.8rem 0.95rem;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+        background: rgba(255, 255, 255, 0.03);
+      }
+
+      .source-browser-bar strong {
+        color: rgba(231, 227, 220, 0.88);
+        font-size: 0.82rem;
+        letter-spacing: 0.04em;
+        word-break: break-word;
+      }
+
+      .source-browser-body {
+        display: grid;
+        grid-template-columns: 16rem minmax(0, 1fr);
+        min-height: 0;
+      }
+
+      .source-tree {
+        display: grid;
+        align-content: start;
+        gap: 0.24rem;
+        padding: 0.75rem;
+        border-right: 1px solid rgba(255, 255, 255, 0.08);
+        background:
+          linear-gradient(180deg, rgba(255, 255, 255, 0.035), rgba(255, 255, 255, 0.02)),
+          rgba(18, 20, 26, 0.72);
+        overflow-y: auto;
+        min-height: 0;
+      }
+
+      .source-folder,
+      .source-file {
+        width: 100%;
+        display: flex;
+        align-items: center;
+        gap: 0.55rem;
+        padding: 0.52rem 0.65rem;
+        padding-left: calc(0.72rem + var(--source-depth, 0) * 1rem);
+      }
+
+      .source-folder {
+        color: rgba(231, 227, 220, 0.52);
+        font-size: 0.84rem;
+        letter-spacing: 0.01em;
+      }
+
+      .source-file {
+        appearance: none;
+        border-radius: 0.8rem;
+        border: 1px solid transparent;
+        background: transparent;
+        color: rgba(231, 227, 220, 0.68);
+        font-family: inherit;
+        font-size: 0.88rem;
+        text-align: left;
+        cursor: pointer;
+        transition:
+          background 180ms ease,
+          color 180ms ease,
+          border-color 180ms ease;
+      }
+
+      .source-file:hover {
+        color: rgba(248, 244, 234, 0.94);
+        background: rgba(255, 255, 255, 0.05);
+        border-color: rgba(255, 255, 255, 0.07);
+      }
+
+      .source-file.active {
+        background: rgba(24, 107, 87, 0.12);
+        border-color: rgba(24, 107, 87, 0.24);
+        color: #d9efe8;
+      }
+
+      .source-folder-icon,
+      .source-file-icon {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        flex: 0 0 auto;
+        width: 0.95rem;
+        height: 0.95rem;
+        color: rgba(231, 227, 220, 0.48);
+        font-size: 0.7rem;
+        line-height: 1;
+      }
+
+      .source-folder-icon::before {
+        content: "▾";
+      }
+
+      .source-file-icon::before {
+        content: "";
+        width: 0.38rem;
+        height: 0.38rem;
+        border-radius: 999px;
+        background: rgba(24, 107, 87, 0.72);
+        flex: 0 0 auto;
+      }
+
+      .source-file-label {
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .source-content-window {
+        min-width: 0;
+        border: 0;
+        border-radius: 0;
+        display: flex;
+        flex-direction: column;
+        min-height: 0;
+        background: #23252c;
+      }
+
+      .demo-window,
+      .preview-window {
+        overflow: hidden;
+        border-radius: 1rem;
+        border: 1px solid rgba(31, 29, 26, 0.16);
+        background: #23252c;
+        color: #e7e3dc;
+      }
+
+      .demo-window {
+        min-height: 0;
+      }
+
+      .demo-window-head,
+      .preview-window-bar {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 1rem;
+        min-width: 0;
+        padding: 0.8rem 0.95rem;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+        background: rgba(255, 255, 255, 0.03);
+      }
+
+      .demo-window-head strong,
+      .preview-window-bar strong {
+        color: rgba(231, 227, 220, 0.88);
+        font-size: 0.82rem;
+        letter-spacing: 0.04em;
+        min-width: 0;
+        flex: 1 1 auto;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .demo-window-head span,
+      .preview-window-bar span {
+        color: rgba(231, 227, 220, 0.66);
+        font-size: 0.8rem;
+        min-width: 0;
+      }
+
+      .demo-window-head strong {
+        flex: 1 1 auto;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+      }
+
+      .demo-window-head span {
+        flex: 0 1 48%;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        text-align: right;
+      }
+
+      .demo-window pre {
+        margin: 0;
+        padding: 1rem 1.1rem 1.15rem;
+        overflow-x: auto;
+        font-size: 0.9rem;
+        line-height: 1.6;
+      }
+
+      .demo-window pre {
+        max-height: 18rem;
+        overflow-y: auto;
+      }
+
+      .source-content-window pre {
+        flex: 1;
+        max-height: none;
+        min-height: 0;
+      }
+
+      .preview-top {
+        display: flex;
+        justify-content: space-between;
+        align-items: flex-start;
+        gap: 1rem;
+        margin-bottom: 0.75rem;
+      }
+
+      .preview-top h3 {
+        margin-bottom: 0.3rem;
+      }
+
+      .preview-controls {
+        display: flex;
+        align-items: center;
+      }
+
+      .run-button {
+        padding: 0.72rem 1rem;
+        border-radius: 0.9rem;
+        background: var(--brand);
+        border: 1px solid var(--brand);
+        color: #f8f4ea;
+        font-size: 0.92rem;
+        min-width: 8.25rem;
+        transition:
+          background 180ms ease,
+          color 180ms ease,
+          border-color 180ms ease,
+          box-shadow 180ms ease;
+      }
+
+      .run-button:hover {
+        background: var(--brand-deep);
+        border-color: var(--brand-deep);
+      }
+
+      .run-button.is-reset {
+        background: transparent;
+        border-color: rgba(24, 107, 87, 0.36);
+        color: rgba(24, 107, 87, 0.96);
+        box-shadow: none;
+      }
+
+      .run-button.is-reset:hover {
+        background: rgba(24, 107, 87, 0.08);
+        border-color: rgba(24, 107, 87, 0.48);
+        color: rgba(17, 81, 66, 0.98);
+      }
+
+      .run-button.is-running,
+      .run-button.is-running:hover {
+        background: var(--brand);
+        border-color: var(--brand);
+        color: #f8f4ea;
+      }
+
+      .run-button:disabled {
+        cursor: default;
+        opacity: 0.88;
+      }
+
+      .preview-window {
+        display: flex;
+        flex-direction: column;
+        flex: 1;
+        min-height: 0;
+        max-height: 30.5rem;
+        transition:
+          transform 260ms ease,
+          box-shadow 260ms ease,
+          border-color 260ms ease,
+          background 260ms ease;
+      }
+
+      .preview-window.running {
+        transform: translateY(-2px);
+        border-color: rgba(24, 107, 87, 0.38);
+        box-shadow: 0 16px 36px rgba(24, 107, 87, 0.16);
+        background: linear-gradient(180deg, #1f2429, #23252c);
+      }
+
+      .preview-window.flash {
+        box-shadow: 0 20px 44px rgba(24, 107, 87, 0.18);
+      }
+
+      .preview-window-body {
+        display: grid;
+        grid-template-columns: minmax(12.5rem, 13.5rem) minmax(0, 1fr);
+        flex: 1;
+        min-height: 23rem;
+      }
+
+      .preview-steps {
+        display: grid;
+        align-content: start;
+        gap: 0.6rem;
+        padding: 0.9rem 0.8rem;
+        border-right: 1px solid rgba(255, 255, 255, 0.08);
+        background:
+          linear-gradient(180deg, rgba(255, 255, 255, 0.035), rgba(255, 255, 255, 0.02)),
+          rgba(18, 20, 26, 0.72);
+        overflow-y: auto;
+        min-height: 0;
+      }
+
+      .preview-step {
+        display: grid;
+        gap: 0.18rem;
+        padding: 0.75rem 0.78rem;
+        border-radius: 0.9rem;
+        border: 1px solid rgba(255, 255, 255, 0.06);
+        background: rgba(255, 255, 255, 0.03);
+        transition:
+          transform 180ms ease,
+          background 180ms ease,
+          border-color 180ms ease,
+          box-shadow 180ms ease;
+      }
+
+      .preview-step.active {
+        transform: translateX(2px);
+        border-color: rgba(92, 214, 174, 0.35);
+        background: rgba(24, 107, 87, 0.22);
+        box-shadow: 0 10px 22px rgba(24, 107, 87, 0.16);
+      }
+
+      .preview-step.done {
+        border-color: rgba(92, 214, 174, 0.18);
+        background: rgba(92, 214, 174, 0.08);
+      }
+
+      .preview-step-label {
+        color: rgba(231, 227, 220, 0.64);
+        font-size: 0.72rem;
+        letter-spacing: 0.12em;
+        text-transform: uppercase;
+      }
+
+      .preview-step-title {
+        color: rgba(247, 243, 235, 0.94);
+        font-size: 0.9rem;
+        line-height: 1.3;
+      }
+
+      .preview-editor {
+        display: flex;
+        flex-direction: column;
+        min-width: 0;
+        min-height: 0;
+      }
+
+      .preview-editor-head {
+        display: flex;
+        justify-content: space-between;
+        align-items: center;
+        gap: 1rem;
+        padding: 0.85rem 1rem;
+        border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+        background: rgba(255, 255, 255, 0.02);
+      }
+
+      .preview-editor-head strong {
+        flex: 1 1 auto;
+        min-width: 0;
+        overflow: hidden;
+        text-overflow: ellipsis;
+        white-space: nowrap;
+        color: rgba(247, 243, 235, 0.92);
+        font-size: 0.84rem;
+        line-height: 1.4;
+      }
+
+      .preview-code {
+        flex: 1;
+        margin: 0;
+        padding: 1rem 1.1rem 1.15rem;
+        overflow: auto;
+        color: #e7e3dc;
+        font-size: 0.9rem;
+        line-height: 1.65;
+        white-space: pre-wrap;
+        word-break: break-word;
+      }
+
+      .preview-code .code-dim {
+        color: rgba(231, 227, 220, 0.42);
+      }
+
+      .preview-code .typed-chunk {
+        color: #f5fff9;
+        background: rgba(92, 214, 174, 0.14);
+        box-shadow: 0 0 0 1px rgba(92, 214, 174, 0.14);
+        border-radius: 0.28rem;
+        box-decoration-break: clone;
+        -webkit-box-decoration-break: clone;
+      }
+
+      .preview-code .typed-chunk.done {
+        background: rgba(92, 214, 174, 0.18);
+        box-shadow: 0 0 0 1px rgba(92, 214, 174, 0.2);
+      }
+
+      .preview-code .code-cursor {
+        display: inline-block;
+        width: 0.68ch;
+        height: 1.08em;
+        margin-left: 1px;
+        vertical-align: -0.18em;
+        border-radius: 0.18rem;
+        background: linear-gradient(180deg, #8ef0ca, #4ec79d);
+        box-shadow: 0 0 16px rgba(92, 214, 174, 0.36);
+        animation: previewCursorBlink 1s steps(1) infinite;
+      }
+
+      @keyframes previewCursorBlink {
+        50% {
+          opacity: 0;
+        }
+      }
+
+      .preview-foot {
+        margin-top: 0.9rem;
+        color: var(--muted);
+        font-size: 0.9rem;
+      }
+
+      @media (min-width: 768px) {
+        h1 {
+          font-size: 32pt;
+        }
+      }
+
+      @media (min-width: 1024px) {
+        h1 {
+          font-size: 38pt;
+        }
+      }
+
+      @media (min-width: 1280px) {
+        h1 {
+          font-size: 40pt;
+        }
+      }
+
+      @media (max-width: 1100px) {
+        .hero {
+          grid-template-columns: 1fr;
+          gap: 2rem;
+          padding-top: 3.5rem;
+        }
+
+        .hero-copy {
+          max-width: 100%;
+        }
+      }
+
+      @media (max-width: 720px) {
+        .page {
+          padding-left: 1rem;
+          padding-right: 1rem;
+        }
+
+        .topbar {
+          flex-direction: column;
+          align-items: flex-start;
+        }
+
+        .nav {
+          flex-wrap: wrap;
+          gap: 0.85rem;
+        }
+
+        h1 {
+          font-size: 24pt;
+        }
+
+        .lede {
+          font-size: 1rem;
+        }
+
+        .install-switcher {
+          flex-wrap: wrap;
+          align-items: flex-end;
+        }
+
+        .install-link {
+          width: 100%;
+        }
+
+        .install-box {
+          padding: 0.9rem;
+          border-radius: 1rem;
+        }
+
+        .install-box code {
+          font-size: 0.9rem;
+          white-space: pre-wrap;
+          word-break: break-word;
+        }
+
+        .bar-row {
+          grid-template-columns: 4.4rem 1fr 3.5rem;
+          gap: 0.5rem;
+        }
+
+        .panel-saved-value {
+          font-size: 2.35rem;
+        }
+
+        .panel-title {
+          font-size: 1.55rem;
+        }
+
+        .moves-head h2 {
+          font-size: 2rem;
+        }
+
+        .moves-demo {
+          grid-template-columns: 1fr;
+        }
+
+        .demo-panel {
+          min-height: auto;
+        }
+
+        .demo-panel-head {
+          min-height: auto;
+        }
+
+        .source-browser {
+          max-height: none;
+        }
+
+        .source-browser-body {
+          grid-template-columns: 1fr;
+        }
+
+        .source-tree,
+        .preview-steps {
+          max-height: 12rem;
+        }
+
+        .preview-window {
+          max-height: none;
+        }
+
+        .preview-window-body {
+          grid-template-columns: 1fr;
+        }
+
+        .preview-steps {
+          grid-template-columns: repeat(auto-fit, minmax(11rem, 1fr));
+          border-right: 0;
+          border-bottom: 1px solid rgba(255, 255, 255, 0.08);
+        }
+      }
+
+      @media (max-width: 560px) {
+        .topbar {
+          gap: 1rem;
+        }
+
+        .brand {
+          align-items: flex-start;
+        }
+
+        .brand-copy span {
+          line-height: 1.35;
+        }
+
+        .hero {
+          gap: 1.5rem;
+          padding-top: 2.5rem;
+          padding-bottom: 3.25rem;
+        }
+
+        .pill {
+          font-size: 0.84rem;
+          line-height: 1.35;
+        }
+
+        h1 {
+          margin-top: 0.85rem;
+          font-size: 20pt;
+        }
+
+        .hero-line-2 {
+          display: block;
+          margin-top: 0.14em;
+        }
+
+        .panel-tabs {
+          grid-template-columns: repeat(2, minmax(0, 1fr));
+        }
+
+        .tab {
+          padding: 0.66rem 0.5rem;
+          font-size: 0.86rem;
+        }
+
+        .hero-panel {
+          padding: 0.95rem;
+          border-radius: 1.1rem;
+        }
+
+        .panel-saved {
+          gap: 0.3rem;
+        }
+
+        .panel-saved-value {
+          font-size: 2rem;
+        }
+
+        .panel-saved-label {
+          font-size: 0.9rem;
+        }
+
+        .panel-title {
+          font-size: 1.38rem;
+          line-height: 1.08;
+        }
+
+        .panel-subtitle {
+          font-size: 0.92rem;
+        }
+
+        .chart {
+          padding: 0.85rem;
+        }
+
+        .chart-summary {
+          flex-direction: column;
+          align-items: flex-start;
+          gap: 0.3rem;
+        }
+
+        .chart-summary-value {
+          font-size: 1.2rem;
+        }
+
+        .bar-row {
+          grid-template-columns: 1fr;
+          gap: 0.35rem;
+          margin-bottom: 0.85rem;
+        }
+
+        .bar-label,
+        .bar-value {
+          text-align: left;
+        }
+
+        .bar-track {
+          height: 1.5rem;
+        }
+
+        .panel-foot,
+        .panel-proof-link {
+          font-size: 0.86rem;
+        }
+
+        .moves {
+          padding-bottom: 3.5rem;
+        }
+
+        .moves-head h2 {
+          font-size: 1.7rem;
+        }
+
+        .moves-head p,
+        .moves-copy,
+        .preview-copy {
+          font-size: 0.96rem;
+        }
+
+        .moves-button {
+          width: calc(50% - 0.3rem);
+          text-align: center;
+        }
+
+        .demo-panel {
+          padding: 0.95rem;
+          border-radius: 1.1rem;
+        }
+
+        .demo-panel h3 {
+          font-size: 1.45rem;
+        }
+
+        .source-tree {
+          padding: 0.65rem;
+        }
+
+        .run-button {
+          width: 100%;
+        }
+
+        .demo-window pre,
+        .preview-code {
+          padding: 0.9rem;
+          font-size: 0.84rem;
+        }
+
+        .preview-editor-head {
+          align-items: flex-start;
+          flex-direction: column;
+        }
+
+        .preview-editor-head span {
+          text-align: left;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <main class="page">
+      <div class="shell">
+        <header class="topbar">
+          <div class="brand" aria-label="jig brand">
+            <div class="brand-mark" aria-hidden="true">
+              <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+                <path stroke="none" d="M0 0h24v24H0z" fill="none"></path>
+                <path d="M9 5h-2a2 2 0 0 0 -2 2v12a2 2 0 0 0 2 2h3"></path>
+                <path d="M19 12v-5a2 2 0 0 0 -2 -2h-2"></path>
+                <path d="M13 17v-1a1 1 0 0 1 1 -1h1"></path>
+                <path d="M18 15h1a1 1 0 0 1 1 1v1"></path>
+                <path d="M20 20v1a1 1 0 0 1 -1 1h-1"></path>
+                <path d="M15 22h-1a1 1 0 0 1 -1 -1v-1"></path>
+                <path d="M9 5a2 2 0 0 1 2 -2h2a2 2 0 0 1 2 2a2 2 0 0 1 -2 2h-2a2 2 0 0 1 -2 -2"></path>
+              </svg>
+            </div>
+            <div class="brand-copy">
+              <strong>jig</strong>
+              <span>Deterministic file generation for coding agents</span>
+            </div>
+          </div>
+          <nav class="nav">
+            <a href="https://github.com/Tetra-Research/jig/tree/main/examples">Examples</a>
+            <a href="https://github.com/Tetra-Research/jig/blob/main/README.md">Docs</a>
+            <a href="https://github.com/Tetra-Research/jig/blob/main/eval/results/README.md">Proof</a>
+            <a href="https://github.com/Tetra-Research/jig">GitHub</a>
+          </nav>
+        </header>
+
+        <section class="hero">
+          <div class="hero-copy">
+            <div class="pill">Incrementally adoptable inside Claude and Codex skills</div>
+            <h1>
+              jig is a <span class="accent">deterministic</span> agent<br />
+              <span class="hero-line-2"><span id="typer">template engine</span><span class="blink">|</span></span>
+            </h1>
+            <p class="lede">
+              Save tokens, time, and money on routine code edits. Use <strong>jig</strong> inside
+              normal Claude and Codex skills, adopt it incrementally, and use the plugins we ship
+              to help teams integrate it cleanly. Let it handle both new-file generation and
+              targeted brownfield patches with repeatable output.
+            </p>
+
+            <h2 class="install-title">Install jig</h2>
+            <div class="install-switcher">
+              <div class="switch active">Curl installer</div>
+              <!-- <div class="switch">Linux</div> -->
+              <a class="install-link" href="https://github.com/Tetra-Research/jig#install-manual-release-channel">View install docs</a>
+            </div>
+            <div class="install-box">
+              <code>curl -fsSL https://raw.githubusercontent.com/Tetra-Research/jig/main/install.sh | sh</code>
+              <div class="copy" aria-hidden="true">
+                <svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" width="18" height="18">
+                  <rect x="9" y="9" width="13" height="13" rx="2"></rect>
+                  <path d="M5 15H4a2 2 0 0 1-2-2V4a2 2 0 0 1 2-2h9a2 2 0 0 1 2 2v1"></path>
+                </svg>
+              </div>
+            </div>
+
+            <div class="used-with">
+              <div class="used-with-label">Native plugins for</div>
+              <div class="used-with-row">
+                <div class="used-pill">Claude Code</div>
+                <div class="used-pill">Codex</div>
+                <div class="used-pill">OpenCode</div>
+              </div>
+            </div>
+          </div>
+
+          <aside class="hero-panel">
+            <div class="panel-tabs" role="tablist" aria-label="Proof metrics">
+              <button class="tab active" type="button" role="tab" aria-selected="true" data-metric="tokens">Tokens</button>
+              <button class="tab" type="button" role="tab" aria-selected="false" data-metric="time">Time</button>
+              <button class="tab" type="button" role="tab" aria-selected="false" data-metric="cost">Cost</button>
+              <button class="tab" type="button" role="tab" aria-selected="false" data-metric="tools">Tool calls</button>
+            </div>
+            <div class="panel-saved">
+              <div class="panel-saved-value" id="metric-percent">45.6%</div>
+              <div class="panel-saved-label" id="metric-saved-label">saved vs control</div>
+            </div>
+            <h2 class="panel-title" id="metric-title">Fewer tokens on repeated backend edits</h2>
+            <p class="panel-subtitle" id="metric-subtitle">From the latest full-suite head-to-head run: 15 routine backend pairs with matching target contracts.</p>
+            <div class="chart">
+              <div class="chart-summary">
+                <div class="chart-summary-label">Saved against control</div>
+                <div class="chart-summary-value" id="value-saved">1.46M fewer</div>
+              </div>
+              <div class="bar-row">
+                <div class="bar-label">jig</div>
+                <div class="bar-track"><div class="bar-fill" id="bar-jig" style="width: 54.4%"></div></div>
+                <div class="bar-value" id="value-jig">1.75M</div>
+              </div>
+              <div class="bar-row">
+                <div class="bar-label">control</div>
+                <div class="bar-track"><div class="bar-fill alt" id="bar-control" style="width: 100%"></div></div>
+                <div class="bar-value" id="value-control">3.21M</div>
+              </div>
+            </div>
+            <p class="panel-foot" id="metric-foot">15 pairwise runs, same target contract, 45.6% less token burn.</p>
+            <a class="panel-proof-link" href="https://github.com/Tetra-Research/jig/blob/main/eval/results/README.md">View benchmark &rarr;</a>
+          </aside>
+        </section>
+
+        <section class="moves" id="patterns">
+          <div class="moves-head">
+            <div class="section-kicker">Validated TypeScript moves</div>
+            <h2>Show the real skill files and the exact file change.</h2>
+            <p>
+              These are real examples from the repo. Pick a common TypeScript move, browse the
+              actual skill files on the left, then watch the target file update on the right.
+            </p>
+          </div>
+
+          <div class="moves-buttons" role="tablist" aria-label="TypeScript use cases">
+            <button class="moves-button active" type="button" data-usecase="create-model">Create model</button>
+            <button class="moves-button" type="button" data-usecase="update-model">Update model</button>
+            <button class="moves-button" type="button" data-usecase="create-endpoint">Create endpoint</button>
+            <button class="moves-button" type="button" data-usecase="update-endpoint">Update endpoint</button>
+          </div>
+
+          <div class="moves-demo">
+            <div class="demo-panel">
+              <div class="demo-panel-head">
+                <div class="moves-kind" id="usecase-kind">Greenfield recipe</div>
+                <h3 id="usecase-title">Create a Zod-backed model file</h3>
+                <p class="moves-copy" id="usecase-copy">
+                  Generate a new model file with a standard schema and inferred type instead of
+                  re-authoring the same shape by hand.
+                </p>
+              </div>
+
+              <div class="demo-stack">
+                <div class="source-browser">
+                  <div class="source-browser-bar">
+                    <strong id="source-root">.claude/skills/create-model/</strong>
+                  </div>
+
+                  <div class="source-browser-body">
+                    <div class="source-tree" id="source-tree"></div>
+
+                    <div class="demo-window source-content-window">
+                      <div class="demo-window-head">
+                        <strong id="source-title">Recipe file</strong>
+                        <span id="source-file">SKILL.md</span>
+                      </div>
+                      <pre><code id="source-code"></code></pre>
+                    </div>
+                  </div>
+                </div>
+              </div>
+            </div>
+
+            <div class="demo-panel">
+              <div class="demo-panel-head">
+                <div class="preview-top">
+                  <div>
+                    <div class="moves-kind" id="target-file-kind">Active file</div>
+                    <h3 id="target-file">src/models/project.ts</h3>
+                  </div>
+                  <div class="preview-controls">
+                    <button class="run-button" id="run-demo" type="button">Run jig</button>
+                  </div>
+                </div>
+
+                <p class="preview-copy" id="preview-copy">
+                  This move generates a new file from scratch. Hit run to render the template into
+                  the target path with the checked-in vars, then reset to inspect the starting state
+                  again.
+                </p>
+              </div>
+
+              <div class="preview-window" id="preview-window">
+                <div class="preview-window-bar">
+                  <strong id="preview-state-label"></strong>
+                  <span id="preview-kind-label">1 step across 1 file</span>
+                </div>
+                <div class="preview-window-body">
+                  <div class="preview-steps" id="preview-steps"></div>
+                  <div class="preview-editor">
+                    <div class="preview-editor-head">
+                      <strong id="preview-file-label">src/models/project.ts</strong>
+                    </div>
+                    <div class="preview-code mono" id="preview-code" aria-live="polite"></div>
+                  </div>
+                </div>
+              </div>
+
+            </div>
+          </div>
+        </section>
+      </div>
+    </main>
+
+    <script>
+      const options = ["template engine", "brownfield patcher", "skill primitive", "token saver"];
+      const typer = document.getElementById("typer");
+      const metricTabs = Array.from(document.querySelectorAll(".tab[data-metric]"));
+      const metricPercent = document.getElementById("metric-percent");
+      const metricSavedLabel = document.getElementById("metric-saved-label");
+      const metricTitle = document.getElementById("metric-title");
+      const metricSubtitle = document.getElementById("metric-subtitle");
+      const metricFoot = document.getElementById("metric-foot");
+      const barJig = document.getElementById("bar-jig");
+      const barControl = document.getElementById("bar-control");
+      const valueJig = document.getElementById("value-jig");
+      const valueControl = document.getElementById("value-control");
+      const valueSaved = document.getElementById("value-saved");
+      const usecaseButtons = Array.from(document.querySelectorAll(".moves-button[data-usecase]"));
+      const usecaseKind = document.getElementById("usecase-kind");
+      const usecaseTitle = document.getElementById("usecase-title");
+      const usecaseCopy = document.getElementById("usecase-copy");
+      const sourceTree = document.getElementById("source-tree");
+      const sourceRoot = document.getElementById("source-root");
+      const sourceTitle = document.getElementById("source-title");
+      const sourceFile = document.getElementById("source-file");
+      const sourceCode = document.getElementById("source-code");
+      const targetFileKind = document.getElementById("target-file-kind");
+      const targetFile = document.getElementById("target-file");
+      const previewCopy = document.getElementById("preview-copy");
+      const previewWindow = document.getElementById("preview-window");
+      const previewStateLabel = document.getElementById("preview-state-label");
+      const previewKindLabel = document.getElementById("preview-kind-label");
+      const previewSteps = document.getElementById("preview-steps");
+      const previewFileLabel = document.getElementById("preview-file-label");
+      const previewCode = document.getElementById("preview-code");
+      const runDemo = document.getElementById("run-demo");
+      let optionIndex = 0;
+      let charIndex = options[0].length;
+      let deleting = false;
+      let metricIndex = 0;
+      let metricTimer;
+      let currentUsecase = "create-model";
+      let currentState = "before";
+      let currentSourceFile = "SKILL.md";
+      let previewAnimationToken = 0;
+
+      const metrics = {
+        tokens: {
+          percent: "45.6%",
+          savedLabel: "saved vs control",
+          title: "Fewer tokens on repeated backend edits",
+          subtitle: "15 routine backend pairs with matching target contracts.",
+          jigWidth: "54.4%",
+          controlWidth: "100%",
+          jigValue: "1.75M",
+          controlValue: "3.21M",
+          savedValue: "1.46M fewer tokens",
+          foot: "15 pairwise runs, same target contract, 45.6% less token burn."
+        },
+        time: {
+          percent: "44.4%",
+          savedLabel: "faster vs control",
+          title: "Less wall-clock time waiting on routine work",
+          subtitle: "The same repeated edits finish materially faster with jig.",
+          jigWidth: "55.6%",
+          controlWidth: "100%",
+          jigValue: "243s",
+          controlValue: "436s",
+          savedValue: "194s faster",
+          foot: "15 pairwise runs, same target contract, 44.4% less elapsed time."
+        },
+        cost: {
+          percent: "41.4%",
+          savedLabel: "lower cost vs control",
+          title: "Lower cost on the edits agents repeat most",
+          subtitle: "Reusable structure pulls down spend at parity.",
+          jigWidth: "58.6%",
+          controlWidth: "100%",
+          jigValue: "$5.74",
+          controlValue: "$9.80",
+          savedValue: "$4.06 saved",
+          foot: "15 pairwise runs, same target contract, 41.4% lower cost."
+        },
+        tools: {
+          percent: "57.0%",
+          savedLabel: "fewer vs control",
+          title: "Fewer tool calls on the same repeated work",
+          subtitle: "Tighter structure means less tool churn before landing the same contract.",
+          jigWidth: "43.0%",
+          controlWidth: "100%",
+          jigValue: "64",
+          controlValue: "149",
+          savedValue: "85 fewer calls",
+          foot: "15 pairwise runs, same target contract, 57.0% fewer tool calls."
+        }
+      };
+
+      const usecases = {
+        "create-model": {
+          kind: "Greenfield recipe",
+          title: "Create a Zod-backed model file",
+          copy: "Generate a new model file with a standard schema and inferred type instead of re-authoring the same shape by hand.",
+          chips: ["TypeScript", "Greenfield", "1 file"],
+          sourceRoot: ".claude/skills/create-model/",
+          skill: `Use this when adding a new TypeScript model file with a known standard shape.
+
+Default flow:
+1. Fill in \`model_name\` and \`file_path\`.
+2. Run \`jig run recipe.yaml --vars '{...}'\`.
+3. Verify the created file once.`,
+          recipe: `name: typescript-create-model
+description: Create a TypeScript model file with a Zod schema and inferred type
+
+variables:
+  model_name:
+    type: string
+    required: true
+  file_path:
+    type: string
+    required: true
+
+files:
+  - template: templates/model.ts.j2
+    to: "{{ file_path }}"
+    skip_if_exists: false`,
+          templateFile: "templates/model.ts.j2",
+          template: `import { z } from "zod";
+
+export const {{ model_name | camelcase }}Schema = z.object({
+  id: z.string().uuid(),
+  name: z.string().min(1),
+  createdAt: z.string().datetime(),
+});
+
+export type {{ model_name | pascalcase }} = z.infer<typeof {{ model_name | camelcase }}Schema>;`,
+          command: `jig run recipe.yaml --vars '{"model_name":"Project","file_path":"src/models/project.ts"}'`,
+          sourceFiles: [
+            { key: "SKILL.md", label: "SKILL.md", title: "Skill wrapper", file: "SKILL.md", icon: "md" },
+            { key: "recipe.yaml", label: "recipe.yaml", title: "Recipe", file: "recipe.yaml", icon: "yml" },
+            { key: "templates/model.ts.j2", label: "templates/model.ts.j2", title: "Template", file: "templates/model.ts.j2", icon: "tpl" }
+          ],
+          previewCopy: "This move generates a new file from scratch. Hit run and watch jig type the whole file into place.",
+          timeline: [
+            {
+              label: "Step 1",
+              title: "Render new model",
+              file: "src/models/project.ts",
+              detail: "new file",
+              base: "",
+              emptyState: "// src/models/project.ts will be created here",
+              insertAt: 0,
+              typed: `import { z } from "zod";
+
+export const projectSchema = z.object({
+  id: z.string().uuid(),
+  name: z.string().min(1),
+  createdAt: z.string().datetime(),
+});
+
+export type Project = z.infer<typeof projectSchema>;`
+            }
+          ]
+        },
+        "update-model": {
+          kind: "Brownfield recipe",
+          title: "Patch an existing model schema",
+          copy: "Add a routine field to an existing Zod schema with a scoped patch instead of hand-editing a hot file.",
+          chips: ["TypeScript", "Brownfield", "1 file patch"],
+          sourceRoot: ".claude/skills/update-model/",
+          skill: `Use this when a Zod-backed TypeScript model needs a routine field added without reauthoring the schema by hand.
+
+Default flow:
+1. Point \`target_file\` at the model file.
+2. Set \`schema_symbol\`, \`field_name\`, and \`field_schema\`.
+3. Run \`jig run recipe.yaml --vars '{...}'\`.`,
+          recipe: `name: typescript-update-model
+description: Add a new field to an existing TypeScript Zod schema
+
+variables:
+  target_file:
+    type: string
+    required: true
+  schema_symbol:
+    type: string
+    required: true
+  field_name:
+    type: string
+    required: true
+  field_schema:
+    type: string
+    required: true
+
+files:
+  - template: templates/schema_field.ts.j2
+    patch: "{{ target_file }}"
+    anchor:
+      pattern: "^export const {{ schema_symbol | regex_escape }} = z\\.object\\("
+      scope: braces
+      position: before_close
+    skip_if: "{{ field_name }}:"`,
+          templateFile: "templates/schema_field.ts.j2",
+          template: `{{ field_name }}: {{ field_schema }},`,
+          command: `jig run recipe.yaml --vars '{"target_file":"src/models/project.ts","schema_symbol":"projectSchema","field_name":"status","field_schema":"z.enum([\\"draft\\", \\"active\\", \\"archived\\"])"}'`,
+          sourceFiles: [
+            { key: "SKILL.md", label: "SKILL.md", title: "Skill wrapper", file: "SKILL.md", icon: "md" },
+            { key: "recipe.yaml", label: "recipe.yaml", title: "Recipe", file: "recipe.yaml", icon: "yml" },
+            { key: "templates/schema_field.ts.j2", label: "templates/schema_field.ts.j2", title: "Template", file: "templates/schema_field.ts.j2", icon: "tpl" }
+          ],
+          previewCopy: "This patch types just the added line, leaves the rest of the file alone, and keeps the inserted field highlighted.",
+          timeline: [
+            {
+              label: "Step 1",
+              title: "Insert schema field",
+              file: "src/models/project.ts",
+              detail: "brownfield patch",
+              base: `import { z } from "zod";
+
+export const projectSchema = z.object({
+  id: z.string().uuid(),
+  name: z.string().min(1),
+});
+
+export type Project = z.infer<typeof projectSchema>;`,
+              insertAt: 5,
+              typed: `  status: z.enum(["draft", "active", "archived"]),`
+            }
+          ]
+        },
+        "create-endpoint": {
+          kind: "Greenfield workflow",
+          title: "Create a new endpoint stack",
+          copy: "Use a workflow when one move fans out across several files: schema, handler, import wiring, and route registration.",
+          chips: ["TypeScript", "Workflow", "Greenfield", "4 steps"],
+          sourceRoot: ".claude/skills/create-endpoint/",
+          skill: `Use this when a new endpoint needs more than one deterministic move.
+
+Default flow:
+1. Fill in route, handler, and schema variables.
+2. Run \`jig workflow workflow.yaml --vars '{...}'\`.
+3. Verify the generated route files and router registration.`,
+          workflow: `name: typescript-create-endpoint-workflow
+description: Create a new endpoint stack and wire it into the router
+
+variables:
+  route_name:
+    type: string
+    required: true
+  route_path:
+    type: string
+    required: true
+  request_schema_name:
+    type: string
+    required: true
+  handler_name:
+    type: string
+    required: true
+  success_message:
+    type: string
+    required: true
+
+steps:
+  - recipe: step1/recipe.yaml
+  - recipe: step2/recipe.yaml
+  - recipe: step3/recipe.yaml
+  - recipe: step4/recipe.yaml`,
+          templateFile: "step4/templates/route_registration.ts.j2",
+          template: `api.post("{{ route_path }}", {{ handler_name }});`,
+          command: `jig workflow workflow.yaml --vars '{"route_name":"projects","route_path":"/projects","request_schema_name":"createProjectSchema","handler_name":"createProjectHandler","success_message":"project created"}'`,
+          sourceFiles: [
+            { key: "SKILL.md", label: "SKILL.md", title: "Skill wrapper", file: "SKILL.md", icon: "md" },
+            { key: "workflow.yaml", label: "workflow.yaml", title: "Workflow", file: "workflow.yaml", icon: "yml" },
+            { key: "step4/templates/route_registration.ts.j2", label: "step4/templates/route_registration.ts.j2", title: "Template", file: "step4/templates/route_registration.ts.j2", icon: "tpl" }
+          ],
+          previewCopy: "This workflow fans out across new files and a router patch. The run trace calls out each file separately so the sequence is obvious.",
+          timeline: [
+            {
+              label: "Step 1",
+              title: "Create request schema",
+              file: "src/routes/projects/schema.ts",
+              detail: "new file",
+              base: "",
+              emptyState: "// src/routes/projects/schema.ts will be created here",
+              insertAt: 0,
+              typed: `import { z } from "zod";
+
+export const createProjectSchema = z.object({
+  name: z.string().min(1),
+});`
+            },
+            {
+              label: "Step 2",
+              title: "Create request handler",
+              file: "src/routes/projects/handler.ts",
+              detail: "new file",
+              base: "",
+              emptyState: "// src/routes/projects/handler.ts will be created here",
+              insertAt: 0,
+              typed: `import type { Request, Response } from "express";
+import { createProjectSchema } from "./schema";
+
+export async function createProjectHandler(req: Request, res: Response) {
+  const input = createProjectSchema.parse(req.body);
+
+  res.json({ status: "ok", message: "project created", project: input });
+}`
+            },
+            {
+              label: "Step 3",
+              title: "Wire handler import",
+              file: "src/routes/index.ts",
+              detail: "patch existing file",
+              base: `import { Router } from "express";
+
+export const api = Router();`,
+              insertAt: 1,
+              typed: `import { createProjectHandler } from "./projects/handler";`
+            },
+            {
+              label: "Step 4",
+              title: "Register route",
+              file: "src/routes/index.ts",
+              detail: "patch existing file",
+              base: `import { Router } from "express";
+import { createProjectHandler } from "./projects/handler";
+
+export const api = Router();`,
+              insertAt: 4,
+              typed: `api.post("/projects", createProjectHandler);`
+            }
+          ]
+        },
+        "update-endpoint": {
+          kind: "Brownfield workflow",
+          title: "Extend an existing endpoint stack",
+          copy: "Patch an existing route stack with a new update endpoint by chaining schema, handler, import, and router edits in one workflow.",
+          chips: ["TypeScript", "Workflow", "Brownfield", "5 steps"],
+          sourceRoot: ".claude/skills/update-endpoint/",
+          skill: `Use this when a TypeScript route already exists and you need to add another standard endpoint without hand-editing three files.
+
+Default flow:
+1. Fill in the update schema, handler, and route path variables.
+2. Run \`jig workflow workflow.yaml --vars '{...}'\`.
+3. Verify the schema, handler, and router diffs.`,
+          workflow: `name: typescript-update-endpoint-workflow
+description: Add an update endpoint to an existing route stack
+
+variables:
+  route_dir:
+    type: string
+    required: true
+  update_schema_name:
+    type: string
+    required: true
+  update_handler_name:
+    type: string
+    required: true
+  route_path:
+    type: string
+    required: true
+
+steps:
+  - recipe: step1/recipe.yaml
+  - recipe: step2/recipe.yaml
+  - recipe: step3/recipe.yaml
+  - recipe: step4/recipe.yaml
+  - recipe: step5/recipe.yaml`,
+          templateFile: "step5/templates/route_append.ts.j2",
+          template: `  router.put("{{ route_path }}", {{ update_handler_name }}),`,
+          command: `jig workflow workflow.yaml --vars '{"route_dir":"projects","update_schema_name":"updateProjectSchema","update_handler_name":"updateProjectHandler","route_path":"/projects/:projectId"}'`,
+          sourceFiles: [
+            { key: "SKILL.md", label: "SKILL.md", title: "Skill wrapper", file: "SKILL.md", icon: "md" },
+            { key: "workflow.yaml", label: "workflow.yaml", title: "Workflow", file: "workflow.yaml", icon: "yml" },
+            { key: "step5/templates/route_append.ts.j2", label: "step5/templates/route_append.ts.j2", title: "Template", file: "step5/templates/route_append.ts.j2", icon: "tpl" }
+          ],
+          previewCopy: "This workflow lands a new endpoint inside an existing stack. The trace makes the five file edits explicit instead of jumping straight to the final router diff.",
+          timeline: [
+            {
+              label: "Step 1",
+              title: "Append update schema",
+              file: "src/routes/projects/schema.ts",
+              detail: "patch existing file",
+              base: `import { z } from "zod";
+
+export const createProjectSchema = z.object({
+  name: z.string().min(1),
+});`,
+              insertAt: 5,
+              typed: `export const updateProjectSchema = z.object({
+  name: z.string().min(1).optional(),
+});`
+            },
+            {
+              label: "Step 2",
+              title: "Append update handler",
+              file: "src/routes/projects/handler.ts",
+              detail: "patch existing file",
+              base: `import type { Request, Response } from "express";
+import { createProjectSchema } from "./schema";
+
+export async function createProjectHandler(req: Request, res: Response) {
+  const input = createProjectSchema.parse(req.body);
+
+  res.json({ status: "ok", project: input });
+}`,
+              insertAt: 8,
+              typed: `export async function updateProjectHandler(req: Request, res: Response) {
+  res.json({ status: "ok", projectId: req.params.projectId });
+}`
+            },
+            {
+              label: "Step 3",
+              title: "Export update handler",
+              file: "src/routes/projects/index.ts",
+              detail: "patch existing file",
+              base: `export { createProjectHandler } from "./handler";`,
+              insertAt: 1,
+              typed: `export { updateProjectHandler } from "./handler";`
+            },
+            {
+              label: "Step 4",
+              title: "Wire router import",
+              file: "src/routes/index.ts",
+              detail: "patch existing file",
+              base: `import { Router } from "express";
+import { createProjectHandler } from "./projects/handler";
+
+export const routes = [
+  router.post("/projects", createProjectHandler),
+];`,
+              insertAt: 2,
+              typed: `import { updateProjectHandler } from "./projects/handler";`
+            },
+            {
+              label: "Step 5",
+              title: "Append update route",
+              file: "src/routes/index.ts",
+              detail: "patch existing file",
+              base: `import { Router } from "express";
+import { createProjectHandler } from "./projects/handler";
+import { updateProjectHandler } from "./projects/handler";
+
+export const routes = [
+  router.post("/projects", createProjectHandler),
+];`,
+              insertAt: 6,
+              typed: `  router.put("/projects/:projectId", updateProjectHandler),`
+            }
+          ]
+        }
+      };
+
+      usecases["create-model"].command =
+        `jig run \${CLAUDE_SKILL_DIR}/recipe.yaml --vars '{"model_name":"Project","file_path":"src/models/project.ts"}'`;
+      usecases["create-model"].defaultSource = "recipe.yaml";
+      usecases["create-model"].sourceEntries = [
+        { type: "file", key: "SKILL.md", label: "SKILL.md", icon: "md" },
+        { type: "file", key: "recipe.yaml", label: "recipe.yaml", icon: "yml" },
+        { type: "folder", label: "templates", depth: 0, icon: "dir" },
+        { type: "file", key: "templates/model.ts.j2", label: "model.ts.j2", depth: 1, icon: "j2" }
+      ];
+      usecases["create-model"].sourceContents = {
+        "SKILL.md": {
+          title: "Skill file",
+          file: "SKILL.md",
+          code: `Use this when adding a new TypeScript model file with a known standard shape.
+
+Default flow:
+1. Fill in \`model_name\` and \`file_path\`.
+2. Run \`jig run \${CLAUDE_SKILL_DIR}/recipe.yaml --vars '{...}'\`.
+3. Verify the created file once.`
+        },
+        "recipe.yaml": {
+          title: "Recipe file",
+          file: "recipe.yaml",
+          code: usecases["create-model"].recipe
+        },
+        "templates/model.ts.j2": {
+          title: "TypeScript template",
+          file: "templates/model.ts.j2",
+          code: usecases["create-model"].template
+        }
+      };
+
+      usecases["update-model"].command =
+        `jig run \${CLAUDE_SKILL_DIR}/recipe.yaml --vars '{"target_file":"src/models/project.ts","schema_symbol":"projectSchema","field_name":"status","field_schema":"z.enum([\\"draft\\", \\"active\\", \\"archived\\"])"}'`;
+      usecases["update-model"].defaultSource = "recipe.yaml";
+      usecases["update-model"].sourceEntries = [
+        { type: "file", key: "SKILL.md", label: "SKILL.md", icon: "md" },
+        { type: "file", key: "recipe.yaml", label: "recipe.yaml", icon: "yml" },
+        { type: "folder", label: "templates", depth: 0, icon: "dir" },
+        { type: "file", key: "templates/schema_field.ts.j2", label: "schema_field.ts.j2", depth: 1, icon: "j2" }
+      ];
+      usecases["update-model"].sourceContents = {
+        "SKILL.md": {
+          title: "Skill file",
+          file: "SKILL.md",
+          code: `Use this when a Zod-backed TypeScript model needs a routine field added without reauthoring the schema by hand.
+
+Default flow:
+1. Point \`target_file\` at the model file.
+2. Set \`schema_symbol\`, \`field_name\`, and \`field_schema\`.
+3. Run \`jig run \${CLAUDE_SKILL_DIR}/recipe.yaml --vars '{...}'\`.`
+        },
+        "recipe.yaml": {
+          title: "Recipe file",
+          file: "recipe.yaml",
+          code: usecases["update-model"].recipe
+        },
+        "templates/schema_field.ts.j2": {
+          title: "TypeScript template",
+          file: "templates/schema_field.ts.j2",
+          code: usecases["update-model"].template
+        }
+      };
+
+      usecases["create-endpoint"].command =
+        `jig workflow \${CLAUDE_SKILL_DIR}/workflow.yaml --vars '{"route_name":"projects","route_path":"/projects","request_schema_name":"createProjectSchema","handler_name":"createProjectHandler","success_message":"project created"}'`;
+      usecases["create-endpoint"].defaultSource = "workflow.yaml";
+      usecases["create-endpoint"].sourceEntries = [
+        { type: "file", key: "SKILL.md", label: "SKILL.md", icon: "md" },
+        { type: "file", key: "workflow.yaml", label: "workflow.yaml", icon: "yml" },
+        { type: "folder", label: "step1", depth: 0, icon: "dir" },
+        { type: "file", key: "step1/recipe.yaml", label: "recipe.yaml", depth: 1, icon: "yml" },
+        { type: "folder", label: "templates", depth: 1, icon: "dir" },
+        { type: "file", key: "step1/templates/schema.ts.j2", label: "schema.ts.j2", depth: 2, icon: "j2" },
+        { type: "folder", label: "step2", depth: 0, icon: "dir" },
+        { type: "file", key: "step2/recipe.yaml", label: "recipe.yaml", depth: 1, icon: "yml" },
+        { type: "folder", label: "templates", depth: 1, icon: "dir" },
+        { type: "file", key: "step2/templates/handler.ts.j2", label: "handler.ts.j2", depth: 2, icon: "j2" },
+        { type: "folder", label: "step3", depth: 0, icon: "dir" },
+        { type: "file", key: "step3/recipe.yaml", label: "recipe.yaml", depth: 1, icon: "yml" },
+        { type: "folder", label: "templates", depth: 1, icon: "dir" },
+        { type: "file", key: "step3/templates/route_import.ts.j2", label: "route_import.ts.j2", depth: 2, icon: "j2" },
+        { type: "folder", label: "step4", depth: 0, icon: "dir" },
+        { type: "file", key: "step4/recipe.yaml", label: "recipe.yaml", depth: 1, icon: "yml" },
+        { type: "folder", label: "templates", depth: 1, icon: "dir" },
+        { type: "file", key: "step4/templates/route_registration.ts.j2", label: "route_registration.ts.j2", depth: 2, icon: "j2" }
+      ];
+      usecases["create-endpoint"].sourceContents = {
+        "SKILL.md": {
+          title: "Skill file",
+          file: "SKILL.md",
+          code: `Use this when a new endpoint needs more than one deterministic move.
+
+Default flow:
+1. Fill in route, handler, and schema variables.
+2. Run \`jig workflow \${CLAUDE_SKILL_DIR}/workflow.yaml --vars '{...}'\`.
+3. Verify the generated route files and router registration.`
+        },
+        "workflow.yaml": {
+          title: "Workflow file",
+          file: "workflow.yaml",
+          code: usecases["create-endpoint"].workflow
+        },
+        "step1/recipe.yaml": {
+          title: "Recipe file",
+          file: "step1/recipe.yaml",
+          code: `name: create-endpoint-schema
+description: Create the request schema for a new endpoint
+
+variables:
+  route_name:
+    type: string
+    required: true
+  request_schema_name:
+    type: string
+    required: true
+
+files:
+  - template: templates/schema.ts.j2
+    to: "src/routes/{{ route_name | kebabcase }}/schema.ts"
+    skip_if_exists: false`
+        },
+        "step1/templates/schema.ts.j2": {
+          title: "TypeScript template",
+          file: "step1/templates/schema.ts.j2",
+          code: `import { z } from "zod";
+
+export const {{ request_schema_name }} = z.object({
+  name: z.string().min(1),
+});`
+        },
+        "step2/recipe.yaml": {
+          title: "Recipe file",
+          file: "step2/recipe.yaml",
+          code: `name: create-endpoint-handler
+description: Create the handler for a new endpoint
+
+variables:
+  route_name:
+    type: string
+    required: true
+  request_schema_name:
+    type: string
+    required: true
+  handler_name:
+    type: string
+    required: true
+  success_message:
+    type: string
+    required: true
+
+files:
+  - template: templates/handler.ts.j2
+    to: "src/routes/{{ route_name | kebabcase }}/handler.ts"
+    skip_if_exists: false`
+        },
+        "step2/templates/handler.ts.j2": {
+          title: "TypeScript template",
+          file: "step2/templates/handler.ts.j2",
+          code: `import type { Request, Response } from "express";
+import { {{ request_schema_name }} } from "./schema";
+
+export async function {{ handler_name }}(req: Request, res: Response) {
+  const payload = {{ request_schema_name }}.parse(req.body);
+
+  res.status(201).json({
+    ok: true,
+    message: "{{ success_message }}",
+    payload,
+  });
+}`
+        },
+        "step3/recipe.yaml": {
+          title: "Recipe file",
+          file: "step3/recipe.yaml",
+          code: `name: create-endpoint-import
+description: Add the new endpoint import to the router
+
+variables:
+  route_name:
+    type: string
+    required: true
+  handler_name:
+    type: string
+    required: true
+
+files:
+  - template: templates/route_import.ts.j2
+    inject: src/routes/index.ts
+    after: '^import '
+    at: last
+    skip_if: 'from "./{{ route_name | kebabcase }}/handler"'`
+        },
+        "step3/templates/route_import.ts.j2": {
+          title: "TypeScript template",
+          file: "step3/templates/route_import.ts.j2",
+          code: `import { {{ handler_name }} } from "./{{ route_name | kebabcase }}/handler";`
+        },
+        "step4/recipe.yaml": {
+          title: "Recipe file",
+          file: "step4/recipe.yaml",
+          code: `name: create-endpoint-route
+description: Register the new endpoint on the router
+
+variables:
+  route_path:
+    type: string
+    required: true
+  handler_name:
+    type: string
+    required: true
+
+files:
+  - template: templates/route_registration.ts.j2
+    inject: src/routes/index.ts
+    after: '^export const api = Router\\(\\);$'
+    skip_if: 'api.post("{{ route_path }}", {{ handler_name }})'`
+        },
+        "step4/templates/route_registration.ts.j2": {
+          title: "TypeScript template",
+          file: "step4/templates/route_registration.ts.j2",
+          code: `api.post("{{ route_path }}", {{ handler_name }});`
+        }
+      };
+
+      usecases["update-endpoint"].command =
+        `jig workflow \${CLAUDE_SKILL_DIR}/workflow.yaml --vars '{"route_dir":"projects","update_schema_name":"updateProjectSchema","update_handler_name":"updateProjectHandler","route_path":"/projects/:projectId"}'`;
+      usecases["update-endpoint"].defaultSource = "workflow.yaml";
+      usecases["update-endpoint"].sourceEntries = [
+        { type: "file", key: "SKILL.md", label: "SKILL.md", icon: "md" },
+        { type: "file", key: "workflow.yaml", label: "workflow.yaml", icon: "yml" },
+        { type: "folder", label: "step1", depth: 0, icon: "dir" },
+        { type: "file", key: "step1/recipe.yaml", label: "recipe.yaml", depth: 1, icon: "yml" },
+        { type: "folder", label: "templates", depth: 1, icon: "dir" },
+        { type: "file", key: "step1/templates/schema_append.ts.j2", label: "schema_append.ts.j2", depth: 2, icon: "j2" },
+        { type: "folder", label: "step2", depth: 0, icon: "dir" },
+        { type: "file", key: "step2/recipe.yaml", label: "recipe.yaml", depth: 1, icon: "yml" },
+        { type: "folder", label: "templates", depth: 1, icon: "dir" },
+        { type: "file", key: "step2/templates/handler_import.ts.j2", label: "handler_import.ts.j2", depth: 2, icon: "j2" },
+        { type: "folder", label: "step3", depth: 0, icon: "dir" },
+        { type: "file", key: "step3/recipe.yaml", label: "recipe.yaml", depth: 1, icon: "yml" },
+        { type: "folder", label: "templates", depth: 1, icon: "dir" },
+        { type: "file", key: "step3/templates/handler_append.ts.j2", label: "handler_append.ts.j2", depth: 2, icon: "j2" },
+        { type: "folder", label: "step4", depth: 0, icon: "dir" },
+        { type: "file", key: "step4/recipe.yaml", label: "recipe.yaml", depth: 1, icon: "yml" },
+        { type: "folder", label: "templates", depth: 1, icon: "dir" },
+        { type: "file", key: "step4/templates/route_import.ts.j2", label: "route_import.ts.j2", depth: 2, icon: "j2" },
+        { type: "folder", label: "step5", depth: 0, icon: "dir" },
+        { type: "file", key: "step5/recipe.yaml", label: "recipe.yaml", depth: 1, icon: "yml" },
+        { type: "folder", label: "templates", depth: 1, icon: "dir" },
+        { type: "file", key: "step5/templates/route_append.ts.j2", label: "route_append.ts.j2", depth: 2, icon: "j2" }
+      ];
+      usecases["update-endpoint"].sourceContents = {
+        "SKILL.md": {
+          title: "Skill file",
+          file: "SKILL.md",
+          code: `Use this when a TypeScript route already exists and you need to add another standard endpoint without hand-editing three files.
+
+Default flow:
+1. Fill in the update schema, handler, and route path variables.
+2. Run \`jig workflow \${CLAUDE_SKILL_DIR}/workflow.yaml --vars '{...}'\`.
+3. Verify the schema, handler, and router diffs.`
+        },
+        "workflow.yaml": {
+          title: "Workflow file",
+          file: "workflow.yaml",
+          code: usecases["update-endpoint"].workflow
+        },
+        "step1/recipe.yaml": {
+          title: "Recipe file",
+          file: "step1/recipe.yaml",
+          code: `name: update-endpoint-schema
+description: Add the update schema to an existing route schema file
+
+variables:
+  route_dir:
+    type: string
+    required: true
+  update_schema_name:
+    type: string
+    required: true
+
+files:
+  - template: templates/schema_append.ts.j2
+    inject: "src/routes/{{ route_dir | kebabcase }}/schema.ts"
+    append: true
+    skip_if: 'export const {{ update_schema_name }}'`
+        },
+        "step1/templates/schema_append.ts.j2": {
+          title: "TypeScript template",
+          file: "step1/templates/schema_append.ts.j2",
+          code: `
+export const {{ update_schema_name }} = z.object({
+  name: z.string().min(1).optional(),
+  status: z.enum(["draft", "active", "archived"]).optional(),
+});`
+        },
+        "step2/recipe.yaml": {
+          title: "Recipe file",
+          file: "step2/recipe.yaml",
+          code: `name: update-endpoint-import
+description: Import the update schema into the existing handler file
+
+variables:
+  route_dir:
+    type: string
+    required: true
+  update_schema_name:
+    type: string
+    required: true
+
+files:
+  - template: templates/handler_import.ts.j2
+    inject: "src/routes/{{ route_dir | kebabcase }}/handler.ts"
+    after: '^import '
+    at: last
+    skip_if: 'import { {{ update_schema_name }} } from "./schema";'`
+        },
+        "step2/templates/handler_import.ts.j2": {
+          title: "TypeScript template",
+          file: "step2/templates/handler_import.ts.j2",
+          code: `import { {{ update_schema_name }} } from "./schema";`
+        },
+        "step3/recipe.yaml": {
+          title: "Recipe file",
+          file: "step3/recipe.yaml",
+          code: `name: update-endpoint-handler
+description: Add the update handler to the existing handler file
+
+variables:
+  route_dir:
+    type: string
+    required: true
+  update_schema_name:
+    type: string
+    required: true
+  update_handler_name:
+    type: string
+    required: true
+
+files:
+  - template: templates/handler_append.ts.j2
+    inject: "src/routes/{{ route_dir | kebabcase }}/handler.ts"
+    append: true
+    skip_if: 'export async function {{ update_handler_name }}'`
+        },
+        "step3/templates/handler_append.ts.j2": {
+          title: "TypeScript template",
+          file: "step3/templates/handler_append.ts.j2",
+          code: `
+export async function {{ update_handler_name }}(req: Request, res: Response) {
+  const payload = {{ update_schema_name }}.parse(req.body);
+
+  res.json({
+    ok: true,
+    projectId: req.params.projectId,
+    payload,
+  });
+}`
+        },
+        "step4/recipe.yaml": {
+          title: "Recipe file",
+          file: "step4/recipe.yaml",
+          code: `name: update-endpoint-route-import
+description: Import the update handler into the router file
+
+variables:
+  route_dir:
+    type: string
+    required: true
+  update_handler_name:
+    type: string
+    required: true
+
+files:
+  - template: templates/route_import.ts.j2
+    inject: src/routes/index.ts
+    after: '^import '
+    at: last
+    skip_if: 'import { {{ update_handler_name }} } from "./{{ route_dir | kebabcase }}/handler";'`
+        },
+        "step4/templates/route_import.ts.j2": {
+          title: "TypeScript template",
+          file: "step4/templates/route_import.ts.j2",
+          code: `import { {{ update_handler_name }} } from "./{{ route_dir | kebabcase }}/handler";`
+        },
+        "step5/recipe.yaml": {
+          title: "Recipe file",
+          file: "step5/recipe.yaml",
+          code: `name: update-endpoint-route
+description: Add the update route registration
+
+variables:
+  update_handler_name:
+    type: string
+    required: true
+  route_path:
+    type: string
+    required: true
+
+files:
+  - template: templates/route_append.ts.j2
+    inject: src/routes/index.ts
+    before: '^\\];$'
+    skip_if: 'router.put("{{ route_path }}", {{ update_handler_name }})'`
+        },
+        "step5/templates/route_append.ts.j2": {
+          title: "TypeScript template",
+          file: "step5/templates/route_append.ts.j2",
+          code: `  router.put("{{ route_path }}", {{ update_handler_name }}),`
+        }
+      };
+
+      function renderMetric(name) {
+        const metric = metrics[name];
+        metricPercent.textContent = metric.percent;
+        metricSavedLabel.textContent = metric.savedLabel;
+        metricTitle.textContent = metric.title;
+        metricSubtitle.textContent = metric.subtitle;
+        barJig.style.width = metric.jigWidth;
+        barControl.style.width = metric.controlWidth;
+        valueJig.textContent = metric.jigValue;
+        valueControl.textContent = metric.controlValue;
+        valueSaved.textContent = metric.savedValue;
+        metricFoot.textContent = metric.foot;
+
+        metricTabs.forEach((tab) => {
+          const active = tab.dataset.metric === name;
+          tab.classList.toggle("active", active);
+          tab.setAttribute("aria-selected", active ? "true" : "false");
+        });
+      }
+
+      function scheduleMetricRotation() {
+        clearInterval(metricTimer);
+        metricTimer = setInterval(() => {
+          metricIndex = (metricIndex + 1) % metricTabs.length;
+          renderMetric(metricTabs[metricIndex].dataset.metric);
+        }, 4000);
+      }
+
+      function tick() {
+        const current = options[optionIndex];
+        if (deleting) {
+          charIndex -= 1;
+          typer.textContent = current.slice(0, Math.max(charIndex, 0));
+          if (charIndex <= 0) {
+            deleting = false;
+            optionIndex = (optionIndex + 1) % options.length;
+            setTimeout(tick, 180);
+            return;
+          }
+          setTimeout(tick, 45);
+          return;
+        }
+
+        const next = options[optionIndex];
+        charIndex += 1;
+        typer.textContent = next.slice(0, Math.min(charIndex, next.length));
+        if (charIndex >= next.length) {
+          deleting = true;
+          setTimeout(tick, 1400);
+          return;
+        }
+        setTimeout(tick, 75);
+      }
+
+      function renderSourcePane() {
+        const usecase = usecases[currentUsecase];
+        const fallbackPaneMap = {
+          "SKILL.md": {
+            title: "Skill wrapper",
+            file: "SKILL.md",
+            code: usecase.skill
+          },
+          "recipe.yaml": {
+            title: "Recipe",
+            file: "recipe.yaml",
+            code: usecase.recipe
+          },
+          "workflow.yaml": {
+            title: "Workflow",
+            file: "workflow.yaml",
+            code: usecase.workflow
+          },
+          [usecase.templateFile]: {
+            title: "Template",
+            file: usecase.templateFile,
+            code: usecase.template
+          }
+        };
+        const pane = (usecase.sourceContents && usecase.sourceContents[currentSourceFile]) || fallbackPaneMap[currentSourceFile];
+        sourceTitle.textContent = pane.title;
+        sourceFile.textContent = pane.file;
+        sourceTitle.title = pane.title;
+        sourceFile.title = pane.file;
+        sourceCode.textContent = pane.code;
+      }
+
+      function renderSourceTree() {
+        const usecase = usecases[currentUsecase];
+        sourceTree.innerHTML = "";
+
+        const entries = usecase.sourceEntries || usecase.sourceFiles;
+
+        entries.forEach((entry) => {
+          if (entry.type === "folder") {
+            const folder = document.createElement("div");
+            folder.className = "source-folder";
+            folder.style.setProperty("--source-depth", entry.depth || 0);
+
+            const icon = document.createElement("span");
+            icon.className = "source-folder-icon";
+            folder.appendChild(icon);
+
+            const label = document.createElement("span");
+            label.className = "source-file-label";
+            label.textContent = entry.label;
+            folder.appendChild(label);
+
+            sourceTree.appendChild(folder);
+            return;
+          }
+
+          const button = document.createElement("button");
+          button.type = "button";
+          button.className = "source-file";
+          button.style.setProperty("--source-depth", entry.depth || 0);
+          if (entry.key === currentSourceFile) {
+            button.classList.add("active");
+          }
+
+          const icon = document.createElement("span");
+          icon.className = "source-file-icon";
+          button.appendChild(icon);
+
+          const label = document.createElement("span");
+          label.className = "source-file-label";
+          label.textContent = entry.label;
+          button.appendChild(label);
+
+          button.addEventListener("click", () => {
+            currentSourceFile = entry.key;
+            renderSourceTree();
+            renderSourcePane();
+          });
+
+          sourceTree.appendChild(button);
+        });
+      }
+
+      function countUniqueFiles(usecase) {
+        return new Set(usecase.timeline.map((step) => step.file)).size;
+      }
+
+      function escapeHtml(value) {
+        return value
+          .replaceAll("&", "&amp;")
+          .replaceAll("<", "&lt;")
+          .replaceAll(">", "&gt;")
+          .replaceAll('"', "&quot;");
+      }
+
+      function sleep(ms) {
+        return new Promise((resolve) => setTimeout(resolve, ms));
+      }
+
+      function getStepPreviewHtml(step, typedLength = null, showCursor = false, markDone = false) {
+        const base = step.base || "";
+        if (typedLength === null) {
+          if (base) {
+            return escapeHtml(base);
+          }
+          return `<span class="code-dim">${escapeHtml(step.emptyState || "// waiting for jig output")}</span>`;
+        }
+
+        const baseLines = base ? base.split("\n") : [];
+        const insertAt = Math.max(0, Math.min(step.insertAt ?? baseLines.length, baseLines.length));
+        const before = baseLines.slice(0, insertAt).join("\n");
+        const after = baseLines.slice(insertAt).join("\n");
+        const visibleTyped = step.typed.slice(0, typedLength);
+
+        let html = "";
+        if (before) {
+          html += escapeHtml(before);
+        }
+        if (before && (visibleTyped || showCursor || after)) {
+          html += "\n";
+        }
+        if (visibleTyped || showCursor) {
+          html += `<span class="typed-chunk${markDone ? " done" : ""}">${escapeHtml(visibleTyped)}${showCursor ? '<span class="code-cursor"></span>' : ""}</span>`;
+        }
+        if ((visibleTyped || showCursor) && after && !visibleTyped.endsWith("\n")) {
+          html += "\n";
+        }
+        if (after) {
+          html += escapeHtml(after);
+        }
+        return html || `<span class="code-dim">${escapeHtml(step.emptyState || "// waiting for jig output")}</span>`;
+      }
+
+      function renderPreviewSteps(activeIndex, completedIndex) {
+        const usecase = usecases[currentUsecase];
+        previewSteps.innerHTML = "";
+
+        usecase.timeline.forEach((step, index) => {
+          const item = document.createElement("div");
+          item.className = "preview-step";
+          if (index === activeIndex) {
+            item.classList.add("active");
+          } else if (index <= completedIndex) {
+            item.classList.add("done");
+          }
+
+          const label = document.createElement("div");
+          label.className = "preview-step-label";
+          label.textContent = step.label;
+
+          const title = document.createElement("div");
+          title.className = "preview-step-title";
+          title.textContent = step.title;
+
+          item.appendChild(label);
+          item.appendChild(title);
+          previewSteps.appendChild(item);
+        });
+      }
+
+      function renderPreviewHeader(step, message) {
+        const usecase = usecases[currentUsecase];
+        const stepCount = usecase.timeline.length;
+        const fileCount = countUniqueFiles(usecase);
+        targetFile.textContent = step.file;
+        previewFileLabel.textContent = step.file;
+        previewStateLabel.textContent = message || "";
+        previewKindLabel.textContent = `${stepCount} ${stepCount === 1 ? "step" : "steps"} across ${fileCount} ${fileCount === 1 ? "file" : "files"}`;
+      }
+
+      function renderPreviewReset() {
+        const usecase = usecases[currentUsecase];
+        const firstStep = usecase.timeline[0];
+        currentState = "before";
+        renderPreviewHeader(firstStep, "");
+        renderPreviewSteps(0, -1);
+        previewCode.innerHTML = getStepPreviewHtml(firstStep);
+        previewCode.scrollTop = 0;
+        runDemo.textContent = "Run jig";
+        runDemo.disabled = false;
+        runDemo.classList.remove("is-reset", "is-running");
+        previewWindow.classList.remove("running", "flash");
+      }
+
+      function resetPreviewAnimation() {
+        previewAnimationToken += 1;
+        renderPreviewReset();
+      }
+
+      async function animateRun() {
+        if (currentState === "after") {
+          resetPreviewAnimation();
+          return;
+        }
+
+        const usecase = usecases[currentUsecase];
+        const totalSteps = usecase.timeline.length;
+        const token = ++previewAnimationToken;
+
+        currentState = "running";
+        previewWindow.classList.remove("flash");
+        previewWindow.classList.add("running");
+        runDemo.textContent = "Running...";
+        runDemo.disabled = true;
+        runDemo.classList.remove("is-reset");
+        runDemo.classList.add("is-running");
+
+        for (let index = 0; index < totalSteps; index += 1) {
+          const step = usecase.timeline[index];
+          if (token !== previewAnimationToken) {
+            return;
+          }
+
+          renderPreviewHeader(step, `${step.label} of ${totalSteps} · ${step.title}`);
+          renderPreviewSteps(index, index - 1);
+          previewCode.innerHTML = getStepPreviewHtml(step, 0, true, false);
+          previewCode.scrollTop = 0;
+
+          await sleep(180);
+          if (token !== previewAnimationToken) {
+            return;
+          }
+
+          for (let charIndex = 1; charIndex <= step.typed.length; charIndex += 1) {
+            previewCode.innerHTML = getStepPreviewHtml(step, charIndex, true, false);
+            await sleep(step.typed[charIndex - 1] === "\n" ? 52 : 16);
+            if (token !== previewAnimationToken) {
+              return;
+            }
+          }
+
+          previewCode.innerHTML = getStepPreviewHtml(step, step.typed.length, false, true);
+          renderPreviewSteps(index, index);
+
+          if (index < totalSteps - 1) {
+            await sleep(380);
+            if (token !== previewAnimationToken) {
+              return;
+            }
+          }
+        }
+
+        currentState = "after";
+        renderPreviewHeader(
+          usecase.timeline[totalSteps - 1],
+          `${usecase.timeline[totalSteps - 1].label} of ${totalSteps} · ${usecase.timeline[totalSteps - 1].title}`
+        );
+        previewWindow.classList.remove("running");
+        previewWindow.classList.add("flash");
+        runDemo.textContent = "Reset";
+        runDemo.disabled = false;
+        runDemo.classList.remove("is-running");
+        runDemo.classList.add("is-reset");
+
+        setTimeout(() => {
+          if (token === previewAnimationToken) {
+            previewWindow.classList.remove("flash");
+          }
+        }, 420);
+      }
+
+      function renderUsecase() {
+        const usecase = usecases[currentUsecase];
+        const uniqueFiles = countUniqueFiles(usecase);
+
+        usecaseKind.textContent = usecase.kind;
+        usecaseTitle.textContent = usecase.title;
+        usecaseCopy.textContent = usecase.copy;
+        previewCopy.textContent = usecase.previewCopy;
+        targetFileKind.textContent = uniqueFiles > 1 ? "Active files" : "Active file";
+
+        usecaseButtons.forEach((button) => {
+          button.classList.toggle("active", button.dataset.usecase === currentUsecase);
+        });
+
+        sourceRoot.textContent = usecase.sourceRoot;
+        currentSourceFile = usecase.defaultSource || usecase.sourceFiles[1]?.key || usecase.sourceFiles[0].key;
+        renderSourceTree();
+        renderSourcePane();
+        resetPreviewAnimation();
+      }
+
+      usecaseButtons.forEach((button) => {
+        button.addEventListener("click", () => {
+          currentUsecase = button.dataset.usecase;
+          renderUsecase();
+        });
+      });
+
+      runDemo.addEventListener("click", animateRun);
+
+      renderMetric(metricTabs[0].dataset.metric);
+      scheduleMetricRotation();
+      renderUsecase();
+
+      typer.textContent = options[0];
+      setTimeout(() => {
+        deleting = true;
+        tick();
+      }, 1400);
+    </script>
+  </body>
+</html>

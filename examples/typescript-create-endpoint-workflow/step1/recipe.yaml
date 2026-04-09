@@ -1,0 +1,15 @@
+name: create-endpoint-schema
+description: Create the request schema for a new endpoint
+
+variables:
+  route_name:
+    type: string
+    required: true
+  request_schema_name:
+    type: string
+    required: true
+
+files:
+  - template: templates/schema.ts.j2
+    to: "src/routes/{{ route_name | kebabcase }}/schema.ts"
+    skip_if_exists: false

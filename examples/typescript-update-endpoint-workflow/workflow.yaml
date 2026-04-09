@@ -1,0 +1,23 @@
+name: typescript-update-endpoint-workflow
+description: Add an update endpoint to an existing route stack
+
+variables:
+  route_dir:
+    type: string
+    required: true
+  update_schema_name:
+    type: string
+    required: true
+  update_handler_name:
+    type: string
+    required: true
+  route_path:
+    type: string
+    required: true
+
+steps:
+  - recipe: step1/recipe.yaml
+  - recipe: step2/recipe.yaml
+  - recipe: step3/recipe.yaml
+  - recipe: step4/recipe.yaml
+  - recipe: step5/recipe.yaml

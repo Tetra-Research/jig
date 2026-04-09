@@ -1,0 +1,21 @@
+name: create-endpoint-handler
+description: Create the handler for a new endpoint
+
+variables:
+  route_name:
+    type: string
+    required: true
+  request_schema_name:
+    type: string
+    required: true
+  handler_name:
+    type: string
+    required: true
+  success_message:
+    type: string
+    required: true
+
+files:
+  - template: templates/handler.ts.j2
+    to: "src/routes/{{ route_name | kebabcase }}/handler.ts"
+    skip_if_exists: false

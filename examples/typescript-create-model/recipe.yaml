@@ -1,0 +1,15 @@
+name: typescript-create-model
+description: Create a TypeScript model file with a Zod schema and inferred type
+
+variables:
+  model_name:
+    type: string
+    required: true
+  file_path:
+    type: string
+    required: true
+
+files:
+  - template: templates/model.ts.j2
+    to: "{{ file_path }}"
+    skip_if_exists: false
