@@ -81,24 +81,113 @@ jig run recipe.yaml --vars '{"module":"app.services.core_service","class_name":"
 
 Same recipe + same variables + same file state yields the same output.
 
+## Agent Integration
+
+`jig` ships bundled skills that teach coding agents how to author recipes and workflows. Install them with a single command:
+
+```bash
+jig agent install claude
+jig agent install codex
+jig agent install opencode
+```
+
+This copies skills into the agent's skill directory (e.g., `.claude/skills/`, `.codex/skills/`). If the repo has only one agent marker, the agent argument is optional — `jig` infers it.
+
+Bundled skills:
+
+- **create-recipe** — guides the agent through designing variables, choosing operations, writing anchors/templates, and validating a new recipe.
+- **create-workflow** — guides the agent through chaining multiple recipes into a multi-step workflow with conditional execution and variable mapping.
+
+Manage installed skills:
+
+```bash
+jig agent list                # show bundled skills
+jig agent update [agent]      # replace installed skills with the current bundle
+jig agent remove [agent]      # remove jig-managed skills
+jig agent doctor [agent]      # inspect install state, version drift, missing/extra skills
+```
+
+Options: `--to <path>` targets a different project root; `--force` replaces existing jig-managed installs.
+
 ## Examples
 
-The repo now includes self-contained examples under [`examples/`](examples/README.md).
+The repo includes self-contained examples under [`examples/`](examples/README.md).
 
-Current example set:
+Python:
 
-- [`add-service-test`](examples/add-service-test/README.md)
-- [`structured-logging-contract`](examples/structured-logging-contract/README.md)
-- [`view-contract-enforcer`](examples/view-contract-enforcer/README.md)
-- [`query-layer-discipline`](examples/query-layer-discipline/README.md)
-- [`schema-migration-safety`](examples/schema-migration-safety/README.md)
+- [`add-service-test`](examples/add-service-test/README.md) — deterministic pytest scaffolding with stable inputs and autospec mocks
+- [`structured-logging-contract`](examples/structured-logging-contract/README.md) — consistent start/done logging across service functions
+- [`view-contract-enforcer`](examples/view-contract-enforcer/README.md) — request/response schema, view, URL wiring, and tests in one shot
+- [`query-layer-discipline`](examples/query-layer-discipline/README.md) — read paths through QuerySet + Manager + selector layers
+- [`schema-migration-safety`](examples/schema-migration-safety/README.md) — two-step migrations (add nullable + backfill, then enforce)
+
+TypeScript:
+
+- [`typescript-create-model`](examples/typescript-create-model) — Zod schema + inferred TypeScript type
+- [`typescript-update-model`](examples/typescript-update-model) — add fields to an existing Zod schema
+- [`typescript-create-endpoint-workflow`](examples/typescript-create-endpoint-workflow) — multi-step workflow: schema, handler, import, route registration
+- [`typescript-update-endpoint-workflow`](examples/typescript-update-endpoint-workflow) — add an update handler alongside an existing create handler
 
 Each example includes:
 
-- a runnable `recipe.yaml`
+- a runnable `recipe.yaml` (or `workflow.yaml`)
 - a concrete `vars.json`
 - `before/` and `after/` file trees
 - the templates used by the recipe
+
+## Workflows
+
+Workflows chain multiple recipes into a sequential pipeline. Each step runs one recipe, optionally gated by a condition:
+
+```yaml
+name: create-endpoint
+variables:
+  route_name:
+    type: string
+    required: true
+  route_path:
+    type: string
+    required: true
+
+steps:
+  - recipe: schema/recipe.yaml
+  - recipe: handler/recipe.yaml
+  - recipe: import/recipe.yaml
+  - recipe: register/recipe.yaml
+    when: "{{ register_route }}"
+    on_error: continue
+```
+
+Run:
+
+```bash
+jig workflow workflow.yaml --vars '{"route_name":"projects","route_path":"/projects"}'
+```
+
+Steps share the workflow's variable context. Use `vars_map` to rename variables between workflow and recipe scopes, and `on_error: stop | continue | report` to control failure handling.
+
+## Libraries
+
+Libraries are versioned collections of recipes and workflows for a framework or stack:
+
+```bash
+jig library add path/to/library      # install from local path
+jig library add https://...git       # install from git
+jig library list                      # show installed libraries
+jig library recipes <library>         # list recipes in a library
+jig library info <library>/<recipe>   # show recipe details (variables, operations)
+jig library workflows <library>       # list workflows in a library
+jig library update <library>          # reinstall from source
+jig library remove <library>          # uninstall
+```
+
+Run a library recipe with qualified syntax:
+
+```bash
+jig run django/model/add-field --vars '{"app":"core","field_name":"created_at"}'
+```
+
+Libraries support conventions (default variable values per project) via `jig.yaml` manifests and per-project overrides in `.jigrc.yaml`.
 
 ## Skill-Local by Design
 

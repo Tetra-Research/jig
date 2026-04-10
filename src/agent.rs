@@ -6,11 +6,10 @@ use serde::Serialize;
 
 use crate::error::{JigError, StructuredError};
 
-static BUNDLED_SKILLS_DIR: Dir<'_> =
-    include_dir!("$CARGO_MANIFEST_DIR/eval/head2head/profiles/jig/skills");
+static BUNDLED_SKILLS_DIR: Dir<'_> = include_dir!("$CARGO_MANIFEST_DIR/bundles/skills");
 
 const INSTALL_MARKER_FILE: &str = ".jig-agent-install.json";
-const BUNDLE_SOURCE_ROOT: &str = "eval/head2head/profiles/jig/skills";
+const BUNDLE_SOURCE_ROOT: &str = "bundles/skills";
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Serialize, ValueEnum)]
 #[serde(rename_all = "lowercase")]
@@ -801,11 +800,9 @@ mod tests {
 
         assert!(result.inferred_agent);
         assert_eq!(result.agent, AgentKind::Claude);
-        let skill_md = tmp
-            .path()
-            .join(".claude/skills/query-layer-discipline/SKILL.md");
+        let skill_md = tmp.path().join(".claude/skills/create-recipe/SKILL.md");
         let content = std::fs::read_to_string(skill_md).unwrap();
-        assert!(content.contains("${CLAUDE_SKILL_DIR:-.claude/skills/query-layer-discipline}"));
+        assert!(content.contains("${CLAUDE_SKILL_DIR:-.claude/skills/create-recipe}"));
         assert_eq!(result.installed_skills.len(), bundled_skills().len());
     }
 
@@ -825,11 +822,9 @@ mod tests {
         .unwrap();
 
         assert!(!result.inferred_agent);
-        let skill_md = tmp
-            .path()
-            .join(".codex/skills/query-layer-discipline/SKILL.md");
+        let skill_md = tmp.path().join(".codex/skills/create-recipe/SKILL.md");
         let content = std::fs::read_to_string(skill_md).unwrap();
-        assert!(content.contains("${CODEX_SKILL_DIR:-.codex/skills/query-layer-discipline}"));
+        assert!(content.contains("${CODEX_SKILL_DIR:-.codex/skills/create-recipe}"));
         assert!(!content.contains("CLAUDE_SKILL_DIR"));
     }
 
@@ -859,7 +854,7 @@ mod tests {
     fn force_refuses_to_replace_unowned_skill_directory() {
         let tmp = TempDir::new().unwrap();
         std::fs::create_dir_all(tmp.path().join(".claude")).unwrap();
-        let existing = tmp.path().join(".claude/skills/query-layer-discipline");
+        let existing = tmp.path().join(".claude/skills/create-recipe");
         std::fs::create_dir_all(&existing).unwrap();
         std::fs::write(existing.join("SKILL.md"), "# user-owned\n").unwrap();
 
@@ -919,9 +914,7 @@ mod tests {
         )
         .unwrap();
 
-        let skill_md = tmp
-            .path()
-            .join(".claude/skills/query-layer-discipline/SKILL.md");
+        let skill_md = tmp.path().join(".claude/skills/create-recipe/SKILL.md");
         std::fs::write(&skill_md, "customized\n").unwrap();
 
         let updated = update(
@@ -935,7 +928,7 @@ mod tests {
 
         assert_eq!(updated.removed_skills.len(), bundled_skills().len());
         let content = std::fs::read_to_string(skill_md).unwrap();
-        assert!(content.contains("query-layer-discipline"));
+        assert!(content.contains("create-recipe"));
         assert!(!content.contains("customized"));
     }
 
@@ -968,11 +961,7 @@ mod tests {
 
         assert_eq!(removed.removed_skills.len(), bundled_skills().len());
         assert!(user_skill_dir.exists());
-        assert!(
-            !tmp.path()
-                .join(".codex/skills/query-layer-discipline")
-                .exists()
-        );
+        assert!(!tmp.path().join(".codex/skills/create-recipe").exists());
     }
 
     #[test]
@@ -1030,7 +1019,7 @@ mod tests {
 
         let marker_path = tmp
             .path()
-            .join(".claude/skills/query-layer-discipline/.jig-agent-install.json");
+            .join(".claude/skills/create-recipe/.jig-agent-install.json");
         let content = std::fs::read_to_string(&marker_path).unwrap();
         let content = content.replace(current_bundle_version(), "0.0.1");
         std::fs::write(&marker_path, content).unwrap();
