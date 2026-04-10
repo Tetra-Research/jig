@@ -4,6 +4,7 @@ version = "0.1.0"
 edition = "2024"
 description = "Template rendering CLI for LLM code generation workflows"
 license = "MIT"
+repository = "https://github.com/Tetra-Research/jig"
 
 [[bin]]
 name = "jig"

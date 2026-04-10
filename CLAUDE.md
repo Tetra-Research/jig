@@ -85,8 +85,8 @@ jig render <template> --vars '...'  # Render a single template
 jig validate <recipe>               # Check recipe is well-formed
 jig vars <recipe>                   # Show expected variables (JSON)
 jig workflow <name> --vars '...'    # Run a multi-recipe workflow
-jig scan <recipe> <path>            # Reverse-extract variables from existing code
-jig check <recipe> <path>           # Conformance verification
+jig scan <recipe> <path>            # Reverse-extract variables from existing code (planned)
+jig check <recipe> <path>           # Conformance verification (planned)
 jig library add|remove|update|list  # Manage recipe libraries
 ```
 
@@ -116,12 +116,15 @@ jig library add|remove|update|list  # Manage recipe libraries
 - **Snapshot tests**: `insta` crate for template rendering output.
 - **Agent evals** (`eval/`): End-to-end tests where real LLM agents invoke jig against fixture codebases, scored on assertion pass rate, jig usage, and efficiency vs. baseline. Always run evals in parallel (`PARALLEL=1`, the default in `run-gradient.sh`).
 
-## Slash Commands
+## Marketing Site
 
-- `/review` - Adversarial code review (channels Linus, Hickey, Cantrill, Katz, Klabnik)
-- `/plan-review <path>` - Adversarial review of planning/design docs for contradictions and gaps
-- `/spacex [path]` - Apply The Algorithm to simplify code (Question, Delete, Simplify, Accelerate, Automate)
-- `/clean-copy` - Rewrite branch with clean, narrative commit history
+The landing page lives in `site/index.html` and is hosted on Cloudflare Pages at **jig.tetraresearch.io**.
+
+```bash
+./scripts/deploy-site.sh        # deploy to production
+```
+
+Requires `wrangler` CLI authenticated via `wrangler login`. The Pages project is `tetra-jig` under the personal Cloudflare account.
 
 ## Roadmap Reference
 

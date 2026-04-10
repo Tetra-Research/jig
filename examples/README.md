@@ -13,18 +13,18 @@ Each example is intended to be understandable on its own and includes:
 
 ## Example Index
 
-1. [`add-service-test`](/Users/tylerobriant/code/tetra/jig/examples/add-service-test)
-2. [`structured-logging-contract`](/Users/tylerobriant/code/tetra/jig/examples/structured-logging-contract)
-3. [`view-contract-enforcer`](/Users/tylerobriant/code/tetra/jig/examples/view-contract-enforcer)
-4. [`query-layer-discipline`](/Users/tylerobriant/code/tetra/jig/examples/query-layer-discipline)
-5. [`schema-migration-safety`](/Users/tylerobriant/code/tetra/jig/examples/schema-migration-safety)
+1. [`add-service-test`](./add-service-test)
+2. [`structured-logging-contract`](./structured-logging-contract)
+3. [`view-contract-enforcer`](./view-contract-enforcer)
+4. [`query-layer-discipline`](./query-layer-discipline)
+5. [`schema-migration-safety`](./schema-migration-safety)
 
 ## TypeScript Example Index
 
-1. [`typescript-create-model`](/Users/tylerobriant/code/tetra/jig/examples/typescript-create-model)
-2. [`typescript-update-model`](/Users/tylerobriant/code/tetra/jig/examples/typescript-update-model)
-3. [`typescript-create-endpoint-workflow`](/Users/tylerobriant/code/tetra/jig/examples/typescript-create-endpoint-workflow)
-4. [`typescript-update-endpoint-workflow`](/Users/tylerobriant/code/tetra/jig/examples/typescript-update-endpoint-workflow)
+1. [`typescript-create-model`](./typescript-create-model)
+2. [`typescript-update-model`](./typescript-update-model)
+3. [`typescript-create-endpoint-workflow`](./typescript-create-endpoint-workflow)
+4. [`typescript-update-endpoint-workflow`](./typescript-update-endpoint-workflow)
 
 ## Common Conventions
 

@@ -249,39 +249,9 @@ Per trial, the head-to-head runner captures:
 - raw init/result events
 - optional thinking text when enabled
 
-### Current Result Snapshot
+### Results
 
-Current replicated head-to-head baseline:
-
-- run: [`eval/results/head2head-pairs-r25-20260409.jsonl`](eval/results/head2head-pairs-r25-20260409.jsonl)
-- scope: `5 scenarios x 3 reps x 2 arms = 30 trials`
-- outcome: both arms passed all `15/15` scenario/rep pairs
-
-Aggregate jig deltas versus control across the full run:
-
-- score delta: `0.000`
-- total tokens: `-1,463,345`
-- total cost: `-$4.0582`
-- total duration: `-193,621 ms`
-- tool calls: `-85`
-
-Average per pair:
-
-- about `97.6k` fewer tokens
-- about `$0.27` cheaper
-- about `12.9s` faster
-- about `5.7` fewer tool calls
-
-Read we can defend today:
-
-- for `4/5` routine backend patterns, jig was cheaper and faster at equal correctness
-- `structured-logging-contract` remained the honest exception: correctness parity, but neutral-to-worse efficiency in some runs
-- the current claim is intentionally narrow: `jig` helps most on routine, shape-constrained backend edits
-
-Relevant review notes:
-
-- adversarial harness review: [`eval/results/head2head-r11-20260409-adversarial-review.md`](eval/results/head2head-r11-20260409-adversarial-review.md)
-- structured-logging multi-run review: [`eval/results/head2head-structured-logging-r20-r24-review-20260409.md`](eval/results/head2head-structured-logging-r20-r24-review-20260409.md)
+Head-to-head benchmarks show 45% fewer tokens and 41% lower cost at equal correctness across 5 routine backend scenarios. Details in [`eval/results/README.md`](eval/results/README.md).
 
 Run the head-to-head suite:
 
